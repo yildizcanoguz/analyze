@@ -40,17 +40,24 @@
     .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
     .badge { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; }
 
-    .panelBox{
-      display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;
+    .panelBox{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+    .panelGrid{ display:grid; grid-template-columns: 190px 160px; gap:8px 10px; align-items:center; }
+    .panelGrid input, .panelGrid select{
+      padding:8px; border:1px solid #d1d5db; border-radius:10px; background:#fff;
     }
-    .panelGrid{
-      display:grid; grid-template-columns: 180px 140px; gap:8px 10px; align-items:center;
+
+    .card {
+      border:1px solid #e5e7eb; border-radius:14px; padding:12px;
+      background:#fff; min-width: 320px;
     }
-    .panelGrid input{
-      padding:8px; border:1px solid #d1d5db; border-radius:10px;
-    }
+    .card h3 { margin:0 0 8px; font-size:13px; }
+    .kv { display:grid; grid-template-columns: 1fr 1fr; gap:6px 10px; align-items:center; font-size:12px; }
+    .kv div:nth-child(odd) { color:#6b7280; }
+    .kv div:nth-child(even) { font-weight:700; text-align:right; }
+    .small { font-size:12px; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <h1>MASTER DQE</h1>
@@ -98,6 +105,8 @@
       </tfoot>
     </table>
 
+    <datalist id="dqeArtList"></datalist>
+
     <p class="muted" style="margin:10px 0 0;">
       Filtre açıkken eşleşen satırlar highlight olur. DQE’de filtre açıkken seriler otomatik açık görünür.
     </p>
@@ -120,7 +129,17 @@
     const gtEuro = document.getElementById("gtEuro");
     const gtEqv = document.getElementById("gtEqv");
 
+    const dqeArtList = document.getElementById("dqeArtList");
+
     let currentView = "dqe";
+
+    // Tek sheet var şimdilik
+    const sheet = costSheets[0];
+
+    // COST ekranında seçilen poz
+    const LS_KEY = "selected_poz_art_v1";
+    let selectedPozArt = localStorage.getItem(LS_KEY) || ""; // örn: C3.1
+    let selectedPozColumn = localStorage.getItem("selected_poz_col_v1") || "dzdEqv"; // dzd | dzdEqv | euro
 
     // -----------------------
     // Helpers
@@ -173,6 +192,25 @@
     }
 
     // -----------------------
+    // DQE list / lookup
+    // -----------------------
+    const dqeRows = dqe.filter(x => x.type === "row");
+    const dqeByArt = new Map(dqeRows.map(r => [String(r.art).trim(), r]));
+
+    function fillDatalist() {
+      // datalist: "C3.1 — Déblai meuble mis en remblai"
+      dqeArtList.innerHTML = "";
+      const rowsSorted = [...dqeRows].sort((a,b)=>cmpArt(a.art,b.art));
+      for (const r of rowsSorted) {
+        const opt = document.createElement("option");
+        opt.value = r.art;
+        opt.label = `${r.art} — ${r.description}`;
+        dqeArtList.appendChild(opt);
+      }
+    }
+    fillDatalist();
+
+    // -----------------------
     // DQE grouping (level1 collapsible)
     // -----------------------
     function buildGroups(items) {
@@ -221,8 +259,6 @@
     // -----------------------
     // COST helpers
     // -----------------------
-    const sheet = costSheets[0];
-
     function calcMachineTotal(line) {
       return Number(line.miktar || 0) * Number(line.adet || 0) * Number(line.birimFiyatDzd || 0);
     }
@@ -239,7 +275,7 @@
       const sortArt = sortArtEl.checked;
 
       // Grand totals (full data)
-      const allRows = dqe.filter(x => x.type === "row");
+      const allRows = dqeRows;
       const gtd = sumCol(allRows, "dzd");
       const gte = sumCol(allRows, "euro");
       const gtq = sumCol(allRows, "dzdEqv");
@@ -277,10 +313,6 @@
         const tdH = document.createElement("td");
         tdH.colSpan = 6;
 
-        const matchCount = needle
-          ? [...matchedRowsByBlock.values()].reduce((a, arr) => a + arr.length, 0)
-          : null;
-
         // Subtotal (full group)
         const gRows = groupAllRows(g);
         const subDzd = sumCol(gRows, "dzd");
@@ -292,7 +324,6 @@
             <span class="caret">${collapsed ? "▶" : "▼"}</span>
             <span>${highlight(headerLabel, needle)}</span>
             <span class="right">
-              ${needle ? `<span class="badge">${matchCount} eşleşme</span>` : ""}
               <span class="badge">${fmt(subDzd)} DZD | ${fmt(subEuro)} €</span>
             </span>
           </div>
@@ -377,13 +408,13 @@
     }
 
     // -----------------------
-    // Render COST (Makina & İşçilik)
+    // Render COST (Makina & İşçilik + POZ çekme)
     // -----------------------
     function renderCOST() {
       const needle = q.value.trim();
       const needleLower = needle.toLowerCase();
 
-      // DQE özel butonlar bu ekranda kapansın
+      // DQE butonları bu ekranda pasif
       expandAllBtn.disabled = true;
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
@@ -393,17 +424,30 @@
 
       const makinaTotal = sheet.makina.reduce((a, x) => a + calcMachineTotal(x), 0);
       const iscilikTotal = sheet.iscilik.reduce((a, x) => a + calcLaborDayTotal(x), 0);
-      const grand = makinaTotal + iscilikTotal;
+      const dailyTotalCost = makinaTotal + iscilikTotal;
 
-      // Footer (bu ekranda euro/eqv yok)
-      gtDzd.textContent = `${fmt(grand)} DZD`;
+      const dailyM3 = Number(p.daily_excavation_m3 || 0);
+      const internalUnitCost = dailyM3 > 0 ? (dailyTotalCost / dailyM3) : 0; // DZD / m3
+
+      // Seçili POZ verisi
+      const poz = dqeByArt.get(String(selectedPozArt).trim()) || null;
+
+      // POZ "seçilen kolon" değeri
+      const pozValue = poz ? (poz[selectedPozColumn] ?? null) : null;
+
+      // karşılaştırma
+      const diff = (pozValue != null) ? (Number(pozValue) - internalUnitCost) : null;
+      const diffPct = (pozValue != null && Number(pozValue) !== 0) ? (diff / Number(pozValue) * 100) : null;
+
+      // Footer (cost ekranında euro/eqv yok)
+      gtDzd.textContent = `${fmt(dailyTotalCost)} DZD`;
       gtEuro.textContent = `-`;
       gtEqv.textContent = `-`;
-      grandChip.textContent = `Toplam: ${fmt(grand)} DZD`;
+      grandChip.textContent = `Günlük toplam: ${fmt(dailyTotalCost)} DZD | Birim maliyet: ${fmt(internalUnitCost)} DZD/m³`;
 
       tbody.innerHTML = "";
 
-      // Panel row
+      // Panel row (Ölçü Birimi + Poz seçimi + Birim maliyet kartı)
       const panelTr = document.createElement("tr");
       panelTr.className = "serie";
       const panelTd = document.createElement("td");
@@ -430,10 +474,52 @@
             <div style="font-weight:900;">${fmt(totalKm)} km</div>
           </div>
 
+          <div class="card">
+            <h3>POZ seç → DQE’den çek</h3>
+            <div class="small muted" style="margin-bottom:8px;">
+              Örn: C3.1, C4.3, C9.1...
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+              <input id="pozInput" list="dqeArtList" placeholder="ART yaz/ seç (örn C3.1)" value="${esc(selectedPozArt)}"
+                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; min-width:180px;" />
+
+              <select id="pozCol" style="padding:8px;border:1px solid #d1d5db;border-radius:10px;">
+                <option value="dzd" ${selectedPozColumn==="dzd"?"selected":""}>POZ fiyat: DZD</option>
+                <option value="dzdEqv" ${selectedPozColumn==="dzdEqv"?"selected":""}>POZ fiyat: DZDéqv</option>
+                <option value="euro" ${selectedPozColumn==="euro"?"selected":""}>POZ fiyat: Euro</option>
+              </select>
+            </div>
+
+            <div class="kv">
+              <div>Seçili POZ</div>
+              <div>${poz ? esc(poz.art) : "-"}</div>
+
+              <div>Açıklama</div>
+              <div style="text-align:right; font-weight:600;">${poz ? esc(poz.description) : "-"}</div>
+
+              <div>UM</div>
+              <div>${poz ? esc(poz.um) : "-"}</div>
+
+              <div>POZ birim fiyat</div>
+              <div>${pozValue != null ? fmt(pozValue) : "-"}</div>
+
+              <div>Senin birim maliyet</div>
+              <div>${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³</div>
+
+              <div>Fark (POZ - maliyet)</div>
+              <div>${diff != null ? fmt(diff) : "-"}</div>
+
+              <div>Fark (%)</div>
+              <div>${diffPct != null ? fmt(diffPct) + "%" : "-"}</div>
+            </div>
+          </div>
+
           <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap;">
             <span class="badge">Makina: ${fmt(makinaTotal)} DZD</span>
             <span class="badge">İşçilik: ${fmt(iscilikTotal)} DZD</span>
-            <span class="badge">Toplam: ${fmt(grand)} DZD</span>
+            <span class="badge">Günlük: ${fmt(dailyTotalCost)} DZD</span>
+            <span class="badge">Birim: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³</span>
           </div>
         </div>
       `;
@@ -447,6 +533,22 @@
           sheet.unitPanel[k] = Number(inp.value);
           render(); // refresh
         });
+      });
+
+      // poz input listeners
+      const pozInput = panelTd.querySelector("#pozInput");
+      const pozCol = panelTd.querySelector("#pozCol");
+
+      pozInput.addEventListener("input", () => {
+        selectedPozArt = pozInput.value.trim();
+        localStorage.setItem(LS_KEY, selectedPozArt);
+        render();
+      });
+
+      pozCol.addEventListener("change", () => {
+        selectedPozColumn = pozCol.value;
+        localStorage.setItem("selected_poz_col_v1", selectedPozColumn);
+        render();
       });
 
       // Sections
@@ -554,7 +656,6 @@
 
     viewSel.addEventListener("change", () => {
       currentView = viewSel.value;
-      // DQE’de collapse butonları aktif, COST’ta pasif
       render();
     });
 
