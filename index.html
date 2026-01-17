@@ -5,159 +5,373 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MASTER DQE</title>
   <style>
-    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial; background:#f4f6f8; margin:0; padding:16px; color:#222; }
-    .wrap { max-width: 1200px; margin: 0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.05); }
-    h1 { margin:0 0 12px; font-size:20px; }
+    :root{
+      --bg:#f5f7fb;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --text:#111827;
+      --line:#e5e7eb;
+      --line2:#eef2f7;
+      --soft:#f9fafb;
+      --accent:#111827;
+      --warn:#b45309;
 
-    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 10px 0 14px; }
-    input[type="text"] { padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; min-width:320px; }
-    select, .btn { padding:10px 12px; border:1px solid #d1d5db; background:#fff; border-radius:10px; cursor:pointer; }
-    .btn:hover, select:hover { background:#f9fafb; }
-    .chip { padding:8px 10px; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-size:12px; color:#374151; }
-    label { display:flex; gap:8px; align-items:center; user-select:none; }
-    .muted { color:#6b7280; }
+      --r:16px;
+      --r2:12px;
 
-    table { width:100%; border-collapse: collapse; font-size: 13px; }
-    thead th { position: sticky; top: 0; background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:10px; text-align:left; z-index:2; }
-    tbody td, tfoot td { border-bottom:1px solid #eef2f7; padding:10px; vertical-align: top; }
-    tbody tr:hover td { background:#fcfcfd; }
-
-    .num { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
-    .art { white-space:nowrap; font-weight:600; }
-    mark { padding:0 2px; border-radius:4px; background:#ffe08a; }
-
-    .serie td { background:#fff7d6; font-weight:800; border-bottom:1px solid #f1e3a6; }
-    .subsection td { background:#fff2bf; font-weight:700; border-bottom:1px solid #f1e3a6; }
-    .subtotal td { background:#f3f4f6; font-weight:700; }
-
-    tfoot td { background:#111827; color:#fff; font-weight:800; border-bottom:none; }
-
-    .toggle { display:flex; align-items:center; gap:10px; }
-    .caret {
-      width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center;
-      border:1px solid #e5e7eb; border-radius:6px; background:#fff; font-size:12px;
-    }
-    .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
-    .badge { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; }
-
-    /* COST UI */
-    .panelBox{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
-    .panelGrid{ display:grid; grid-template-columns: 190px 160px; gap:8px 10px; align-items:center; }
-    .panelGrid input, .panelGrid select{
-      padding:8px; border:1px solid #d1d5db; border-radius:10px; background:#fff;
+      --h:40px;           /* input/select height */
+      --pad:12px;
+      --shadow: 0 14px 40px rgba(17,24,39,.08);
+      --shadow2: 0 10px 24px rgba(17,24,39,.06);
     }
 
-    .card {
-      border:1px solid #e5e7eb; border-radius:14px; padding:12px;
-      background:#fff; min-width: 380px;
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; padding:18px;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+      background:var(--bg); color:var(--text);
     }
-    .card h3 { margin:0 0 8px; font-size:13px; }
 
-    .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-    .chipItem {
+    .app{
+      max-width:1280px; margin:0 auto;
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--r);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    .topbar{
+      padding:16px 16px 10px;
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg,#ffffff, #fbfcfe);
+    }
+    .title{
+      font-weight:900; letter-spacing:.2px;
+      font-size:18px;
+      margin-right:8px;
+    }
+    .grow{ flex:1; }
+
+    .ctrlRow{
+      padding:12px 16px;
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      border-bottom:1px solid var(--line2);
+      background:var(--soft);
+    }
+
+    .input, .select, .btn{
+      height:var(--h);
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#fff;
+      padding:0 12px;
+      font-size:13px;
+      outline:none;
+    }
+    .input{ min-width: 320px; }
+    .select{ min-width: 190px; }
+    .input:focus, .select:focus{ border-color:#c7ccd6; box-shadow:0 0 0 4px rgba(17,24,39,.06); }
+
+    .btn{
+      cursor:pointer;
+      font-weight:700;
+      background:#fff;
+    }
+    .btn:hover{ background:#f3f4f6; }
+    .btn.primary{
+      background:var(--accent); color:#fff; border-color:var(--accent);
+    }
+    .btn.primary:hover{ filter:brightness(.95); }
+
+    .pill{
+      height:var(--h);
       display:inline-flex; align-items:center; gap:8px;
-      border:1px solid #e5e7eb; background:#f9fafb; border-radius:999px;
-      padding:6px 10px; font-size:12px;
+      padding:0 12px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-size:12px;
+      color:#374151;
+      white-space:nowrap;
+    }
+
+    /* Table */
+    .tableWrap{ width:100%; overflow:auto; }
+    table{ width:100%; border-collapse:collapse; font-size:13px; }
+    thead th{
+      position:sticky; top:0; z-index:2;
+      background:#ffffff;
+      border-bottom:1px solid var(--line);
+      padding:12px 10px;
+      text-align:left;
+      color:#374151;
+      font-size:12px;
+      letter-spacing:.2px;
+    }
+    tbody td, tfoot td{ border-bottom:1px solid var(--line2); padding:12px 10px; vertical-align:top; }
+    tbody tr:hover td{ background:#fcfcfd; }
+
+    tfoot td{
+      background:#0b1220; color:#fff; font-weight:900;
+      border-bottom:none;
+    }
+
+    .num{ text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+    .art{ font-weight:900; white-space:nowrap; }
+    mark{ background:#ffe08a; padding:0 2px; border-radius:6px; }
+
+    /* DQE headers */
+    .serie td{
+      background:#fff7d6;
+      font-weight:900;
+      border-bottom:1px solid #f1e3a6;
+    }
+    .subsection td{
+      background:#fff2bf;
+      font-weight:800;
+      border-bottom:1px solid #f1e3a6;
+    }
+    .subtotal td{
+      background:#f3f4f6;
+      font-weight:900;
+    }
+
+    /* Toggle */
+    .toggle{
+      display:flex; align-items:center; gap:10px;
+      user-select:none;
+    }
+    .caret{
+      width:22px; height:22px;
+      border-radius:8px;
+      border:1px solid var(--line);
+      display:inline-flex; align-items:center; justify-content:center;
+      background:#fff;
+      font-size:12px;
+    }
+    .toggleRight{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+
+    .badge{
+      display:inline-flex; align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-size:12px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    /* COST layout */
+    .panel{
+      display:grid;
+      grid-template-columns: 1.1fr 1.2fr 0.9fr;
+      gap:12px;
+      align-items:start;
+    }
+    @media (max-width: 1050px){
+      .panel{ grid-template-columns:1fr; }
+      .input{ min-width: 220px; width:100%; }
+      .select{ width:100%; }
+    }
+
+    .card{
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:var(--r2);
+      box-shadow:var(--shadow2);
+      padding:12px;
+    }
+    .card h3{
+      margin:0 0 10px;
+      font-size:13px;
+      font-weight:900;
+    }
+    .gridForm{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      align-items:center;
+    }
+    .gridForm .label{ font-size:12px; color:var(--muted); }
+    .gridForm .val{ font-weight:900; text-align:right; }
+    .mini{ font-size:12px; color:var(--muted); }
+
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .chipItem{
+      display:inline-flex; align-items:center; gap:10px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-size:12px;
+      font-weight:800;
     }
     .chipItem button{
-      border:none; background:transparent; cursor:pointer; font-weight:900; line-height:1;
+      width:22px; height:22px;
+      border-radius:8px;
+      border:1px solid var(--line);
+      background:#fff;
+      cursor:pointer;
+      font-weight:900;
+      line-height:1;
+    }
+    .chipItem button:hover{ background:#f3f4f6; }
+
+    /* POZ cards */
+    .pozCard{
+      border:1px solid var(--line);
+      border-radius:var(--r);
+      background:#fff;
+      box-shadow:var(--shadow2);
+      padding:12px;
+      margin: 12px 0;
+    }
+    .pozTop{
+      display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;
+    }
+    .pozTop .desc{ color:var(--muted); font-size:12px; line-height:1.3; }
+    .pozTop .right{
+      margin-left:auto;
+      display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;
+    }
+    .warn{ color:var(--warn); font-weight:900; }
+
+    .pozActions{
+      margin-top:10px;
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      padding:10px;
+      border-radius:12px;
+      background:var(--soft);
+      border:1px solid var(--line2);
+    }
+    .pozActions .inputSmall{
+      height:var(--h);
+      width:160px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      padding:0 12px;
+      outline:none;
+      font-weight:800;
     }
 
-    .pozCard{
-      border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#fff;
-      margin-top:10px;
+    .twoCols{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      align-items:start;
     }
-    .pozHeader{
+    @media (max-width: 900px){
+      .twoCols{ grid-template-columns:1fr; }
+    }
+
+    .box{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+    }
+    .boxTitle{
+      font-weight:900;
+      margin-bottom:10px;
       display:flex; gap:10px; align-items:center; flex-wrap:wrap;
     }
-    .pozHeader .title{ font-weight:900; }
-    .pozHeader .mini{ font-size:12px; color:#6b7280; }
-    .pozHeader .rightSide{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
-    .grid2{
-      display:grid; grid-template-columns: 1fr 1fr; gap:10px;
-      margin-top:10px;
-    }
-    .box{
-      border:1px solid #eef2f7; border-radius:12px; padding:10px; background:#fcfcfd;
-    }
-    .boxTitle{ font-weight:800; margin-bottom:6px; }
-    .rowLine{
+    .rowHead, .rowLine{
       display:grid;
-      grid-template-columns: 1.6fr 0.6fr 0.6fr 0.9fr 0.9fr 40px;
-      gap:6px; align-items:center;
-      margin:6px 0;
-      font-size:12px;
-    }
-    .rowLine input{
-      width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:10px; background:#fff;
-      font-size:12px;
-    }
-    .rowLine .xbtn{
-      border:1px solid #e5e7eb; border-radius:10px; background:#fff; cursor:pointer;
-      height:30px;
+      grid-template-columns: 1.6fr .65fr .65fr .8fr .9fr 40px;
+      gap:8px;
+      align-items:center;
     }
     .rowHead{
-      display:grid;
-      grid-template-columns: 1.6fr 0.6fr 0.6fr 0.9fr 0.9fr 40px;
-      gap:6px; font-size:11px; color:#6b7280; margin-top:6px;
+      font-size:11px;
+      color:var(--muted);
+      margin-bottom:8px;
+      padding:0 2px;
     }
-    .warn { color:#b45309; font-weight:800; }
+    .rowLine input{
+      height:36px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      padding:0 10px;
+      font-size:12px;
+      outline:none;
+      background:#fff;
+    }
+    .rowLine input:focus{ border-color:#c7ccd6; box-shadow:0 0 0 4px rgba(17,24,39,.06); }
+    .xbtn{
+      height:36px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#fff;
+      cursor:pointer;
+      font-weight:900;
+    }
+    .xbtn:hover{ background:#f3f4f6; }
+
+    .lineTotal{
+      margin:6px 0 10px;
+      font-size:11px;
+      color:var(--muted);
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <h1>MASTER DQE</h1>
+  <div class="app">
+    <div class="topbar">
+      <div class="title">MASTER DQE</div>
+      <div class="grow"></div>
+      <div class="pill" id="grandChip">—</div>
+    </div>
 
-    <div class="toolbar">
-      <select id="viewSel">
+    <div class="ctrlRow">
+      <select class="select" id="viewSel">
         <option value="dqe">DQE</option>
         <option value="cost">Makina & İşçilik</option>
       </select>
 
-      <input id="q" type="text" placeholder="Hızlı filtre (ART / açıklama / UM / fiyat)…" />
+      <input class="input" id="q" type="text" placeholder="Hızlı filtre (ART / açıklama / UM / fiyat)…" />
       <button class="btn" id="clearBtn">Temizle</button>
 
       <button class="btn" id="expandAll">Tümünü Aç</button>
       <button class="btn" id="collapseAll">Tümünü Kapat</button>
 
-      <label class="chip" title="DQE ekranında: ART’a göre sıralama (her alt başlık içinde)">
+      <label class="pill" style="cursor:pointer;">
         <input type="checkbox" id="sortArt" />
         ART’a göre sırala
       </label>
 
-      <span class="chip" id="count"></span>
-      <span class="chip" id="grandChip"></span>
+      <div class="pill" id="count">—</div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th style="width:140px">ART</th>
-          <th>DESCRIPTION</th>
-          <th style="width:90px">UM</th>
-          <th class="num" style="width:170px">DZD</th>
-          <th class="num" style="width:140px">Euro</th>
-          <th class="num" style="width:190px">DZDéqv</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-      <tfoot>
-        <tr>
-          <td colspan="3">GRAND TOTAL</td>
-          <td class="num" id="gtDzd"></td>
-          <td class="num" id="gtEuro"></td>
-          <td class="num" id="gtEqv"></td>
-        </tr>
-      </tfoot>
-    </table>
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:140px">ART</th>
+            <th>DESCRIPTION</th>
+            <th style="width:90px">UM</th>
+            <th class="num" style="width:170px">DZD</th>
+            <th class="num" style="width:140px">Euro</th>
+            <th class="num" style="width:190px">DZDéqv</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">GRAND TOTAL</td>
+            <td class="num" id="gtDzd"></td>
+            <td class="num" id="gtEuro"></td>
+            <td class="num" id="gtEqv"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
 
     <datalist id="dqeArtList"></datalist>
-
-    <p class="muted" style="margin:10px 0 0;">
-      Filtre açıkken eşleşen satırlar highlight olur. DQE’de filtre açıkken seriler otomatik açık görünür.
-    </p>
   </div>
 
   <script type="module">
@@ -176,28 +390,18 @@
     const gtDzd = document.getElementById("gtDzd");
     const gtEuro = document.getElementById("gtEuro");
     const gtEqv = document.getElementById("gtEqv");
-
     const dqeArtList = document.getElementById("dqeArtList");
 
     let currentView = "dqe";
-    const sheet = costSheets[0]; // şimdilik tek sheet
+    const sheet = costSheets[0];
 
-    // -----------------------
-    // Formatting helpers
-    // -----------------------
     const fmt = (v) => {
       if (v === null || v === undefined || Number.isNaN(Number(v))) return "-";
       return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v));
     };
-
-    function esc(s) {
-      return (s ?? "").toString()
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
+    const esc = (s) => (s ?? "").toString()
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 
     function highlight(text, needle) {
       const t = (text ?? "").toString();
@@ -205,13 +409,9 @@
       const n = needle.toLowerCase();
       const idx = t.toLowerCase().indexOf(n);
       if (idx === -1) return esc(t);
-      const before = t.slice(0, idx);
-      const mid = t.slice(idx, idx + needle.length);
-      const after = t.slice(idx + needle.length);
-      return `${esc(before)}<mark>${esc(mid)}</mark>${esc(after)}`;
+      return `${esc(t.slice(0,idx))}<mark>${esc(t.slice(idx, idx+needle.length))}</mark>${esc(t.slice(idx+needle.length))}`;
     }
 
-    // ART compare (A2.10 > A2.2)
     function artKey(art) {
       const s = (art || "").trim();
       const m = s.match(/^([A-Za-z]+)\s*(.*)$/);
@@ -224,7 +424,7 @@
       const ka = artKey(a), kb = artKey(b);
       if (ka.letters !== kb.letters) return ka.letters < kb.letters ? -1 : 1;
       const len = Math.max(ka.nums.length, kb.nums.length);
-      for (let i = 0; i < len; i++) {
+      for (let i=0;i<len;i++){
         const na = ka.nums[i] ?? -1;
         const nb = kb.nums[i] ?? -1;
         if (na !== nb) return na - nb;
@@ -232,9 +432,7 @@
       return 0;
     }
 
-    // -----------------------
-    // DQE data lookup
-    // -----------------------
+    // DQE index
     const dqeRows = dqe.filter(x => x.type === "row");
     const dqeByArt = new Map(dqeRows.map(r => [String(r.art).trim(), r]));
 
@@ -250,9 +448,6 @@
     }
     fillDatalist();
 
-    // -----------------------
-    // DQE grouping (collapse)
-    // -----------------------
     function buildGroups(items) {
       const groups = [];
       let current = null;
@@ -290,22 +485,18 @@
       return parts.map(x => (x ?? "").toString().toLowerCase()).join(" | ");
     }
 
-    // -----------------------
-    // COST state (multi poz + lines)
-    // -----------------------
+    // COST state
     const LS_STATE = "cost_state_v2";
     const defaultState = () => ({
-      pozCol: "dzdEqv",          // dzd | dzdEqv | euro
-      pozList: [],              // ["C3.1", "C4.3"]
-      unitPanel: {              // editable
+      pozCol: "dzdEqv",
+      pozList: [],
+      unitPanel: {
         daily_excavation_m3: sheet.unitPanel?.daily_excavation_m3 ?? 2700,
         trip_km_loaded_empty: sheet.unitPanel?.trip_km_loaded_empty ?? 10,
         bucket_volume_m3: sheet.unitPanel?.bucket_volume_m3 ?? 9,
         trip_count: sheet.unitPanel?.trip_count ?? 15
       },
-      poz: {                    // per-poz config
-        // "C3.1": { production: 2700, machines: [...], labor:[...] }
-      }
+      poz: {}
     });
 
     let costState = (() => {
@@ -313,7 +504,6 @@
         const raw = localStorage.getItem(LS_STATE);
         if (!raw) return defaultState();
         const obj = JSON.parse(raw);
-        // simple guard
         if (!obj || typeof obj !== "object") return defaultState();
         obj.pozList = Array.isArray(obj.pozList) ? obj.pozList : [];
         obj.poz = obj.poz && typeof obj.poz === "object" ? obj.poz : {};
@@ -323,200 +513,144 @@
       } catch { return defaultState(); }
     })();
 
-    function saveCostState() {
-      localStorage.setItem(LS_STATE, JSON.stringify(costState));
-    }
-
-    function ensurePoz(art) {
-      const a = String(art || "").trim();
+    function saveCostState(){ localStorage.setItem(LS_STATE, JSON.stringify(costState)); }
+    function ensurePoz(art){
+      const a = String(art||"").trim();
       if (!a) return null;
-      if (!costState.poz[a]) {
-        costState.poz[a] = {
-          production: Number(costState.unitPanel.daily_excavation_m3 || 0),
-          machines: [],
-          labor: []
-        };
+      if (!costState.poz[a]){
+        costState.poz[a] = { production: Number(costState.unitPanel.daily_excavation_m3 || 0), machines: [], labor: [] };
       }
       return costState.poz[a];
     }
-
-    function addPoz(art) {
-      const a = String(art || "").trim();
+    function addPoz(art){
+      const a = String(art||"").trim();
       if (!a) return;
-      if (!costState.pozList.includes(a)) {
+      if (!costState.pozList.includes(a)){
         costState.pozList.push(a);
         costState.pozList.sort((x,y)=>cmpArt(x,y));
         ensurePoz(a);
         saveCostState();
       }
     }
-
-    function removePoz(art) {
-      const a = String(art || "").trim();
-      costState.pozList = costState.pozList.filter(x => x !== a);
-      // poz detayını silmiyoruz (istersen sileriz)
+    function removePoz(art){
+      const a = String(art||"").trim();
+      costState.pozList = costState.pozList.filter(x=>x!==a);
       saveCostState();
     }
+    function clearPozList(){ costState.pozList = []; saveCostState(); }
 
-    function clearPozList() {
-      costState.pozList = [];
-      saveCostState();
-    }
-
-    // template lists
     const machineTemplates = sheet.makina.map((m, idx) => ({ idx, ...m }));
-    const laborTemplates = sheet.iscilik.map((l, idx) => ({ idx, ...l }));
+    const laborTemplates   = sheet.iscilik.map((l, idx) => ({ idx, ...l }));
+    const makeId = () => "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
 
-    function makeId() {
-      return "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
-    }
-
-    function addMachineLine(pozArt, templateIdx) {
+    function addMachineLine(pozArt, templateIdx){
       const p = ensurePoz(pozArt);
-      if (!p) return;
       const t = machineTemplates.find(x => x.idx === Number(templateIdx));
-      if (!t) return;
-      p.machines.push({
-        id: makeId(),
-        name: t.cinsi,
-        um: t.um,
-        miktar: Number(t.miktar),
-        adet: Number(t.adet),
-        birimFiyatDzd: Number(t.birimFiyatDzd)
-      });
+      if (!p || !t) return;
+      p.machines.push({ id: makeId(), name:t.cinsi, um:t.um, miktar:+t.miktar, adet:+t.adet, birimFiyatDzd:+t.birimFiyatDzd });
       saveCostState();
     }
-
-    function addLaborLine(pozArt, templateIdx) {
+    function addLaborLine(pozArt, templateIdx){
       const p = ensurePoz(pozArt);
-      if (!p) return;
       const t = laborTemplates.find(x => x.idx === Number(templateIdx));
-      if (!t) return;
-      p.labor.push({
-        id: makeId(),
-        grup: t.grup,
-        pozisyon: t.pozisyon,
-        um: t.um,
-        saat: Number(t.saat),
-        adet: Number(t.adet),
-        birimSaatDzd: Number(t.birimSaatDzd),
-        maasDzd: Number(t.maasDzd)
-      });
+      if (!p || !t) return;
+      p.labor.push({ id: makeId(), grup:t.grup, pozisyon:t.pozisyon, um:t.um, saat:+t.saat, adet:+t.adet, birimSaatDzd:+t.birimSaatDzd, maasDzd:+t.maasDzd });
       saveCostState();
     }
-
-    function removeLine(pozArt, type, id) {
+    function removeLine(pozArt, type, id){
       const p = ensurePoz(pozArt);
       if (!p) return;
-      if (type === "m") p.machines = p.machines.filter(x => x.id !== id);
-      if (type === "l") p.labor = p.labor.filter(x => x.id !== id);
+      if (type==="m") p.machines = p.machines.filter(x=>x.id!==id);
+      if (type==="l") p.labor    = p.labor.filter(x=>x.id!==id);
       saveCostState();
     }
-
-    function machineLineTotal(x) {
-      return Number(x.miktar||0) * Number(x.adet||0) * Number(x.birimFiyatDzd||0);
-    }
-    function laborLineTotal(x) {
-      return Number(x.saat||0) * Number(x.adet||0) * Number(x.birimSaatDzd||0);
-    }
-
-    function pozTotals(pozArt) {
+    const machineLineTotal = (x)=> (+x.miktar||0) * (+x.adet||0) * (+x.birimFiyatDzd||0);
+    const laborLineTotal   = (x)=> (+x.saat||0) * (+x.adet||0) * (+x.birimSaatDzd||0);
+    function pozTotals(pozArt){
       const p = ensurePoz(pozArt);
-      const m = p.machines.reduce((a,x)=>a + machineLineTotal(x), 0);
-      const l = p.labor.reduce((a,x)=>a + laborLineTotal(x), 0);
-      const total = m + l;
-      const prod = Number(p.production || 0);
-      const unit = prod > 0 ? (total / prod) : 0;
-      return { m, l, total, prod, unit };
+      const m = p.machines.reduce((a,x)=>a+machineLineTotal(x),0);
+      const l = p.labor.reduce((a,x)=>a+laborLineTotal(x),0);
+      const total = m+l;
+      const prod = +p.production||0;
+      const unit = prod>0 ? total/prod : 0;
+      return {m,l,total,prod,unit};
     }
 
-    // -----------------------
-    // Render DQE view
-    // -----------------------
-    function renderDQE() {
+    // DQE view
+    function renderDQE(){
       const needle = q.value.trim();
-      const needleLower = needle.toLowerCase();
+      const nl = needle.toLowerCase();
       const sortArt = sortArtEl.checked;
 
-      const allRows = dqeRows;
-      const gtd = sumCol(allRows, "dzd");
-      const gte = sumCol(allRows, "euro");
-      const gtq = sumCol(allRows, "dzdEqv");
+      const gtd = sumCol(dqeRows, "dzd");
+      const gte = sumCol(dqeRows, "euro");
+      const gtq = sumCol(dqeRows, "dzdEqv");
 
       gtDzd.textContent = `${fmt(gtd)} DZD`;
       gtEuro.textContent = `${fmt(gte)} €`;
       gtEqv.textContent = `${fmt(gtq)} DZD`;
       grandChip.textContent = `Grand: ${fmt(gtd)} DZD | ${fmt(gte)} € | ${fmt(gtq)} DZD`;
 
-      tbody.innerHTML = "";
-      let visibleRowCount = 0;
+      tbody.innerHTML="";
+      let visible = 0;
 
-      for (const g of dqeGroups) {
+      for (const g of dqeGroups){
         const headerLabel = g.header?.label ?? "";
 
         let groupMatches = false;
         const matchedRowsByBlock = new Map();
 
-        if (needle) {
-          if (headerLabel.toLowerCase().includes(needleLower)) groupMatches = true;
-
-          for (const b of g.blocks) {
-            const matched = b.items.filter(it => it.type === "row" && searchableRowText(it).includes(needleLower));
-            if (matched.length) { groupMatches = true; matchedRowsByBlock.set(b, matched); }
+        if (needle){
+          if (headerLabel.toLowerCase().includes(nl)) groupMatches = true;
+          for (const b of g.blocks){
+            const matched = b.items.filter(it => it.type==="row" && searchableRowText(it).includes(nl));
+            if (matched.length){ groupMatches=true; matchedRowsByBlock.set(b, matched); }
           }
           if (!groupMatches) continue;
         }
 
         const collapsed = needle ? false : g.collapsed;
 
-        const trH = document.createElement("tr");
-        trH.className = "serie";
-        const tdH = document.createElement("td");
-        tdH.colSpan = 6;
-
         const gRows = groupAllRows(g);
         const subDzd = sumCol(gRows, "dzd");
         const subEuro = sumCol(gRows, "euro");
         const subEqv = sumCol(gRows, "dzdEqv");
 
-        tdH.innerHTML = `
-          <div class="toggle" role="button" tabindex="0" data-gid="${g.id}">
-            <span class="caret">${collapsed ? "▶" : "▼"}</span>
-            <span>${highlight(headerLabel, needle)}</span>
-            <span class="right">
-              <span class="badge">${fmt(subDzd)} DZD | ${fmt(subEuro)} €</span>
-            </span>
-          </div>
+        const trH = document.createElement("tr");
+        trH.className = "serie";
+        trH.innerHTML = `
+          <td colspan="6">
+            <div class="toggle" role="button" tabindex="0" data-gid="${g.id}">
+              <span class="caret">${collapsed ? "▶" : "▼"}</span>
+              <span>${highlight(headerLabel, needle)}</span>
+              <span class="toggleRight">
+                <span class="badge">${fmt(subDzd)} DZD</span>
+                <span class="badge">${fmt(subEuro)} €</span>
+              </span>
+            </div>
+          </td>
         `;
-        trH.appendChild(tdH);
         tbody.appendChild(trH);
-
         if (collapsed) continue;
 
-        for (const b of g.blocks) {
+        for (const b of g.blocks){
           const subHeader = b.subHeader;
-
-          let rowsToRender = b.items.filter(it => it.type === "row");
-          if (needle) {
+          let rowsToRender = b.items.filter(it => it.type==="row");
+          if (needle){
             rowsToRender = matchedRowsByBlock.get(b) ?? [];
             if (!rowsToRender.length) continue;
           }
+          if (sortArt) rowsToRender = [...rowsToRender].sort((x,y)=>cmpArt(x.art,y.art));
 
-          if (sortArt) rowsToRender = [...rowsToRender].sort((x, y) => cmpArt(x.art, y.art));
-
-          if (subHeader) {
+          if (subHeader){
             const trS = document.createElement("tr");
-            trS.className = "subsection";
-            const tdS = document.createElement("td");
-            tdS.colSpan = 6;
-            tdS.innerHTML = highlight(subHeader.label, needle);
-            trS.appendChild(tdS);
+            trS.className="subsection";
+            trS.innerHTML = `<td colspan="6">${highlight(subHeader.label, needle)}</td>`;
             tbody.appendChild(trS);
           }
 
-          for (const r of rowsToRender) {
+          for (const r of rowsToRender){
             const tr = document.createElement("tr");
-
             tr.innerHTML = `
               <td class="art">${highlight(r.art ?? "", needle)}</td>
               <td>${highlight(r.description ?? "", needle)}</td>
@@ -526,13 +660,13 @@
               <td class="num">${highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle)}</td>
             `;
             tbody.appendChild(tr);
-            visibleRowCount++;
+            visible++;
           }
         }
 
-        if (!needle) {
+        if (!needle){
           const trSub = document.createElement("tr");
-          trSub.className = "subtotal";
+          trSub.className="subtotal";
           trSub.innerHTML = `
             <td colspan="3">SUBTOTAL (SERIE)</td>
             <td class="num">${fmt(subDzd)} DZD</td>
@@ -543,24 +677,17 @@
         }
       }
 
-      countEl.textContent = `${visibleRowCount} satır`;
+      countEl.textContent = `${visible} satır`;
     }
 
-    // -----------------------
-    // Render COST view (poz + dropdown lines)
-    // -----------------------
-    function renderCOST() {
+    // COST view
+    function renderCOST(){
       expandAllBtn.disabled = true;
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
 
       tbody.innerHTML = "";
 
-      // header / summary for cost view
-      const p = costState.unitPanel;
-      const totalKm = Number(p.trip_km_loaded_empty||0) * Number(p.trip_count||0);
-
-      // grand summary across selected poz (optional)
       let grandTotal = 0;
       for (const a of costState.pozList) grandTotal += pozTotals(a).total;
 
@@ -569,234 +696,227 @@
       gtEqv.textContent = `-`;
       grandChip.textContent = `POZ toplamları: ${fmt(grandTotal)} DZD`;
 
-      // Top panel row
+      // top panel as a single row (clean)
+      const p = costState.unitPanel;
+      const totalKm = (+p.trip_km_loaded_empty||0) * (+p.trip_count||0);
+
       const trTop = document.createElement("tr");
       trTop.className = "serie";
-      const tdTop = document.createElement("td");
-      tdTop.colSpan = 6;
+      trTop.innerHTML = `
+        <td colspan="6">
+          <div class="panel">
+            <div class="card">
+              <h3>Ölçü birimi (Global)</h3>
+              <div class="gridForm">
+                <div class="label">günlük kazı (m³)</div>
+                <div class="val"><input class="input" style="min-width:0;width:100%;" data-act="setUnit" data-k="daily_excavation_m3" type="number" step="1" value="${esc(p.daily_excavation_m3)}"></div>
 
-      const chipsHtml = costState.pozList.length
-        ? `<div class="chips">
-            ${costState.pozList.map(a => `
-              <span class="chipItem">
-                ${esc(a)}
-                <button type="button" data-act="removePoz" data-art="${esc(a)}" title="Çıkar">×</button>
-              </span>
-            `).join("")}
-          </div>`
-        : `<div class="muted" style="margin-top:6px;">Henüz POZ eklemedin.</div>`;
+                <div class="label">sefer (dolu+boş) /km</div>
+                <div class="val"><input class="input" style="min-width:0;width:100%;" data-act="setUnit" data-k="trip_km_loaded_empty" type="number" step="0.1" value="${esc(p.trip_km_loaded_empty)}"></div>
 
-      tdTop.innerHTML = `
-        <div class="panelBox">
-          <div style="font-weight:900;">ÖLÇÜ BİRİMİ (Global)</div>
+                <div class="label">kasa hacim (m³)</div>
+                <div class="val"><input class="input" style="min-width:0;width:100%;" data-act="setUnit" data-k="bucket_volume_m3" type="number" step="0.1" value="${esc(p.bucket_volume_m3)}"></div>
 
-          <div class="panelGrid">
-            <div>günlük kazı (m³)</div>
-            <input data-act="setUnit" data-k="daily_excavation_m3" type="number" step="1" value="${esc(p.daily_excavation_m3)}" />
+                <div class="label">sefer adet</div>
+                <div class="val"><input class="input" style="min-width:0;width:100%;" data-act="setUnit" data-k="trip_count" type="number" step="1" value="${esc(p.trip_count)}"></div>
 
-            <div>sefer (dolu+boş) /km</div>
-            <input data-act="setUnit" data-k="trip_km_loaded_empty" type="number" step="0.1" value="${esc(p.trip_km_loaded_empty)}" />
-
-            <div>kasa hacim (m³)</div>
-            <input data-act="setUnit" data-k="bucket_volume_m3" type="number" step="0.1" value="${esc(p.bucket_volume_m3)}" />
-
-            <div>sefer adet</div>
-            <input data-act="setUnit" data-k="trip_count" type="number" step="1" value="${esc(p.trip_count)}" />
-
-            <div style="font-weight:800;">toplam km</div>
-            <div style="font-weight:900;">${fmt(totalKm)} km</div>
-          </div>
-
-          <div class="card">
-            <h3>POZ menü: seç → Ekle → listeden çıkar</h3>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-              <input id="pozPick" list="dqeArtList" placeholder="ART seç (örn C3.1)" value=""
-                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; min-width:170px;" />
-              <button class="btn" data-act="addPoz" type="button">Ekle</button>
-              <button class="btn" data-act="clearPoz" type="button">Listeyi temizle</button>
-
-              <select data-act="setPozCol" style="padding:8px;border:1px solid #d1d5db;border-radius:10px;">
-                <option value="dzd" ${costState.pozCol==="dzd"?"selected":""}>POZ fiyat: DZD</option>
-                <option value="dzdEqv" ${costState.pozCol==="dzdEqv"?"selected":""}>POZ fiyat: DZDéqv</option>
-                <option value="euro" ${costState.pozCol==="euro"?"selected":""}>POZ fiyat: Euro</option>
-              </select>
+                <div class="label">toplam km</div>
+                <div class="val">${fmt(totalKm)} km</div>
+              </div>
             </div>
 
-            ${chipsHtml}
-            <div class="muted" style="margin-top:8px;">
-              POZ kartlarının içinde Makina/İşçilik dropdown’dan satır ekleyip manuel düzenle.
+            <div class="card">
+              <h3>POZ seç → ekle</h3>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <input class="input" id="pozPick" list="dqeArtList" placeholder="ART seç (örn C3.1)" value="" style="min-width:200px;">
+                <button class="btn primary" data-act="addPoz" type="button">Ekle</button>
+                <button class="btn" data-act="clearPoz" type="button">Temizle</button>
+                <select class="select" data-act="setPozCol">
+                  <option value="dzd" ${costState.pozCol==="dzd"?"selected":""}>POZ fiyat: DZD</option>
+                  <option value="dzdEqv" ${costState.pozCol==="dzdEqv"?"selected":""}>POZ fiyat: DZDéqv</option>
+                  <option value="euro" ${costState.pozCol==="euro"?"selected":""}>POZ fiyat: Euro</option>
+                </select>
+              </div>
+
+              ${
+                costState.pozList.length
+                ? `<div class="chips">
+                    ${costState.pozList.map(a => `
+                      <span class="chipItem">
+                        ${esc(a)}
+                        <button type="button" data-act="removePoz" data-art="${esc(a)}">×</button>
+                      </span>
+                    `).join("")}
+                  </div>`
+                : `<div class="mini" style="margin-top:10px;">Henüz POZ eklemedin.</div>`
+              }
+              <div class="mini" style="margin-top:10px;">
+                Makina/işçilik dropdownları POZ kartının içinde.
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Özet</h3>
+              <div class="gridForm">
+                <div class="label">Seçili POZ</div><div class="val">${costState.pozList.length}</div>
+                <div class="label">Toplam</div><div class="val">${fmt(grandTotal)} DZD</div>
+              </div>
+              <div class="mini" style="margin-top:10px;">
+                Not: Euro seçersen fark hesabı kapalı.
+              </div>
             </div>
           </div>
-
-          <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap;">
-            <span class="badge">Seçili POZ: ${costState.pozList.length}</span>
-            <span class="badge">Toplam: ${fmt(grandTotal)} DZD</span>
-          </div>
-        </div>
+        </td>
       `;
-
-      trTop.appendChild(tdTop);
       tbody.appendChild(trTop);
 
-      // Poz cards
-      for (const art of costState.pozList) {
+      // POZ cards
+      for (const art of costState.pozList){
         ensurePoz(art);
         const poz = dqeByArt.get(String(art).trim()) || null;
         const t = pozTotals(art);
+        const pconf = costState.poz[art];
 
         const pozVal = poz ? (poz[costState.pozCol] ?? null) : null;
-
         const um = poz?.um ? String(poz.um).trim() : "";
         const umWarn = (um && um.toLowerCase() !== "m3") ? `<span class="warn">UM ≠ m3 (${esc(um)})</span>` : "";
 
-        let diff = null, diffPct = null;
-        if (costState.pozCol !== "euro" && pozVal != null && Number(pozVal) !== 0) {
-          diff = Number(pozVal) - t.unit;
-          diffPct = (diff / Number(pozVal)) * 100;
+        let diffTxt = "-";
+        if (costState.pozCol !== "euro" && pozVal != null && Number(pozVal) !== 0){
+          const diff = Number(pozVal) - t.unit;
+          const diffPct = (diff / Number(pozVal)) * 100;
+          diffTxt = `${fmt(diff)} (${fmt(diffPct)}%)`;
         }
 
         const machineOptions = machineTemplates.map(m => `<option value="${m.idx}">${esc(m.cinsi)}</option>`).join("");
-        const laborOptions = laborTemplates.map(l => `<option value="${l.idx}">${esc(l.grup)} - ${esc(l.pozisyon)}</option>`).join("");
+        const laborOptions   = laborTemplates.map(l => `<option value="${l.idx}">${esc(l.grup)} - ${esc(l.pozisyon)}</option>`).join("");
 
-        const pconf = costState.poz[art];
+        const machineRows = pconf.machines.map(m => `
+          <div class="rowLine" data-art="${esc(art)}" data-type="m" data-id="${esc(m.id)}">
+            <input data-f="name" type="text" value="${esc(m.name)}">
+            <input data-f="um" type="text" value="${esc(m.um)}">
+            <input data-f="miktar" type="number" step="0.01" value="${esc(m.miktar)}">
+            <input data-f="adet" type="number" step="0.01" value="${esc(m.adet)}">
+            <input data-f="birimFiyatDzd" type="number" step="0.01" value="${esc(m.birimFiyatDzd)}">
+            <button class="xbtn" type="button" data-act="removeLine" data-art="${esc(art)}" data-ltype="m" data-id="${esc(m.id)}">×</button>
+          </div>
+          <div class="lineTotal">Tutar: <b data-total="${esc(art)}|m|${esc(m.id)}">${fmt(machineLineTotal(m))} DZD</b></div>
+        `).join("");
 
-        const machineRows = pconf.machines.map((m) => {
-          const total = machineLineTotal(m);
-          return `
-            <div class="rowLine" data-art="${esc(art)}" data-type="m" data-id="${esc(m.id)}">
-              <div><input data-f="name" type="text" value="${esc(m.name)}" /></div>
-              <div><input data-f="um" type="text" value="${esc(m.um)}" /></div>
-              <div><input data-f="miktar" type="number" step="0.01" value="${esc(m.miktar)}" /></div>
-              <div><input data-f="adet" type="number" step="0.01" value="${esc(m.adet)}" /></div>
-              <div><input data-f="birimFiyatDzd" type="number" step="0.01" value="${esc(m.birimFiyatDzd)}" /></div>
-              <button class="xbtn" type="button" data-act="removeLine" data-art="${esc(art)}" data-ltype="m" data-id="${esc(m.id)}">×</button>
-            </div>
-            <div class="muted" style="margin:-2px 0 8px 0; font-size:11px;">
-              Tutar: <b data-total="${esc(art)}|m|${esc(m.id)}">${fmt(total)} DZD</b>
-            </div>
-          `;
-        }).join("");
-
-        const laborRows = pconf.labor.map((l) => {
-          const total = laborLineTotal(l);
+        const laborRows = pconf.labor.map(l => {
           const label = `${l.grup} - ${l.pozisyon}`;
           return `
             <div class="rowLine" data-art="${esc(art)}" data-type="l" data-id="${esc(l.id)}">
-              <div><input data-f="label" type="text" value="${esc(label)}" /></div>
-              <div><input data-f="um" type="text" value="${esc(l.um)}" /></div>
-              <div><input data-f="saat" type="number" step="0.01" value="${esc(l.saat)}" /></div>
-              <div><input data-f="adet" type="number" step="0.01" value="${esc(l.adet)}" /></div>
-              <div><input data-f="birimSaatDzd" type="number" step="0.01" value="${esc(l.birimSaatDzd)}" /></div>
+              <input data-f="label" type="text" value="${esc(label)}">
+              <input data-f="um" type="text" value="${esc(l.um)}">
+              <input data-f="saat" type="number" step="0.01" value="${esc(l.saat)}">
+              <input data-f="adet" type="number" step="0.01" value="${esc(l.adet)}">
+              <input data-f="birimSaatDzd" type="number" step="0.01" value="${esc(l.birimSaatDzd)}">
               <button class="xbtn" type="button" data-act="removeLine" data-art="${esc(art)}" data-ltype="l" data-id="${esc(l.id)}">×</button>
             </div>
-            <div class="muted" style="margin:-2px 0 8px 0; font-size:11px;">
-              Tutar: <b data-total="${esc(art)}|l|${esc(l.id)}">${fmt(total)} DZD</b> |
-              maaş: <span>${fmt(l.maasDzd)} DZD</span>
-            </div>
+            <div class="lineTotal">Tutar: <b data-total="${esc(art)}|l|${esc(l.id)}">${fmt(laborLineTotal(l))} DZD</b></div>
           `;
         }).join("");
 
         const tr = document.createElement("tr");
-        const td = document.createElement("td");
-        td.colSpan = 6;
-
-        td.innerHTML = `
-          <div class="pozCard" data-poz="${esc(art)}">
-            <div class="pozHeader">
-              <span class="title">${esc(art)}</span>
-              <span class="mini">${poz ? esc(poz.description) : "<span class='warn'>DQE’de yok</span>"} ${umWarn}</span>
-
-              <div class="rightSide">
-                <span class="badge">POZ: ${pozVal != null ? fmt(pozVal) : "-"} ${costState.pozCol==="euro" ? "€" : "DZD"}</span>
-                <span class="badge">Birim maliyet: <b data-poz-unit="${esc(art)}">${fmt(t.unit)}</b> DZD/UM</span>
-                <span class="badge">Toplam: <b data-poz-total="${esc(art)}">${fmt(t.total)}</b> DZD</span>
-                <span class="badge">Fark: <b data-poz-diff="${esc(art)}">${(diff!=null)? (fmt(diff)+" ("+fmt(diffPct)+"%)") : "-"}</b></span>
-              </div>
-            </div>
-
-            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-              <div class="muted" style="font-size:12px;">Üretim (bu POZ için):</div>
-              <input data-act="setProduction" data-art="${esc(art)}" type="number" step="0.01"
-                     value="${esc(pconf.production)}"
-                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; width:140px;" />
-              <span class="muted" style="font-size:12px;">(ör: m³/gün). Birim maliyet = toplam / üretim</span>
-              <button class="btn" type="button" data-act="removePoz" data-art="${esc(art)}">Bu POZ’u listeden çıkar</button>
-            </div>
-
-            <div class="grid2">
-              <div class="box">
-                <div class="boxTitle">MAKİNA</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                  <select data-act="addMachineSelect" data-art="${esc(art)}">
-                    <option value="">Makina seç...</option>
-                    ${machineOptions}
-                  </select>
-                  <button class="btn" type="button" data-act="addMachineBtn" data-art="${esc(art)}">Ekle</button>
-                  <span class="badge">Subtotal: <b data-sub="${esc(art)}|m">${fmt(t.m)}</b> DZD</span>
+        tr.innerHTML = `
+          <td colspan="6">
+            <div class="pozCard" data-poz="${esc(art)}">
+              <div class="pozTop">
+                <div>
+                  <div class="art" style="font-size:14px;">${esc(art)}</div>
+                  <div class="desc">${poz ? esc(poz.description) : "<span class='warn'>DQE’de yok</span>"} ${umWarn}</div>
                 </div>
 
-                <div class="rowHead">
-                  <div>Cinsi</div><div>UM</div><div>Miktar</div><div>Adet</div><div>Birim Fiyat</div><div></div>
-                </div>
-
-                <div data-list="${esc(art)}|m">
-                  ${machineRows || `<div class="muted" style="margin-top:8px;">Henüz makina eklemedin.</div>`}
+                <div class="right">
+                  <span class="badge">POZ: ${pozVal!=null?fmt(pozVal):"-"} ${costState.pozCol==="euro"?"€":"DZD"}</span>
+                  <span class="badge">Makina: <b data-sub="${esc(art)}|m">${fmt(t.m)}</b> DZD</span>
+                  <span class="badge">İşçilik: <b data-sub="${esc(art)}|l">${fmt(t.l)}</b> DZD</span>
+                  <span class="badge">Toplam: <b data-poz-total="${esc(art)}">${fmt(t.total)}</b> DZD</span>
+                  <span class="badge">Birim: <b data-poz-unit="${esc(art)}">${fmt(t.unit)}</b></span>
+                  <span class="badge">Fark: <b data-poz-diff="${esc(art)}">${diffTxt}</b></span>
                 </div>
               </div>
 
-              <div class="box">
-                <div class="boxTitle">İŞÇİLİK</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                  <select data-act="addLaborSelect" data-art="${esc(art)}">
-                    <option value="">İşçilik seç...</option>
-                    ${laborOptions}
-                  </select>
-                  <button class="btn" type="button" data-act="addLaborBtn" data-art="${esc(art)}">Ekle</button>
-                  <span class="badge">Subtotal: <b data-sub="${esc(art)}|l">${fmt(t.l)}</b> DZD</span>
+              <div class="pozActions">
+                <span class="mini">Üretim (bu POZ için):</span>
+                <input class="inputSmall" data-act="setProduction" data-art="${esc(art)}" type="number" step="0.01" value="${esc(pconf.production)}">
+                <span class="mini">(Birim maliyet = toplam / üretim)</span>
+                <button class="btn" type="button" data-act="removePoz" data-art="${esc(art)}">Bu POZ’u çıkar</button>
+              </div>
+
+              <div class="twoCols">
+                <div class="box">
+                  <div class="boxTitle">
+                    <span>MAKİNA</span>
+                    <span class="badge">Subtotal: <b data-sub="${esc(art)}|m">${fmt(t.m)}</b> DZD</span>
+                  </div>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+                    <select class="select" data-act="addMachineSelect" data-art="${esc(art)}">
+                      <option value="">Makina seç...</option>
+                      ${machineOptions}
+                    </select>
+                    <button class="btn primary" type="button" data-act="addMachineBtn" data-art="${esc(art)}">Ekle</button>
+                  </div>
+
+                  <div class="rowHead">
+                    <div>Cinsi</div><div>UM</div><div>Miktar</div><div>Adet</div><div>Birim Fiyat</div><div></div>
+                  </div>
+                  <div data-list="${esc(art)}|m">
+                    ${machineRows || `<div class="mini">Henüz makina eklemedin.</div>`}
+                  </div>
                 </div>
 
-                <div class="rowHead">
-                  <div>Grup - Pozisyon</div><div>UM</div><div>Saat</div><div>Adet</div><div>Birim Saat</div><div></div>
-                </div>
+                <div class="box">
+                  <div class="boxTitle">
+                    <span>İŞÇİLİK</span>
+                    <span class="badge">Subtotal: <b data-sub="${esc(art)}|l">${fmt(t.l)}</b> DZD</span>
+                  </div>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+                    <select class="select" data-act="addLaborSelect" data-art="${esc(art)}">
+                      <option value="">İşçilik seç...</option>
+                      ${laborOptions}
+                    </select>
+                    <button class="btn primary" type="button" data-act="addLaborBtn" data-art="${esc(art)}">Ekle</button>
+                  </div>
 
-                <div data-list="${esc(art)}|l">
-                  ${laborRows || `<div class="muted" style="margin-top:8px;">Henüz işçilik eklemedin.</div>`}
+                  <div class="rowHead">
+                    <div>Grup - Pozisyon</div><div>UM</div><div>Saat</div><div>Adet</div><div>Birim Saat</div><div></div>
+                  </div>
+                  <div data-list="${esc(art)}|l">
+                    ${laborRows || `<div class="mini">Henüz işçilik eklemedin.</div>`}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </td>
         `;
-
-        tr.appendChild(td);
         tbody.appendChild(tr);
       }
 
       countEl.textContent = `POZ: ${costState.pozList.length}`;
     }
 
-    // -----------------------
-    // Cost: live update (NO rerender on typing)
-    // -----------------------
-    function updatePozUI(art) {
+    // Live UI updates (typing doesn't rerender)
+    function updatePozUI(art){
       const t = pozTotals(art);
 
       const subM = document.querySelector(`[data-sub="${CSS.escape(art)}|m"]`);
       const subL = document.querySelector(`[data-sub="${CSS.escape(art)}|l"]`);
       const totalEl = document.querySelector(`[data-poz-total="${CSS.escape(art)}"]`);
-      const unitEl = document.querySelector(`[data-poz-unit="${CSS.escape(art)}"]`);
+      const unitEl  = document.querySelector(`[data-poz-unit="${CSS.escape(art)}"]`);
 
       if (subM) subM.textContent = fmt(t.m);
       if (subL) subL.textContent = fmt(t.l);
       if (totalEl) totalEl.textContent = fmt(t.total);
       if (unitEl) unitEl.textContent = fmt(t.unit);
 
-      // diff update
       const poz = dqeByArt.get(String(art).trim()) || null;
       const pozVal = poz ? (poz[costState.pozCol] ?? null) : null;
 
       const diffEl = document.querySelector(`[data-poz-diff="${CSS.escape(art)}"]`);
-      if (diffEl) {
-        if (costState.pozCol === "euro" || pozVal == null || Number(pozVal) === 0) {
+      if (diffEl){
+        if (costState.pozCol === "euro" || pozVal == null || Number(pozVal) === 0){
           diffEl.textContent = "-";
         } else {
           const diff = Number(pozVal) - t.unit;
@@ -805,29 +925,24 @@
         }
       }
 
-      // totals inside each line
       const p = ensurePoz(art);
-      for (const m of p.machines) {
+      for (const m of p.machines){
         const el = document.querySelector(`[data-total="${CSS.escape(art)}|m|${CSS.escape(m.id)}"]`);
         if (el) el.textContent = `${fmt(machineLineTotal(m))} DZD`;
       }
-      for (const l of p.labor) {
+      for (const l of p.labor){
         const el = document.querySelector(`[data-total="${CSS.escape(art)}|l|${CSS.escape(l.id)}"]`);
         if (el) el.textContent = `${fmt(laborLineTotal(l))} DZD`;
       }
 
-      // global footer total
       let grandTotal = 0;
       for (const a of costState.pozList) grandTotal += pozTotals(a).total;
       gtDzd.textContent = `${fmt(grandTotal)} DZD`;
       grandChip.textContent = `POZ toplamları: ${fmt(grandTotal)} DZD`;
     }
 
-    // -----------------------
-    // Main render switch
-    // -----------------------
-    function render() {
-      if (currentView === "dqe") {
+    function render(){
+      if (currentView === "dqe"){
         expandAllBtn.disabled = false;
         collapseAllBtn.disabled = false;
         sortArtEl.disabled = false;
@@ -837,126 +952,93 @@
       }
     }
 
-    // -----------------------
-    // UI events
-    // -----------------------
-    clearBtn.addEventListener("click", () => {
-      q.value = "";
-      render();
-      q.focus();
-    });
-    q.addEventListener("input", () => render());
+    // Top events
+    clearBtn.addEventListener("click", ()=>{ q.value=""; render(); q.focus(); });
+    q.addEventListener("input", ()=>render());
+    viewSel.addEventListener("change", ()=>{ currentView=viewSel.value; render(); });
 
-    viewSel.addEventListener("change", () => {
-      currentView = viewSel.value;
-      render();
-    });
-
-    expandAllBtn.addEventListener("click", () => {
-      for (const g of dqeGroups) g.collapsed = false;
-      render();
-    });
-
-    collapseAllBtn.addEventListener("click", () => {
-      for (const g of dqeGroups) g.collapsed = true;
-      render();
-    });
-
+    expandAllBtn.addEventListener("click", ()=>{ for (const g of dqeGroups) g.collapsed=false; render(); });
+    collapseAllBtn.addEventListener("click", ()=>{ for (const g of dqeGroups) g.collapsed=true; render(); });
     sortArtEl.addEventListener("change", render);
 
-    // DQE collapse click
-    tbody.addEventListener("click", (e) => {
+    // DQE collapse
+    tbody.addEventListener("click", (e)=>{
       if (currentView !== "dqe") return;
       const btn = e.target.closest("[data-gid]");
       if (!btn) return;
       if (q.value.trim()) return;
-
       const gid = btn.getAttribute("data-gid");
-      const g = dqeGroups.find(x => x.id === gid);
+      const g = dqeGroups.find(x=>x.id===gid);
       if (!g) return;
       g.collapsed = !g.collapsed;
       render();
     });
 
-    // COST actions (buttons/selects) - delegated
-    tbody.addEventListener("click", (e) => {
+    // COST actions (delegated)
+    tbody.addEventListener("click", (e)=>{
       if (currentView !== "cost") return;
+      const el = e.target.closest("[data-act]");
+      if (!el) return;
+      const act = el.getAttribute("data-act");
 
-      const btn = e.target.closest("[data-act]");
-      if (!btn) return;
-
-      const act = btn.getAttribute("data-act");
-
-      if (act === "addPoz") {
+      if (act === "addPoz"){
         const input = document.getElementById("pozPick");
-        const art = (input?.value || "").trim();
+        const art = (input?.value||"").trim();
         addPoz(art);
-        if (input) input.value = "";
-        render(); // poz ekleme/çıkarma = rerender OK
-      }
-
-      if (act === "clearPoz") {
-        clearPozList();
+        if (input) input.value="";
         render();
       }
-
-      if (act === "removePoz") {
-        const art = btn.getAttribute("data-art");
+      if (act === "clearPoz"){ clearPozList(); render(); }
+      if (act === "removePoz"){
+        const art = el.getAttribute("data-art");
         removePoz(art);
         render();
       }
-
-      if (act === "addMachineBtn") {
-        const art = btn.getAttribute("data-art");
+      if (act === "addMachineBtn"){
+        const art = el.getAttribute("data-art");
         const sel = document.querySelector(`select[data-act="addMachineSelect"][data-art="${CSS.escape(art)}"]`);
         const v = sel?.value;
-        if (v !== "") {
+        if (v !== ""){
           addMachineLine(art, v);
-          if (sel) sel.value = "";
-          render(); // satır ekleme = rerender OK
-        }
-      }
-
-      if (act === "addLaborBtn") {
-        const art = btn.getAttribute("data-art");
-        const sel = document.querySelector(`select[data-act="addLaborSelect"][data-art="${CSS.escape(art)}"]`);
-        const v = sel?.value;
-        if (v !== "") {
-          addLaborLine(art, v);
-          if (sel) sel.value = "";
+          if (sel) sel.value="";
           render();
         }
       }
-
-      if (act === "removeLine") {
-        const art = btn.getAttribute("data-art");
-        const ltype = btn.getAttribute("data-ltype"); // m or l
-        const id = btn.getAttribute("data-id");
+      if (act === "addLaborBtn"){
+        const art = el.getAttribute("data-art");
+        const sel = document.querySelector(`select[data-act="addLaborSelect"][data-art="${CSS.escape(art)}"]`);
+        const v = sel?.value;
+        if (v !== ""){
+          addLaborLine(art, v);
+          if (sel) sel.value="";
+          render();
+        }
+      }
+      if (act === "removeLine"){
+        const art = el.getAttribute("data-art");
+        const ltype = el.getAttribute("data-ltype");
+        const id = el.getAttribute("data-id");
         removeLine(art, ltype, id);
         render();
       }
     });
 
-    // COST input changes (NO rerender) - delegated
-    tbody.addEventListener("input", (e) => {
+    // COST inputs (no rerender while typing)
+    tbody.addEventListener("input", (e)=>{
       if (currentView !== "cost") return;
-
       const inp = e.target.closest("input");
       if (!inp) return;
 
-      // global unit panel
       const act = inp.getAttribute("data-act");
-      if (act === "setUnit") {
+
+      if (act === "setUnit"){
         const k = inp.getAttribute("data-k");
         costState.unitPanel[k] = Number(inp.value);
         saveCostState();
-        // total km yazısı için rerender lazım ama focus kaçmasın diye KESMİYORUZ.
-        // kullanıcı bırakınca (blur) rerender yapacağız.
         return;
       }
 
-      // production per poz
-      if (act === "setProduction") {
+      if (act === "setProduction"){
         const art = inp.getAttribute("data-art");
         const p = ensurePoz(art);
         p.production = Number(inp.value);
@@ -965,18 +1047,17 @@
         return;
       }
 
-      // line edits
       const lineWrap = inp.closest(".rowLine");
       if (!lineWrap) return;
 
       const art = lineWrap.getAttribute("data-art");
-      const type = lineWrap.getAttribute("data-type"); // m / l
+      const type = lineWrap.getAttribute("data-type");
       const id = lineWrap.getAttribute("data-id");
       const field = inp.getAttribute("data-f");
       const p = ensurePoz(art);
 
-      if (type === "m") {
-        const line = p.machines.find(x => x.id === id);
+      if (type === "m"){
+        const line = p.machines.find(x=>x.id===id);
         if (!line) return;
         if (field === "name" || field === "um") line[field] = inp.value;
         else line[field] = Number(inp.value);
@@ -984,16 +1065,16 @@
         updatePozUI(art);
       }
 
-      if (type === "l") {
-        const line = p.labor.find(x => x.id === id);
+      if (type === "l"){
+        const line = p.labor.find(x=>x.id===id);
         if (!line) return;
-        if (field === "label") {
-          // label = "Grup - Pozisyon" tek input
+
+        if (field === "label"){
           const txt = inp.value;
           const parts = txt.split("-").map(s=>s.trim());
           line.grup = parts[0] || line.grup;
           line.pozisyon = parts.slice(1).join(" - ") || line.pozisyon;
-        } else if (field === "um") {
+        } else if (field === "um"){
           line.um = inp.value;
         } else {
           line[field] = Number(inp.value);
@@ -1003,17 +1084,16 @@
       }
     });
 
-    // blur: global unit panel değişince km satırını güncellemek için render
-    tbody.addEventListener("blur", (e) => {
+    // blur: after unit panel editing rerender to update km etc
+    tbody.addEventListener("blur", (e)=>{
       if (currentView !== "cost") return;
       const inp = e.target.closest('input[data-act="setUnit"]');
       if (!inp) return;
-      // artık yazmayı bitirdi -> rerender ile km satırı güncellensin, ama bu blur zaten fokus bırakmış olur
       render();
     }, true);
 
     // pozCol change
-    tbody.addEventListener("change", (e) => {
+    tbody.addEventListener("change", (e)=>{
       if (currentView !== "cost") return;
       const sel = e.target.closest('select[data-act="setPozCol"]');
       if (!sel) return;
@@ -1022,7 +1102,6 @@
       render();
     });
 
-    // first render
     render();
   </script>
 </body>
