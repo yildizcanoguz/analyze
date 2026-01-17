@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MASTER DQE (PRO)</title>
+    <style>
+        /* MODERN STİL */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #eef2f5; color: #333; height: 100vh; overflow: hidden; }
+
+        /* GİRİŞ */
+        #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #eef2f5, #dbe2e8); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .login-box { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); width: 85%; max-width: 350px; text-align: center; }
+        .login-input { width: 100%; padding: 15px; margin: 20px 0; border: 2px solid #ddd; border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 5px; }
+        .login-btn { width: 100%; padding: 15px; background: #3498db; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; }
+
+        /* UYGULAMA */
+        #appContainer { display: none; max-width: 600px; margin: 0 auto; height: 100%; overflow-y: auto; padding: 15px; padding-bottom: 150px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .title { font-size: 18px; font-weight: 900; color: #2c3e50; }
+        .logout { background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* ARAMA VE LİSTE */
+        .search-area { position: relative; margin-bottom: 20px; z-index: 1000; }
+        .search-box { display: flex; background: white; border: 2px solid #3498db; border-radius: 12px; overflow: hidden; }
+        .search-inp { flex: 1; padding: 14px; border: none; font-size: 14px; font-weight: 600; }
+        .dropdown-btn { padding: 14px; background: #f0f2f5; cursor: pointer; font-size: 12px; font-weight: bold; color: #3498db; border-left: 1px solid #ddd; }
+        .list { display: none; position: absolute; top: 110%; left: 0; right: 0; background: white; max-height: 300px; overflow-y: auto; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 9999; }
+        .item { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; }
+        .item:hover { background: #f2f7ff; }
+
+        /* KARTLAR */
+        .card { background: white; padding: 15px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #ddd; }
+        .card-t { font-size: 13px; font-weight: 800; color: #888; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+
+        /* HESAPLAMA */
+        .row { display: flex; gap: 10px; align-items: flex-end; }
+        .inp-g { flex: 1; }
+        .lbl { font-size: 10px; font-weight: bold; color: #999; display: block; margin-bottom: 4px; }
+        .inp { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-weight: bold; text-align: center; }
+        .total { margin-top: 10px; background: #eaf3ff; padding: 10px; text-align: right; font-weight: 900; color: #3498db; border-radius: 8px; font-size: 18px; }
+
+        /* MALİYET */
+        .cost-row { display: flex; gap: 5px; margin-bottom: 8px; }
+        .c-name { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        .c-val { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; text-align: center; }
+        .c-del { width: 30px; background: #ffebec; color: red; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .add-btn { width: 100%; padding: 10px; border: 2px dashed #ddd; background: white; color: #555; font-weight: bold; border-radius: 10px; cursor: pointer; margin-top: 5px; }
+
+        /* FOOTER */
+        .footer { position: fixed; bottom: 0; left: 0; width: 100%; background: white; padding: 15px; display: flex; justify-content: space-between; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); border-top: 1px solid #eee; z-index: 999; }
+        .f-item { text-align: center; flex: 1; }
+        .f-lbl { font-size: 10px; font-weight: 800; color: #999; display: block; }
+        .f-val { font-size: 15px; font-weight: 800; color: #333; }
+        .profit { font-size: 18px; font-weight: 900; }
+        .pos { color: #27ae60; } .neg { color: #e74c3c; }
+
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay">
+    <div class="login-box">
+        <h3>PROJE YÖNETİM</h3>
+        <input type="password" id="passInput" class="login-input" placeholder="****" inputmode="numeric">
+        <button class="login-btn" onclick="app.login()">GİRİŞ</button>
+    </div>
+</div>
+
+<div id="appContainer">
+    <div class="header">
+        <div class="title">HAKEDİŞ & MALİYET</div>
+        <button class="logout" onclick="app.logout()">ÇIKIŞ</button>
+    </div>
+
+    <div class="card" style="border-left: 4px solid #3498db;">
+        <div class="card-t"><span>1. HAKEDİŞ (GELİR)</span> <span id="unitBadge" style="background:#3498db; color:white; padding:2px 6px; border-radius:4px;">-</span></div>
+        
+        <div class="search-area">
+            <div class="search-box">
+                <input type="text" id="searchBox" class="search-inp" placeholder="İş Kalemi Seç..." onkeyup="app.filter('item')" onclick="app.toggle('item')">
+                <div class="dropdown-btn" onclick="app.toggle('item')">▼ LİSTE</div>
+            </div>
+            <div id="itemList" class="list"></div>
+        </div>
+
+        <div class="row">
+            <div class="inp-g"><span class="lbl">Birim Fiyat</span><input id="priceIn" class="inp" readonly></div>
+            <div class="inp-g"><span class="lbl">Miktar</span><input type="number" id="qtyIn" class="inp" oninput="app.calc()"></div>
+        </div>
+        <div id="revTotal" class="total">0 DZD</div>
+    </div>
+
+    <div class="card" style="border-left: 4px solid #e67e22;">
+        <div class="card-t">2. MALİYET (GİDER)</div>
+        
+        <div class="search-area">
+            <div class="search-box" style="border-color:#e67e22;">
+                <input type="text" id="machBox" class="search-inp" placeholder="Makine Ekle..." onkeyup="app.filter('mach')" onclick="app.toggle('mach')">
+                <div class="dropdown-btn" style="color:#e67e22;" onclick="app.toggle('mach')">▼ MAKİNE</div>
+            </div>
+            <div id="machList" class="list"></div>
+        </div>
+
+        <div id="costs"></div>
+        <button class="add-btn" onclick="app.addCost()">+ Manuel Gider Ekle</button>
+    </div>
+</div>
+
+<div class="footer" id="footer">
+    <div class="f-item"><span class="f-lbl">GELİR</span><span class="f-val" id="sumRev" style="color:#3498db">0</span></div>
+    <div class="f-item"><span class="f-lbl">GİDER</span><span class="f-val" id="sumCost" style="color:#e67e22">0</span></div>
+    <div class="f-item"><span class="f-lbl">KÂR</span><span class="profit" id="sumProfit">0</span></div>
+</div>
+
+<script src="database.js"></script>
+
+<script>
+    var app = {
+        selItem: null,
+        rev: 0,
+        cost: 0,
+        
+        login: function() {
+            if(document.getElementById("passInput").value === "1907") {
+                document.getElementById("loginOverlay").style.display = "none";
+                document.getElementById("appContainer").style.display = "block";
+                document.getElementById("footer").style.display = "flex";
+                this.addCost();
+            }
+        },
+        logout: function() { location.reload(); },
+
+        toggle: function(type) {
+            var list = document.getElementById(type === 'item' ? 'itemList' : 'machList');
+            document.querySelectorAll('.list').forEach(l => { if(l !== list) l.style.display = 'none'; }); // Diğerlerini kapat
+            if(list.style.display === 'block') list.style.display = 'none';
+            else this.renderList(type);
+        },
+
+        renderList: function(type) {
+            var list = document.getElementById(type === 'item' ? 'itemList' : 'machList');
+            var input = document.getElementById(type === 'item' ? 'searchBox' : 'machBox');
+            var val = input.value.toLocaleLowerCase('tr');
+            var source = type === 'item' ? DB_ITEMS : DB_MACHINES;
+
+            list.innerHTML = "";
+            var filtered = source.filter(i => {
+                if(type === 'item') return (i.c.toLowerCase().includes(val) || i.n.toLocaleLowerCase('tr').includes(val));
+                else return i.name.toLocaleLowerCase('tr').includes(val);
+            });
+
+            filtered.forEach(i => {
+                var div = document.createElement("div");
+                div.className = "item";
+                if(type === 'item') {
+                    div.innerHTML = `<span><b>${i.c}</b> ${i.n}</span>`;
+                    div.onmousedown = () => this.selectItem(i);
+                } else {
+                    div.innerHTML = `<span>${i.name}</span> <span>${i.price}</span>`;
+                    div.onmousedown = () => this.addMachine(i);
+                }
+                list.appendChild(div);
+            });
+            list.style.display = "block";
+        },
+
+        filter: function(type) { this.renderList(type); },
+
+        selectItem: function(i) {
+            this.selItem = i;
+            document.getElementById("searchBox").value = i.c + " - " + i.n;
+            document.getElementById("itemList").style.display = "none";
+            document.getElementById("unitBadge").innerText = i.u;
+            // Fiyatı yaklaşık DZD olarak göster (Euro 107 baz alındı)
+            var p = i.d + (i.e * 107.31);
+            document.getElementById("priceIn").value = this.fmt(p);
+            
+            // Eğer analiz varsa otomatik doldur
+            if(i.a) {
+                document.getElementById("costs").innerHTML = ""; // Temizle
+                var rate = 107.31;
+                // Basit birim analiz tutarları
+                this.addCost("Yakıt (Analiz)", 1, (i.a.f * 29.01)/i.a.prod);
+                this.addCost("Makine+İşçi (Analiz)", 1, ((i.a.m + i.a.l)*rate)/i.a.prod);
+                if(i.a.mat > 0) this.addCost("Malzeme (Analiz)", 1, i.a.mat * rate);
+            }
+
+            this.calc();
+        },
+
+        addMachine: function(m) {
+            document.getElementById("machList").style.display = "none";
+            document.getElementById("machBox").value = "";
+            this.addCost(m.name + " (Kira)", 1, m.price);
+        },
+
+        calc: function() {
+            var q = parseFloat(document.getElementById("qtyIn").value) || 0;
+            if(this.selItem) {
+                var p = this.selItem.d + (this.selItem.e * 107.31);
+                this.rev = q * p;
+                document.getElementById("revTotal").innerText = this.fmt(this.rev) + " DZD";
+                
+                // Analiz satırlarının miktarını güncelle
+                document.querySelectorAll(".c-qty").forEach(inp => {
+                    if(inp.dataset.auto === "true") inp.value = q;
+                });
+            }
+            this.calcCosts();
+        },
+
+        addCost: function(n="", q="", p="") {
+            var div = document.createElement("div");
+            div.className = "cost-row";
+            var isAuto = n.includes("(Analiz)");
+            var qVal = isAuto ? (document.getElementById("qtyIn").value || 1) : q;
+
+            div.innerHTML = `
+                <input class="c-name" value="${n}" placeholder="Gider">
+                <input type="number" class="c-val c-qty" data-auto="${isAuto}" value="${qVal}" placeholder="Miktar" oninput="app.calcCosts()">
+                <input type="number" class="c-val c-price" value="${p}" placeholder="Fiyat" oninput="app.calcCosts()">
+                <button class="c-del" onclick="this.parentElement.remove(); app.calcCosts()">✕</button>
+            `;
+            document.getElementById("costs").appendChild(div);
+            this.calcCosts();
+        },
+
+        calcCosts: function() {
+            this.cost = 0;
+            document.querySelectorAll(".cost-row").forEach(row => {
+                var q = parseFloat(row.querySelector(".c-qty").value) || 0;
+                var p = parseFloat(row.querySelector(".c-price").value) || 0;
+                this.cost += (q * p);
+            });
+            
+            var profit = this.rev - this.cost;
+            document.getElementById("sumRev").innerText = this.fmt(this.rev);
+            document.getElementById("sumCost").innerText = this.fmt(this.cost);
+            var pEl = document.getElementById("sumProfit");
+            pEl.innerText = this.fmt(profit);
+            pEl.className = "profit " + (profit >= 0 ? "pos" : "neg");
+            pEl.innerText = (profit >= 0 ? "+ " : "") + pEl.innerText;
+        },
+
+        fmt: function(n) { return n.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    };
+    
+    // Enter Giriş
+    document.getElementById("passInput").addEventListener("keypress", function(e){ if(e.key==="Enter") app.login(); });
+
+    // Dışarı tıklama
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-area')) {
+            document.querySelectorAll('.list').forEach(l => l.style.display = 'none');
+        }
+    });
+</script>
+
+</body>
+</html>
