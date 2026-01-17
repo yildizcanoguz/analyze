@@ -1,11 +1,14 @@
 <!doctype html>
 <html lang="tr">
-<head> 
-  <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="googlebot" content="noindex, nofollow, noarchive">
+<head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MASTER DQE</title>
+
+  <!-- Google index almasın -->
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="googlebot" content="noindex, nofollow, noarchive">
+
   <style>
     :root{
       --bg:#f5f7fb;
@@ -22,7 +25,6 @@
       --r2:12px;
 
       --h:40px;           /* input/select height */
-      --pad:12px;
       --shadow: 0 14px 40px rgba(17,24,39,.08);
       --shadow2: 0 10px 24px rgba(17,24,39,.06);
     }
@@ -33,36 +35,6 @@
       font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
       background:var(--bg); color:var(--text);
     }
-<div id="lock" style="
-  position:fixed; inset:0; z-index:9999;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(245,247,251,.92); backdrop-filter: blur(6px);
-">
-  <div style="
-    width:min(420px, 92vw);
-    background:#fff; border:1px solid #e5e7eb; border-radius:18px;
-    box-shadow: 0 20px 60px rgba(17,24,39,.10);
-    padding:16px;
-    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;
-  ">
-    <div style="font-weight:900; font-size:16px; margin-bottom:8px;">Giriş</div>
-    <div style="color:#6b7280; font-size:12px; margin-bottom:12px;">
-      Şifreyi gir
-    </div>
-
-    <input id="pass" type="password" placeholder="Şifre"
-      style="width:100%; height:42px; border-radius:12px; border:1px solid #e5e7eb; padding:0 12px; outline:none; font-weight:700;"
-    />
-
-    <div style="display:flex; gap:10px; margin-top:10px;">
-      <button id="loginBtn" type="button"
-        style="height:42px; border-radius:12px; border:1px solid #111827; background:#111827; color:#fff; font-weight:900; padding:0 14px; cursor:pointer;">
-        Gir
-      </button>
-      <div id="msg" style="margin-left:auto; align-self:center; color:#b45309; font-weight:900; font-size:12px;"></div>
-    </div>
-  </div>
-</div>
 
     .app{
       max-width:1280px; margin:0 auto;
@@ -142,8 +114,8 @@
       font-size:12px;
       letter-spacing:.2px;
     }
-    t td, tfoot td{ border-bottom:1px solid var(--line2); padding:12px 10px; vertical-align:top; }
-    t tr:hover td{ background:#fcfcfd; }
+    tbody td, tfoot td{ border-bottom:1px solid var(--line2); padding:12px 10px; vertical-align:top; }
+    tbody tr:hover td{ background:#fcfcfd; }
 
     tfoot td{
       background:#0b1220; color:#fff; font-weight:900;
@@ -348,10 +320,55 @@
       font-size:11px;
       color:var(--muted);
     }
+
+    /* LOGIN overlay */
+    #lock{
+      position:fixed; inset:0; z-index:9999;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(245,247,251,.92);
+      backdrop-filter: blur(6px);
+    }
+    .lockCard{
+      width:min(420px,92vw);
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow: 0 20px 60px rgba(17,24,39,.10);
+      padding:16px;
+    }
+    .lockTitle{ font-weight:900; font-size:16px; margin-bottom:8px; }
+    .lockDesc{ color:var(--muted); font-size:12px; margin-bottom:12px; line-height:1.35; }
+    .lockInput{
+      width:100%; height:42px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      padding:0 12px;
+      outline:none;
+      font-weight:800;
+    }
+    .lockRow{ display:flex; gap:10px; align-items:center; margin-top:10px; }
+    .lockMsg{ margin-left:auto; color:var(--warn); font-weight:900; font-size:12px; }
   </style>
 </head>
 
-<>
+<body>
+  <!-- LOGIN OVERLAY -->
+  <div id="lock">
+    <div class="lockCard">
+      <div class="lockTitle">Giriş</div>
+      <div class="lockDesc">Şifreyi girince sayfa açılır.</div>
+      <input id="pass" class="lockInput" type="password" placeholder="Şifre" autocomplete="current-password" />
+      <div class="lockRow">
+        <button id="loginBtn" class="btn primary" type="button" style="height:42px;">Gir</button>
+        <button id="resetBtn" class="btn" type="button" style="height:42px;">Sıfırla</button>
+        <div id="msg" class="lockMsg"></div>
+      </div>
+      <div class="lockDesc" style="margin-top:10px;">
+        Not: Bu client-side kilit. “Gerçek” koruma için Netlify/Access gibi server-side gerekir.
+      </div>
+    </div>
+  </div>
+
   <div class="app">
     <div class="topbar">
       <div class="title">MASTER DQE</div>
@@ -391,7 +408,7 @@
             <th class="num" style="width:190px">DZDéqv</th>
           </tr>
         </thead>
-        <t id="t"></t>
+        <tbody id="tbody"></tbody>
         <tfoot>
           <tr>
             <td colspan="3">GRAND TOTAL</td>
@@ -409,7 +426,93 @@
   <script type="module">
     import { dqe, costSheets } from "./database.js";
 
-    const t = document.getElementById("t");
+    // ====== PASSWORD GATE (hashli) ======
+    // Şifreyi değiştirmek istersen:
+    // 1) Aşağıdaki PASS_PLAINTEXT'i değiştir
+    // 2) PASS_HASH'ı otomatik üretmek için Console'da:
+    //    crypto.subtle.digest('SHA-256', new TextEncoder().encode('SIFRE')).then(b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')).then(console.log)
+    const LOCK_KEY = "dqe_unlocked_v1";
+
+    // --- ŞİFREN (kolay değişsin diye) ---
+    const PASS_PLAINTEXT = "1907";
+
+    // SHA256("1907") = 4332cd... (hazır)
+    const PASS_HASH = "4332cd76590d0efdbd8d067acf531546da2ba0a67c538440e7defedbea48d1dc";
+
+    async function sha256Hex(str){
+      const buf = new TextEncoder().encode(str);
+      const digest = await crypto.subtle.digest("SHA-256", buf);
+      return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2,"0")).join("");
+    }
+
+    function hideApp(){ document.querySelector(".app").style.display = "none"; }
+    function showApp(){ document.querySelector(".app").style.display = "block"; }
+
+    async function requireLogin(){
+      const lock = document.getElementById("lock");
+      const pass = document.getElementById("pass");
+      const msg  = document.getElementById("msg");
+      const btn  = document.getElementById("loginBtn");
+      const reset= document.getElementById("resetBtn");
+
+      // ilk açılışta uygulamayı sakla
+      hideApp();
+
+      // daha önce açıldıysa direkt geç
+      if (localStorage.getItem(LOCK_KEY) === "1"){
+        lock.style.display = "none";
+        showApp();
+        return true;
+      }
+
+      // input focus
+      setTimeout(()=>pass.focus(), 50);
+
+      return await new Promise((resolve) => {
+        const tryLogin = async () => {
+          msg.textContent = "";
+          const p = (pass.value || "").trim();
+
+          // en kolay: plain kontrol (istersen bunu kaldır)
+          if (p === PASS_PLAINTEXT){
+            localStorage.setItem(LOCK_KEY, "1");
+            lock.style.display = "none";
+            showApp();
+            resolve(true);
+            return;
+          }
+
+          // hash kontrol (plain yazmak istemezsen bunu kullan)
+          const h = await sha256Hex(p);
+          if (h === PASS_HASH){
+            localStorage.setItem(LOCK_KEY, "1");
+            lock.style.display = "none";
+            showApp();
+            resolve(true);
+          } else {
+            msg.textContent = "Şifre yanlış";
+            pass.select();
+          }
+        };
+
+        btn.addEventListener("click", tryLogin);
+        pass.addEventListener("keydown", (e)=>{ if(e.key==="Enter") tryLogin(); });
+
+        reset.addEventListener("click", ()=>{
+          localStorage.removeItem(LOCK_KEY);
+          msg.textContent = "Sıfırlandı";
+          pass.value = "";
+          pass.focus();
+        });
+      });
+    }
+
+    // Şifre doğru değilse render etme
+    const ok = await requireLogin();
+    if (!ok) return;
+    // ====== /PASSWORD GATE ======
+
+    const tbody = document.getElementById("tbody");
     const q = document.getElementById("q");
     const clearBtn = document.getElementById("clearBtn");
     const expandAllBtn = document.getElementById("expandAll");
@@ -623,7 +726,7 @@
       gtEqv.textContent = `${fmt(gtq)} DZD`;
       grandChip.textContent = `Grand: ${fmt(gtd)} DZD | ${fmt(gte)} € | ${fmt(gtq)} DZD`;
 
-      t.innerHTML="";
+      tbody.innerHTML="";
       let visible = 0;
 
       for (const g of dqeGroups){
@@ -662,7 +765,7 @@
             </div>
           </td>
         `;
-        t.appendChild(trH);
+        tbody.appendChild(trH);
         if (collapsed) continue;
 
         for (const b of g.blocks){
@@ -678,7 +781,7 @@
             const trS = document.createElement("tr");
             trS.className="subsection";
             trS.innerHTML = `<td colspan="6">${highlight(subHeader.label, needle)}</td>`;
-            t.appendChild(trS);
+            tbody.appendChild(trS);
           }
 
           for (const r of rowsToRender){
@@ -691,7 +794,7 @@
               <td class="num">${highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle)}</td>
               <td class="num">${highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle)}</td>
             `;
-            t.appendChild(tr);
+            tbody.appendChild(tr);
             visible++;
           }
         }
@@ -705,7 +808,7 @@
             <td class="num">${fmt(subEuro)} €</td>
             <td class="num">${fmt(subEqv)} DZD</td>
           `;
-          t.appendChild(trSub);
+          tbody.appendChild(trSub);
         }
       }
 
@@ -718,7 +821,7 @@
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
 
-      t.innerHTML = "";
+      tbody.innerHTML = "";
 
       let grandTotal = 0;
       for (const a of costState.pozList) grandTotal += pozTotals(a).total;
@@ -728,7 +831,6 @@
       gtEqv.textContent = `-`;
       grandChip.textContent = `POZ toplamları: ${fmt(grandTotal)} DZD`;
 
-      // top panel as a single row (clean)
       const p = costState.unitPanel;
       const totalKm = (+p.trip_km_loaded_empty||0) * (+p.trip_count||0);
 
@@ -800,9 +902,8 @@
           </div>
         </td>
       `;
-      t.appendChild(trTop);
+      tbody.appendChild(trTop);
 
-      // POZ cards
       for (const art of costState.pozList){
         ensurePoz(art);
         const poz = dqeByArt.get(String(art).trim()) || null;
@@ -923,13 +1024,12 @@
             </div>
           </td>
         `;
-        t.appendChild(tr);
+        tbody.appendChild(tr);
       }
 
       countEl.textContent = `POZ: ${costState.pozList.length}`;
     }
 
-    // Live UI updates (typing doesn't rerender)
     function updatePozUI(art){
       const t = pozTotals(art);
 
@@ -984,7 +1084,6 @@
       }
     }
 
-    // Top events
     clearBtn.addEventListener("click", ()=>{ q.value=""; render(); q.focus(); });
     q.addEventListener("input", ()=>render());
     viewSel.addEventListener("change", ()=>{ currentView=viewSel.value; render(); });
@@ -993,8 +1092,7 @@
     collapseAllBtn.addEventListener("click", ()=>{ for (const g of dqeGroups) g.collapsed=true; render(); });
     sortArtEl.addEventListener("change", render);
 
-    // DQE collapse
-    t.addEventListener("click", (e)=>{
+    tbody.addEventListener("click", (e)=>{
       if (currentView !== "dqe") return;
       const btn = e.target.closest("[data-gid]");
       if (!btn) return;
@@ -1006,8 +1104,7 @@
       render();
     });
 
-    // COST actions (delegated)
-    t.addEventListener("click", (e)=>{
+    tbody.addEventListener("click", (e)=>{
       if (currentView !== "cost") return;
       const el = e.target.closest("[data-act]");
       if (!el) return;
@@ -1055,8 +1152,7 @@
       }
     });
 
-    // COST inputs (no rerender while typing)
-    t.addEventListener("input", (e)=>{
+    tbody.addEventListener("input", (e)=>{
       if (currentView !== "cost") return;
       const inp = e.target.closest("input");
       if (!inp) return;
@@ -1116,16 +1212,14 @@
       }
     });
 
-    // blur: after unit panel editing rerender to update km etc
-    t.addEventListener("blur", (e)=>{
+    tbody.addEventListener("blur", (e)=>{
       if (currentView !== "cost") return;
       const inp = e.target.closest('input[data-act="setUnit"]');
       if (!inp) return;
       render();
     }, true);
 
-    // pozCol change
-    t.addEventListener("change", (e)=>{
+    tbody.addEventListener("change", (e)=>{
       if (currentView !== "cost") return;
       const sel = e.target.closest('select[data-act="setPozCol"]');
       if (!sel) return;
@@ -1136,5 +1230,5 @@
 
     render();
   </script>
-</>
+</body>
 </html>
