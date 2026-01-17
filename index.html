@@ -1,262 +1,591 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MASTER DQE (PRO)</title>
-    <style>
-        /* MODERN STİL */
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #eef2f5; color: #333; height: 100vh; overflow: hidden; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MASTER DQE</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial; background:#f4f6f8; margin:0; padding:16px; color:#222; }
+    .wrap { max-width: 1200px; margin: 0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.05); }
+    h1 { margin:0 0 12px; font-size:20px; }
 
-        /* GİRİŞ */
-        #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #eef2f5, #dbe2e8); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .login-box { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); width: 85%; max-width: 350px; text-align: center; }
-        .login-input { width: 100%; padding: 15px; margin: 20px 0; border: 2px solid #ddd; border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 5px; }
-        .login-btn { width: 100%; padding: 15px; background: #3498db; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 10px 0 14px; }
+    input[type="text"] { padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; min-width:320px; }
+    select, .btn { padding:10px 12px; border:1px solid #d1d5db; background:#fff; border-radius:10px; cursor:pointer; }
+    .btn:hover, select:hover { background:#f9fafb; }
+    .chip { padding:8px 10px; border:1px solid #e5e7eb; border-radius:999px; background:#f9fafb; font-size:12px; color:#374151; }
+    label { display:flex; gap:8px; align-items:center; user-select:none; }
+    .muted { color:#6b7280; }
 
-        /* UYGULAMA */
-        #appContainer { display: none; max-width: 600px; margin: 0 auto; height: 100%; overflow-y: auto; padding: 15px; padding-bottom: 150px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .title { font-size: 18px; font-weight: 900; color: #2c3e50; }
-        .logout { background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    table { width:100%; border-collapse: collapse; font-size: 13px; }
+    thead th { position: sticky; top: 0; background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:10px; text-align:left; z-index:2; }
+    tbody td, tfoot td { border-bottom:1px solid #eef2f7; padding:10px; vertical-align: top; }
+    tbody tr:hover td { background:#fcfcfd; }
 
-        /* ARAMA VE LİSTE */
-        .search-area { position: relative; margin-bottom: 20px; z-index: 1000; }
-        .search-box { display: flex; background: white; border: 2px solid #3498db; border-radius: 12px; overflow: hidden; }
-        .search-inp { flex: 1; padding: 14px; border: none; font-size: 14px; font-weight: 600; }
-        .dropdown-btn { padding: 14px; background: #f0f2f5; cursor: pointer; font-size: 12px; font-weight: bold; color: #3498db; border-left: 1px solid #ddd; }
-        .list { display: none; position: absolute; top: 110%; left: 0; right: 0; background: white; max-height: 300px; overflow-y: auto; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 9999; }
-        .item { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; cursor: pointer; display: flex; justify-content: space-between; }
-        .item:hover { background: #f2f7ff; }
+    .num { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
+    .art { white-space:nowrap; font-weight:600; }
+    mark { padding:0 2px; border-radius:4px; background:#ffe08a; }
 
-        /* KARTLAR */
-        .card { background: white; padding: 15px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #ddd; }
-        .card-t { font-size: 13px; font-weight: 800; color: #888; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .serie td { background:#fff7d6; font-weight:800; border-bottom:1px solid #f1e3a6; }
+    .subsection td { background:#fff2bf; font-weight:700; border-bottom:1px solid #f1e3a6; }
+    .subtotal td { background:#f3f4f6; font-weight:700; }
 
-        /* HESAPLAMA */
-        .row { display: flex; gap: 10px; align-items: flex-end; }
-        .inp-g { flex: 1; }
-        .lbl { font-size: 10px; font-weight: bold; color: #999; display: block; margin-bottom: 4px; }
-        .inp { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-weight: bold; text-align: center; }
-        .total { margin-top: 10px; background: #eaf3ff; padding: 10px; text-align: right; font-weight: 900; color: #3498db; border-radius: 8px; font-size: 18px; }
+    tfoot td { background:#111827; color:#fff; font-weight:800; border-bottom:none; }
 
-        /* MALİYET */
-        .cost-row { display: flex; gap: 5px; margin-bottom: 8px; }
-        .c-name { flex: 2; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-        .c-val { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; text-align: center; }
-        .c-del { width: 30px; background: #ffebec; color: red; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .add-btn { width: 100%; padding: 10px; border: 2px dashed #ddd; background: white; color: #555; font-weight: bold; border-radius: 10px; cursor: pointer; margin-top: 5px; }
+    .toggle { display:flex; align-items:center; gap:10px; }
+    .caret {
+      width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center;
+      border:1px solid #e5e7eb; border-radius:6px; background:#fff; font-size:12px;
+    }
+    .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
+    .badge { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; }
 
-        /* FOOTER */
-        .footer { position: fixed; bottom: 0; left: 0; width: 100%; background: white; padding: 15px; display: flex; justify-content: space-between; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); border-top: 1px solid #eee; z-index: 999; }
-        .f-item { text-align: center; flex: 1; }
-        .f-lbl { font-size: 10px; font-weight: 800; color: #999; display: block; }
-        .f-val { font-size: 15px; font-weight: 800; color: #333; }
-        .profit { font-size: 18px; font-weight: 900; }
-        .pos { color: #27ae60; } .neg { color: #e74c3c; }
-
-    </style>
+    .panelBox{
+      display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;
+    }
+    .panelGrid{
+      display:grid; grid-template-columns: 180px 140px; gap:8px 10px; align-items:center;
+    }
+    .panelGrid input{
+      padding:8px; border:1px solid #d1d5db; border-radius:10px;
+    }
+  </style>
 </head>
 <body>
+  <div class="wrap">
+    <h1>MASTER DQE</h1>
 
-<div id="loginOverlay">
-    <div class="login-box">
-        <h3>PROJE YÖNETİM</h3>
-        <input type="password" id="passInput" class="login-input" placeholder="****" inputmode="numeric">
-        <button class="login-btn" onclick="app.login()">GİRİŞ</button>
-    </div>
-</div>
+    <div class="toolbar">
+      <select id="viewSel">
+        <option value="dqe">DQE</option>
+        <option value="cost">Makina & İşçilik</option>
+      </select>
 
-<div id="appContainer">
-    <div class="header">
-        <div class="title">HAKEDİŞ & MALİYET</div>
-        <button class="logout" onclick="app.logout()">ÇIKIŞ</button>
-    </div>
+      <input id="q" type="text" placeholder="Hızlı filtre (ART / açıklama / UM / fiyat)…" />
+      <button class="btn" id="clearBtn">Temizle</button>
 
-    <div class="card" style="border-left: 4px solid #3498db;">
-        <div class="card-t"><span>1. HAKEDİŞ (GELİR)</span> <span id="unitBadge" style="background:#3498db; color:white; padding:2px 6px; border-radius:4px;">-</span></div>
-        
-        <div class="search-area">
-            <div class="search-box">
-                <input type="text" id="searchBox" class="search-inp" placeholder="İş Kalemi Seç..." onkeyup="app.filter('item')" onclick="app.toggle('item')">
-                <div class="dropdown-btn" onclick="app.toggle('item')">▼ LİSTE</div>
-            </div>
-            <div id="itemList" class="list"></div>
-        </div>
+      <button class="btn" id="expandAll">Tümünü Aç</button>
+      <button class="btn" id="collapseAll">Tümünü Kapat</button>
 
-        <div class="row">
-            <div class="inp-g"><span class="lbl">Birim Fiyat</span><input id="priceIn" class="inp" readonly></div>
-            <div class="inp-g"><span class="lbl">Miktar</span><input type="number" id="qtyIn" class="inp" oninput="app.calc()"></div>
-        </div>
-        <div id="revTotal" class="total">0 DZD</div>
+      <label class="chip" title="DQE ekranında: ART’a göre sıralama (her alt başlık içinde)">
+        <input type="checkbox" id="sortArt" />
+        ART’a göre sırala
+      </label>
+
+      <span class="chip" id="count"></span>
+      <span class="chip" id="grandChip"></span>
     </div>
 
-    <div class="card" style="border-left: 4px solid #e67e22;">
-        <div class="card-t">2. MALİYET (GİDER)</div>
-        
-        <div class="search-area">
-            <div class="search-box" style="border-color:#e67e22;">
-                <input type="text" id="machBox" class="search-inp" placeholder="Makine Ekle..." onkeyup="app.filter('mach')" onclick="app.toggle('mach')">
-                <div class="dropdown-btn" style="color:#e67e22;" onclick="app.toggle('mach')">▼ MAKİNE</div>
-            </div>
-            <div id="machList" class="list"></div>
-        </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:140px">ART</th>
+          <th>DESCRIPTION</th>
+          <th style="width:90px">UM</th>
+          <th class="num" style="width:170px">DZD</th>
+          <th class="num" style="width:140px">Euro</th>
+          <th class="num" style="width:190px">DZDéqv</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3">GRAND TOTAL</td>
+          <td class="num" id="gtDzd"></td>
+          <td class="num" id="gtEuro"></td>
+          <td class="num" id="gtEqv"></td>
+        </tr>
+      </tfoot>
+    </table>
 
-        <div id="costs"></div>
-        <button class="add-btn" onclick="app.addCost()">+ Manuel Gider Ekle</button>
-    </div>
-</div>
+    <p class="muted" style="margin:10px 0 0;">
+      Filtre açıkken eşleşen satırlar highlight olur. DQE’de filtre açıkken seriler otomatik açık görünür.
+    </p>
+  </div>
 
-<div class="footer" id="footer">
-    <div class="f-item"><span class="f-lbl">GELİR</span><span class="f-val" id="sumRev" style="color:#3498db">0</span></div>
-    <div class="f-item"><span class="f-lbl">GİDER</span><span class="f-val" id="sumCost" style="color:#e67e22">0</span></div>
-    <div class="f-item"><span class="f-lbl">KÂR</span><span class="profit" id="sumProfit">0</span></div>
-</div>
+  <script type="module">
+    import { dqe, costSheets } from "./database.js";
 
-<script src="database.js"></script>
+    const tbody = document.getElementById("tbody");
+    const q = document.getElementById("q");
+    const clearBtn = document.getElementById("clearBtn");
+    const expandAllBtn = document.getElementById("expandAll");
+    const collapseAllBtn = document.getElementById("collapseAll");
+    const sortArtEl = document.getElementById("sortArt");
+    const countEl = document.getElementById("count");
+    const grandChip = document.getElementById("grandChip");
+    const viewSel = document.getElementById("viewSel");
 
-<script>
-    var app = {
-        selItem: null,
-        rev: 0,
-        cost: 0,
-        
-        login: function() {
-            if(document.getElementById("passInput").value === "1907") {
-                document.getElementById("loginOverlay").style.display = "none";
-                document.getElementById("appContainer").style.display = "block";
-                document.getElementById("footer").style.display = "flex";
-                this.addCost();
-            }
-        },
-        logout: function() { location.reload(); },
+    const gtDzd = document.getElementById("gtDzd");
+    const gtEuro = document.getElementById("gtEuro");
+    const gtEqv = document.getElementById("gtEqv");
 
-        toggle: function(type) {
-            var list = document.getElementById(type === 'item' ? 'itemList' : 'machList');
-            document.querySelectorAll('.list').forEach(l => { if(l !== list) l.style.display = 'none'; }); // Diğerlerini kapat
-            if(list.style.display === 'block') list.style.display = 'none';
-            else this.renderList(type);
-        },
+    let currentView = "dqe";
 
-        renderList: function(type) {
-            var list = document.getElementById(type === 'item' ? 'itemList' : 'machList');
-            var input = document.getElementById(type === 'item' ? 'searchBox' : 'machBox');
-            var val = input.value.toLocaleLowerCase('tr');
-            var source = type === 'item' ? DB_ITEMS : DB_MACHINES;
-
-            list.innerHTML = "";
-            var filtered = source.filter(i => {
-                if(type === 'item') return (i.c.toLowerCase().includes(val) || i.n.toLocaleLowerCase('tr').includes(val));
-                else return i.name.toLocaleLowerCase('tr').includes(val);
-            });
-
-            filtered.forEach(i => {
-                var div = document.createElement("div");
-                div.className = "item";
-                if(type === 'item') {
-                    div.innerHTML = `<span><b>${i.c}</b> ${i.n}</span>`;
-                    div.onmousedown = () => this.selectItem(i);
-                } else {
-                    div.innerHTML = `<span>${i.name}</span> <span>${i.price}</span>`;
-                    div.onmousedown = () => this.addMachine(i);
-                }
-                list.appendChild(div);
-            });
-            list.style.display = "block";
-        },
-
-        filter: function(type) { this.renderList(type); },
-
-        selectItem: function(i) {
-            this.selItem = i;
-            document.getElementById("searchBox").value = i.c + " - " + i.n;
-            document.getElementById("itemList").style.display = "none";
-            document.getElementById("unitBadge").innerText = i.u;
-            // Fiyatı yaklaşık DZD olarak göster (Euro 107 baz alındı)
-            var p = i.d + (i.e * 107.31);
-            document.getElementById("priceIn").value = this.fmt(p);
-            
-            // Eğer analiz varsa otomatik doldur
-            if(i.a) {
-                document.getElementById("costs").innerHTML = ""; // Temizle
-                var rate = 107.31;
-                // Basit birim analiz tutarları
-                this.addCost("Yakıt (Analiz)", 1, (i.a.f * 29.01)/i.a.prod);
-                this.addCost("Makine+İşçi (Analiz)", 1, ((i.a.m + i.a.l)*rate)/i.a.prod);
-                if(i.a.mat > 0) this.addCost("Malzeme (Analiz)", 1, i.a.mat * rate);
-            }
-
-            this.calc();
-        },
-
-        addMachine: function(m) {
-            document.getElementById("machList").style.display = "none";
-            document.getElementById("machBox").value = "";
-            this.addCost(m.name + " (Kira)", 1, m.price);
-        },
-
-        calc: function() {
-            var q = parseFloat(document.getElementById("qtyIn").value) || 0;
-            if(this.selItem) {
-                var p = this.selItem.d + (this.selItem.e * 107.31);
-                this.rev = q * p;
-                document.getElementById("revTotal").innerText = this.fmt(this.rev) + " DZD";
-                
-                // Analiz satırlarının miktarını güncelle
-                document.querySelectorAll(".c-qty").forEach(inp => {
-                    if(inp.dataset.auto === "true") inp.value = q;
-                });
-            }
-            this.calcCosts();
-        },
-
-        addCost: function(n="", q="", p="") {
-            var div = document.createElement("div");
-            div.className = "cost-row";
-            var isAuto = n.includes("(Analiz)");
-            var qVal = isAuto ? (document.getElementById("qtyIn").value || 1) : q;
-
-            div.innerHTML = `
-                <input class="c-name" value="${n}" placeholder="Gider">
-                <input type="number" class="c-val c-qty" data-auto="${isAuto}" value="${qVal}" placeholder="Miktar" oninput="app.calcCosts()">
-                <input type="number" class="c-val c-price" value="${p}" placeholder="Fiyat" oninput="app.calcCosts()">
-                <button class="c-del" onclick="this.parentElement.remove(); app.calcCosts()">✕</button>
-            `;
-            document.getElementById("costs").appendChild(div);
-            this.calcCosts();
-        },
-
-        calcCosts: function() {
-            this.cost = 0;
-            document.querySelectorAll(".cost-row").forEach(row => {
-                var q = parseFloat(row.querySelector(".c-qty").value) || 0;
-                var p = parseFloat(row.querySelector(".c-price").value) || 0;
-                this.cost += (q * p);
-            });
-            
-            var profit = this.rev - this.cost;
-            document.getElementById("sumRev").innerText = this.fmt(this.rev);
-            document.getElementById("sumCost").innerText = this.fmt(this.cost);
-            var pEl = document.getElementById("sumProfit");
-            pEl.innerText = this.fmt(profit);
-            pEl.className = "profit " + (profit >= 0 ? "pos" : "neg");
-            pEl.innerText = (profit >= 0 ? "+ " : "") + pEl.innerText;
-        },
-
-        fmt: function(n) { return n.toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    // -----------------------
+    // Helpers
+    // -----------------------
+    const fmt = (v) => {
+      if (v === null || v === undefined) return "-";
+      return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
     };
-    
-    // Enter Giriş
-    document.getElementById("passInput").addEventListener("keypress", function(e){ if(e.key==="Enter") app.login(); });
 
-    // Dışarı tıklama
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.search-area')) {
-            document.querySelectorAll('.list').forEach(l => l.style.display = 'none');
+    function esc(s) {
+      return (s ?? "").toString()
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function highlight(text, needle) {
+      const t = (text ?? "").toString();
+      if (!needle) return esc(t);
+      const n = needle.toLowerCase();
+      const idx = t.toLowerCase().indexOf(n);
+      if (idx === -1) return esc(t);
+      const before = t.slice(0, idx);
+      const mid = t.slice(idx, idx + needle.length);
+      const after = t.slice(idx + needle.length);
+      return `${esc(before)}<mark>${esc(mid)}</mark>${esc(after)}`;
+    }
+
+    // ART natural compare (A2.10 > A2.2)
+    function artKey(art) {
+      const s = (art || "").trim();
+      const m = s.match(/^([A-Za-z]+)\s*(.*)$/);
+      const letters = (m?.[1] || "").toUpperCase();
+      const rest = (m?.[2] || "").replace(/[^\d.]/g, "");
+      const nums = rest ? rest.split(".").filter(Boolean).map(n => parseInt(n, 10)) : [];
+      return { letters, nums };
+    }
+    function cmpArt(a, b) {
+      const ka = artKey(a), kb = artKey(b);
+      if (ka.letters !== kb.letters) return ka.letters < kb.letters ? -1 : 1;
+      const len = Math.max(ka.nums.length, kb.nums.length);
+      for (let i = 0; i < len; i++) {
+        const na = ka.nums[i] ?? -1;
+        const nb = kb.nums[i] ?? -1;
+        if (na !== nb) return na - nb;
+      }
+      return 0;
+    }
+
+    // -----------------------
+    // DQE grouping (level1 collapsible)
+    // -----------------------
+    function buildGroups(items) {
+      const groups = [];
+      let current = null;
+
+      const startGroup = (sectionItem) => {
+        const id = `g_${groups.length}_${(sectionItem.label || "").slice(0,20).replace(/\s+/g,"_")}`;
+        current = { id, header: sectionItem, collapsed: false, blocks: [] };
+        groups.push(current);
+      };
+
+      const ensureBlock = (subHeader = null) => {
+        if (!current) startGroup({ type:"section", level:1, label:"(NO SERIE)" });
+        const last = current.blocks[current.blocks.length - 1];
+        if (!last || last.subHeader !== subHeader) current.blocks.push({ subHeader, items: [] });
+        return current.blocks[current.blocks.length - 1];
+      };
+
+      for (const it of items) {
+        if (it.type === "section" && it.level === 1) { startGroup(it); continue; }
+        if (it.type === "section" && it.level === 2) { ensureBlock(it); continue; }
+        ensureBlock(current?.blocks?.length ? current.blocks[current.blocks.length - 1].subHeader : null).items.push(it);
+      }
+      return groups;
+    }
+
+    const dqeGroups = buildGroups(dqe);
+
+    const sumCol = (rows, key) => rows.reduce((acc, r) => acc + (Number(r?.[key]) || 0), 0);
+    function groupAllRows(g) {
+      const rows = [];
+      for (const b of g.blocks) for (const it of b.items) if (it.type === "row") rows.push(it);
+      return rows;
+    }
+
+    function searchableRowText(r) {
+      const parts = [
+        r.art, r.description, r.um,
+        r.dzd, r.euro, r.dzdEqv,
+        fmt(r.dzd), fmt(r.euro), fmt(r.dzdEqv)
+      ];
+      return parts.map(x => (x ?? "").toString().toLowerCase()).join(" | ");
+    }
+
+    // -----------------------
+    // COST helpers
+    // -----------------------
+    const sheet = costSheets[0];
+
+    function calcMachineTotal(line) {
+      return Number(line.miktar || 0) * Number(line.adet || 0) * Number(line.birimFiyatDzd || 0);
+    }
+    function calcLaborDayTotal(line) {
+      return Number(line.saat || 0) * Number(line.adet || 0) * Number(line.birimSaatDzd || 0);
+    }
+
+    // -----------------------
+    // Render DQE
+    // -----------------------
+    function renderDQE() {
+      const needle = q.value.trim();
+      const needleLower = needle.toLowerCase();
+      const sortArt = sortArtEl.checked;
+
+      // Grand totals (full data)
+      const allRows = dqe.filter(x => x.type === "row");
+      const gtd = sumCol(allRows, "dzd");
+      const gte = sumCol(allRows, "euro");
+      const gtq = sumCol(allRows, "dzdEqv");
+
+      gtDzd.textContent = `${fmt(gtd)} DZD`;
+      gtEuro.textContent = `${fmt(gte)} €`;
+      gtEqv.textContent = `${fmt(gtq)} DZD`;
+      grandChip.textContent = `Grand: ${fmt(gtd)} DZD | ${fmt(gte)} € | ${fmt(gtq)} DZD`;
+
+      tbody.innerHTML = "";
+      let visibleRowCount = 0;
+
+      for (const g of dqeGroups) {
+        const headerLabel = g.header?.label ?? "";
+
+        // Filter: show group only if any row matches (or header matches)
+        let groupMatches = false;
+        const matchedRowsByBlock = new Map();
+
+        if (needle) {
+          if (headerLabel.toLowerCase().includes(needleLower)) groupMatches = true;
+
+          for (const b of g.blocks) {
+            const matched = b.items.filter(it => it.type === "row" && searchableRowText(it).includes(needleLower));
+            if (matched.length) { groupMatches = true; matchedRowsByBlock.set(b, matched); }
+          }
+          if (!groupMatches) continue;
         }
-    });
-</script>
 
+        const collapsed = needle ? false : g.collapsed;
+
+        // Header row
+        const trH = document.createElement("tr");
+        trH.className = "serie";
+        const tdH = document.createElement("td");
+        tdH.colSpan = 6;
+
+        const matchCount = needle
+          ? [...matchedRowsByBlock.values()].reduce((a, arr) => a + arr.length, 0)
+          : null;
+
+        // Subtotal (full group)
+        const gRows = groupAllRows(g);
+        const subDzd = sumCol(gRows, "dzd");
+        const subEuro = sumCol(gRows, "euro");
+        const subEqv = sumCol(gRows, "dzdEqv");
+
+        tdH.innerHTML = `
+          <div class="toggle" role="button" tabindex="0" data-gid="${g.id}">
+            <span class="caret">${collapsed ? "▶" : "▼"}</span>
+            <span>${highlight(headerLabel, needle)}</span>
+            <span class="right">
+              ${needle ? `<span class="badge">${matchCount} eşleşme</span>` : ""}
+              <span class="badge">${fmt(subDzd)} DZD | ${fmt(subEuro)} €</span>
+            </span>
+          </div>
+        `;
+        trH.appendChild(tdH);
+        tbody.appendChild(trH);
+
+        if (collapsed) continue;
+
+        for (const b of g.blocks) {
+          const subHeader = b.subHeader;
+
+          let rowsToRender = b.items.filter(it => it.type === "row");
+          if (needle) {
+            rowsToRender = matchedRowsByBlock.get(b) ?? [];
+            if (!rowsToRender.length) continue;
+          }
+
+          if (sortArt) rowsToRender = [...rowsToRender].sort((x, y) => cmpArt(x.art, y.art));
+
+          if (subHeader) {
+            const trS = document.createElement("tr");
+            trS.className = "subsection";
+            const tdS = document.createElement("td");
+            tdS.colSpan = 6;
+            tdS.innerHTML = highlight(subHeader.label, needle);
+            trS.appendChild(tdS);
+            tbody.appendChild(trS);
+          }
+
+          for (const r of rowsToRender) {
+            const tr = document.createElement("tr");
+
+            const tdArt = document.createElement("td");
+            tdArt.className = "art";
+            tdArt.innerHTML = highlight(r.art ?? "", needle);
+            tr.appendChild(tdArt);
+
+            const tdDesc = document.createElement("td");
+            tdDesc.innerHTML = highlight(r.description ?? "", needle);
+            tr.appendChild(tdDesc);
+
+            const tdUm = document.createElement("td");
+            tdUm.innerHTML = highlight(r.um ?? "", needle);
+            tr.appendChild(tdUm);
+
+            const tdDzd = document.createElement("td");
+            tdDzd.className = "num";
+            tdDzd.innerHTML = highlight(r.dzd != null ? `${fmt(r.dzd)} DZD` : "-", needle);
+            tr.appendChild(tdDzd);
+
+            const tdEuro = document.createElement("td");
+            tdEuro.className = "num";
+            tdEuro.innerHTML = highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle);
+            tr.appendChild(tdEuro);
+
+            const tdEqv = document.createElement("td");
+            tdEqv.className = "num";
+            tdEqv.innerHTML = highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle);
+            tr.appendChild(tdEqv);
+
+            tbody.appendChild(tr);
+            visibleRowCount++;
+          }
+        }
+
+        // Subtotal row (filtre yokken göster)
+        if (!needle) {
+          const trSub = document.createElement("tr");
+          trSub.className = "subtotal";
+          trSub.innerHTML = `
+            <td colspan="3">SUBTOTAL (SERIE)</td>
+            <td class="num">${fmt(subDzd)} DZD</td>
+            <td class="num">${fmt(subEuro)} €</td>
+            <td class="num">${fmt(subEqv)} DZD</td>
+          `;
+          tbody.appendChild(trSub);
+        }
+      }
+
+      countEl.textContent = `${visibleRowCount} satır`;
+    }
+
+    // -----------------------
+    // Render COST (Makina & İşçilik)
+    // -----------------------
+    function renderCOST() {
+      const needle = q.value.trim();
+      const needleLower = needle.toLowerCase();
+
+      // DQE özel butonlar bu ekranda kapansın
+      expandAllBtn.disabled = true;
+      collapseAllBtn.disabled = true;
+      sortArtEl.disabled = true;
+
+      const p = sheet.unitPanel;
+      const totalKm = Number(p.trip_km_loaded_empty || 0) * Number(p.trip_count || 0);
+
+      const makinaTotal = sheet.makina.reduce((a, x) => a + calcMachineTotal(x), 0);
+      const iscilikTotal = sheet.iscilik.reduce((a, x) => a + calcLaborDayTotal(x), 0);
+      const grand = makinaTotal + iscilikTotal;
+
+      // Footer (bu ekranda euro/eqv yok)
+      gtDzd.textContent = `${fmt(grand)} DZD`;
+      gtEuro.textContent = `-`;
+      gtEqv.textContent = `-`;
+      grandChip.textContent = `Toplam: ${fmt(grand)} DZD`;
+
+      tbody.innerHTML = "";
+
+      // Panel row
+      const panelTr = document.createElement("tr");
+      panelTr.className = "serie";
+      const panelTd = document.createElement("td");
+      panelTd.colSpan = 6;
+
+      panelTd.innerHTML = `
+        <div class="panelBox">
+          <div style="font-weight:900;">ÖLÇÜ BİRİMİ</div>
+
+          <div class="panelGrid">
+            <div>günlük kazı (m³)</div>
+            <input data-k="daily_excavation_m3" type="number" step="1" value="${p.daily_excavation_m3}" />
+
+            <div>sefer (dolu+boş) /km</div>
+            <input data-k="trip_km_loaded_empty" type="number" step="0.1" value="${p.trip_km_loaded_empty}" />
+
+            <div>kasa hacim (m³)</div>
+            <input data-k="bucket_volume_m3" type="number" step="0.1" value="${p.bucket_volume_m3}" />
+
+            <div>sefer adet</div>
+            <input data-k="trip_count" type="number" step="1" value="${p.trip_count}" />
+
+            <div style="font-weight:800;">toplam km</div>
+            <div style="font-weight:900;">${fmt(totalKm)} km</div>
+          </div>
+
+          <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap;">
+            <span class="badge">Makina: ${fmt(makinaTotal)} DZD</span>
+            <span class="badge">İşçilik: ${fmt(iscilikTotal)} DZD</span>
+            <span class="badge">Toplam: ${fmt(grand)} DZD</span>
+          </div>
+        </div>
+      `;
+      panelTr.appendChild(panelTd);
+      tbody.appendChild(panelTr);
+
+      // panel input listeners
+      panelTd.querySelectorAll("input[data-k]").forEach(inp => {
+        inp.addEventListener("input", () => {
+          const k = inp.getAttribute("data-k");
+          sheet.unitPanel[k] = Number(inp.value);
+          render(); // refresh
+        });
+      });
+
+      // Sections
+      addSubSection("MAKİNA");
+      let shownM = 0;
+      for (const ln of sheet.makina) {
+        const total = calcMachineTotal(ln);
+        const hay = `${ln.cinsi} ${ln.um} ${ln.miktar} ${ln.adet} ${ln.birimFiyatDzd} ${total}`.toLowerCase();
+        if (needleLower && !hay.includes(needleLower)) continue;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="art">${highlight(ln.cinsi, needle)}</td>
+          <td>${highlight("Kira Bedeli", needle)}</td>
+          <td>${highlight(ln.um, needle)}</td>
+          <td class="num">${highlight(`${fmt(ln.birimFiyatDzd)} DZD`, needle)}</td>
+          <td class="num">${highlight(`${fmt(total)} DZD`, needle)}</td>
+          <td class="num">${highlight(`miktar:${ln.miktar} adet:${ln.adet}`, needle)}</td>
+        `;
+        tbody.appendChild(tr);
+        shownM++;
+      }
+      if (shownM === 0) addEmpty("Eşleşen makina satırı yok.");
+
+      addSubtotal(`SUBTOTAL (MAKİNA)`, makinaTotal);
+
+      addSubSection("İŞÇİLİK");
+      let shownL = 0;
+      for (const ln of sheet.iscilik) {
+        const total = calcLaborDayTotal(ln);
+        const hay = `${ln.grup} ${ln.pozisyon} ${ln.um} ${ln.saat} ${ln.adet} ${ln.birimSaatDzd} ${total} ${ln.maasDzd}`.toLowerCase();
+        if (needleLower && !hay.includes(needleLower)) continue;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="art">${highlight(ln.grup, needle)}</td>
+          <td>${highlight(ln.pozisyon, needle)}</td>
+          <td>${highlight(ln.um, needle)}</td>
+          <td class="num">${highlight(`${fmt(ln.birimSaatDzd)} DZD / saat`, needle)}</td>
+          <td class="num">${highlight(`${fmt(total)} DZD / gün`, needle)}</td>
+          <td class="num">${highlight(`maaş: ${fmt(ln.maasDzd)} DZD`, needle)}</td>
+        `;
+        tbody.appendChild(tr);
+        shownL++;
+      }
+      if (shownL === 0) addEmpty("Eşleşen işçilik satırı yok.");
+
+      addSubtotal(`SUBTOTAL (İŞÇİLİK)`, iscilikTotal);
+
+      countEl.textContent = `Makina: ${shownM} | İşçilik: ${shownL}`;
+    }
+
+    function addSubSection(label) {
+      const tr = document.createElement("tr");
+      tr.className = "subsection";
+      const td = document.createElement("td");
+      td.colSpan = 6;
+      td.textContent = label;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+
+    function addSubtotal(label, totalDzd) {
+      const tr = document.createElement("tr");
+      tr.className = "subtotal";
+      tr.innerHTML = `
+        <td colspan="3">${label}</td>
+        <td class="num">${fmt(totalDzd)} DZD</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function addEmpty(msg) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="6" class="muted">${msg}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    // -----------------------
+    // Main render switch
+    // -----------------------
+    function render() {
+      if (currentView === "dqe") {
+        expandAllBtn.disabled = false;
+        collapseAllBtn.disabled = false;
+        sortArtEl.disabled = false;
+        renderDQE();
+      } else {
+        renderCOST();
+      }
+    }
+
+    // -----------------------
+    // UI events
+    // -----------------------
+    clearBtn.addEventListener("click", () => {
+      q.value = "";
+      render();
+      q.focus();
+    });
+
+    q.addEventListener("input", () => render());
+
+    viewSel.addEventListener("change", () => {
+      currentView = viewSel.value;
+      // DQE’de collapse butonları aktif, COST’ta pasif
+      render();
+    });
+
+    expandAllBtn.addEventListener("click", () => {
+      for (const g of dqeGroups) g.collapsed = false;
+      render();
+    });
+
+    collapseAllBtn.addEventListener("click", () => {
+      for (const g of dqeGroups) g.collapsed = true;
+      render();
+    });
+
+    sortArtEl.addEventListener("change", render);
+
+    // DQE collapse click
+    tbody.addEventListener("click", (e) => {
+      if (currentView !== "dqe") return;
+      const btn = e.target.closest("[data-gid]");
+      if (!btn) return;
+      if (q.value.trim()) return; // filtre açıkken collapse kilitli
+
+      const gid = btn.getAttribute("data-gid");
+      const g = dqeGroups.find(x => x.id === gid);
+      if (!g) return;
+      g.collapsed = !g.collapsed;
+      render();
+    });
+
+    // first render
+    render();
+  </script>
 </body>
 </html>
