@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="tr">
 <head>
+  <meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow, noarchive">
+
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MASTER DQE</title>
@@ -28,11 +31,11 @@
     *{ box-sizing:border-box; }
     body{
       margin:0; padding:18px;
-      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+      font-family: -le-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
       background:var(--bg); color:var(--text);
     }
 
-    .app{
+    .{
       max-width:1280px; margin:0 auto;
       background:var(--card);
       border:1px solid var(--line);
@@ -320,7 +323,7 @@
 </head>
 
 <body>
-  <div class="app">
+  <div class="">
     <div class="topbar">
       <div class="title">MASTER DQE</div>
       <div class="grow"></div>
@@ -443,7 +446,7 @@
         const opt = document.createElement("option");
         opt.value = r.art;
         opt.label = `${r.art} — ${r.description}`;
-        dqeArtList.appendChild(opt);
+        dqeArtList.endChild(opt);
       }
     }
     fillDatalist();
@@ -630,7 +633,7 @@
             </div>
           </td>
         `;
-        tbody.appendChild(trH);
+        tbody.endChild(trH);
         if (collapsed) continue;
 
         for (const b of g.blocks){
@@ -646,7 +649,7 @@
             const trS = document.createElement("tr");
             trS.className="subsection";
             trS.innerHTML = `<td colspan="6">${highlight(subHeader.label, needle)}</td>`;
-            tbody.appendChild(trS);
+            tbody.endChild(trS);
           }
 
           for (const r of rowsToRender){
@@ -659,7 +662,7 @@
               <td class="num">${highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle)}</td>
               <td class="num">${highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle)}</td>
             `;
-            tbody.appendChild(tr);
+            tbody.endChild(tr);
             visible++;
           }
         }
@@ -673,7 +676,7 @@
             <td class="num">${fmt(subEuro)} €</td>
             <td class="num">${fmt(subEqv)} DZD</td>
           `;
-          tbody.appendChild(trSub);
+          tbody.endChild(trSub);
         }
       }
 
@@ -768,7 +771,7 @@
           </div>
         </td>
       `;
-      tbody.appendChild(trTop);
+      tbody.endChild(trTop);
 
       // POZ cards
       for (const art of costState.pozList){
@@ -891,7 +894,7 @@
             </div>
           </td>
         `;
-        tbody.appendChild(tr);
+        tbody.endChild(tr);
       }
 
       countEl.textContent = `POZ: ${costState.pozList.length}`;
