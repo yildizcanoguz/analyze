@@ -48,13 +48,28 @@
 
     .card {
       border:1px solid #e5e7eb; border-radius:14px; padding:12px;
-      background:#fff; min-width: 320px;
+      background:#fff; min-width: 360px;
     }
     .card h3 { margin:0 0 8px; font-size:13px; }
+
     .kv { display:grid; grid-template-columns: 1fr 1fr; gap:6px 10px; align-items:center; font-size:12px; }
     .kv div:nth-child(odd) { color:#6b7280; }
     .kv div:nth-child(even) { font-weight:700; text-align:right; }
-    .small { font-size:12px; }
+
+    .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .chipItem {
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid #e5e7eb; background:#f9fafb; border-radius:999px;
+      padding:6px 10px; font-size:12px;
+    }
+    .chipItem button{
+      border:none; background:transparent; cursor:pointer; font-weight:900; line-height:1;
+    }
+
+    .miniTable { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+    .miniTable th, .miniTable td { border-bottom:1px solid #eef2f7; padding:8px; vertical-align:top; }
+    .miniTable th { background:#f9fafb; text-align:left; position:sticky; top:0; }
+    .warn { color:#b45309; font-weight:700; }
   </style>
 </head>
 
@@ -132,21 +147,27 @@
     const dqeArtList = document.getElementById("dqeArtList");
 
     let currentView = "dqe";
+    const sheet = costSheets[0]; // şimdilik tek sheet
 
-    // Tek sheet var şimdilik
-    const sheet = costSheets[0];
+    // ---- POZ list state (multi-select)
+    const LS_POZ_LIST = "selected_poz_list_v1";
+    const LS_POZ_COL  = "selected_poz_col_v1";
 
-    // COST ekranında seçilen poz
-    const LS_KEY = "selected_poz_art_v1";
-    let selectedPozArt = localStorage.getItem(LS_KEY) || ""; // örn: C3.1
-    let selectedPozColumn = localStorage.getItem("selected_poz_col_v1") || "dzdEqv"; // dzd | dzdEqv | euro
+    let selectedPozList = [];
+    try {
+      const raw = localStorage.getItem(LS_POZ_LIST);
+      selectedPozList = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(selectedPozList)) selectedPozList = [];
+    } catch { selectedPozList = []; }
+
+    let selectedPozColumn = localStorage.getItem(LS_POZ_COL) || "dzdEqv"; // dzd | dzdEqv | euro
 
     // -----------------------
     // Helpers
     // -----------------------
     const fmt = (v) => {
-      if (v === null || v === undefined) return "-";
-      return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+      if (v === null || v === undefined || Number.isNaN(Number(v))) return "-";
+      return new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v));
     };
 
     function esc(s) {
@@ -191,6 +212,32 @@
       return 0;
     }
 
+    function savePozList() {
+      localStorage.setItem(LS_POZ_LIST, JSON.stringify(selectedPozList));
+    }
+
+    function addPoz(art) {
+      const a = String(art || "").trim();
+      if (!a) return;
+      if (!selectedPozList.includes(a)) {
+        selectedPozList.push(a);
+        // natural sort
+        selectedPozList.sort((x,y)=>cmpArt(x,y));
+        savePozList();
+      }
+    }
+
+    function removePoz(art) {
+      const a = String(art || "").trim();
+      selectedPozList = selectedPozList.filter(x => x !== a);
+      savePozList();
+    }
+
+    function clearPozList() {
+      selectedPozList = [];
+      savePozList();
+    }
+
     // -----------------------
     // DQE list / lookup
     // -----------------------
@@ -198,7 +245,6 @@
     const dqeByArt = new Map(dqeRows.map(r => [String(r.art).trim(), r]));
 
     function fillDatalist() {
-      // datalist: "C3.1 — Déblai meuble mis en remblai"
       dqeArtList.innerHTML = "";
       const rowsSorted = [...dqeRows].sort((a,b)=>cmpArt(a.art,b.art));
       for (const r of rowsSorted) {
@@ -274,7 +320,6 @@
       const needleLower = needle.toLowerCase();
       const sortArt = sortArtEl.checked;
 
-      // Grand totals (full data)
       const allRows = dqeRows;
       const gtd = sumCol(allRows, "dzd");
       const gte = sumCol(allRows, "euro");
@@ -291,7 +336,6 @@
       for (const g of dqeGroups) {
         const headerLabel = g.header?.label ?? "";
 
-        // Filter: show group only if any row matches (or header matches)
         let groupMatches = false;
         const matchedRowsByBlock = new Map();
 
@@ -307,13 +351,11 @@
 
         const collapsed = needle ? false : g.collapsed;
 
-        // Header row
         const trH = document.createElement("tr");
         trH.className = "serie";
         const tdH = document.createElement("td");
         tdH.colSpan = 6;
 
-        // Subtotal (full group)
         const gRows = groupAllRows(g);
         const subDzd = sumCol(gRows, "dzd");
         const subEuro = sumCol(gRows, "euro");
@@ -390,7 +432,6 @@
           }
         }
 
-        // Subtotal row (filtre yokken göster)
         if (!needle) {
           const trSub = document.createElement("tr");
           trSub.className = "subtotal";
@@ -408,13 +449,12 @@
     }
 
     // -----------------------
-    // Render COST (Makina & İşçilik + POZ çekme)
+    // Render COST (Makina & İşçilik + POZ list)
     // -----------------------
     function renderCOST() {
       const needle = q.value.trim();
       const needleLower = needle.toLowerCase();
 
-      // DQE butonları bu ekranda pasif
       expandAllBtn.disabled = true;
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
@@ -429,29 +469,30 @@
       const dailyM3 = Number(p.daily_excavation_m3 || 0);
       const internalUnitCost = dailyM3 > 0 ? (dailyTotalCost / dailyM3) : 0; // DZD / m3
 
-      // Seçili POZ verisi
-      const poz = dqeByArt.get(String(selectedPozArt).trim()) || null;
-
-      // POZ "seçilen kolon" değeri
-      const pozValue = poz ? (poz[selectedPozColumn] ?? null) : null;
-
-      // karşılaştırma
-      const diff = (pozValue != null) ? (Number(pozValue) - internalUnitCost) : null;
-      const diffPct = (pozValue != null && Number(pozValue) !== 0) ? (diff / Number(pozValue) * 100) : null;
-
-      // Footer (cost ekranında euro/eqv yok)
       gtDzd.textContent = `${fmt(dailyTotalCost)} DZD`;
       gtEuro.textContent = `-`;
       gtEqv.textContent = `-`;
-      grandChip.textContent = `Günlük toplam: ${fmt(dailyTotalCost)} DZD | Birim maliyet: ${fmt(internalUnitCost)} DZD/m³`;
+      grandChip.textContent = `Günlük: ${fmt(dailyTotalCost)} DZD | Birim: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³`;
 
       tbody.innerHTML = "";
 
-      // Panel row (Ölçü Birimi + Poz seçimi + Birim maliyet kartı)
+      // Panel row
       const panelTr = document.createElement("tr");
       panelTr.className = "serie";
       const panelTd = document.createElement("td");
       panelTd.colSpan = 6;
+
+      // Chips html
+      const chipsHtml = selectedPozList.length
+        ? `<div class="chips">
+            ${selectedPozList.map(a => `
+              <span class="chipItem">
+                ${esc(a)}
+                <button type="button" data-remove="${esc(a)}" title="Çıkar">×</button>
+              </span>
+            `).join("")}
+          </div>`
+        : `<div class="muted" style="margin-top:6px;">Henüz POZ eklemedin.</div>`;
 
       panelTd.innerHTML = `
         <div class="panelBox">
@@ -475,14 +516,13 @@
           </div>
 
           <div class="card">
-            <h3>POZ seç → DQE’den çek</h3>
-            <div class="small muted" style="margin-bottom:8px;">
-              Örn: C3.1, C4.3, C9.1...
-            </div>
+            <h3>POZ menü: seç → Ekle → listeden çıkar</h3>
 
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-              <input id="pozInput" list="dqeArtList" placeholder="ART yaz/ seç (örn C3.1)" value="${esc(selectedPozArt)}"
-                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; min-width:180px;" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input id="pozPick" list="dqeArtList" placeholder="ART seç (örn C3.1)" value=""
+                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; min-width:170px;" />
+              <button class="btn" id="pozAddBtn" type="button">Ekle</button>
+              <button class="btn" id="pozClearBtn" type="button">Listeyi temizle</button>
 
               <select id="pozCol" style="padding:8px;border:1px solid #d1d5db;border-radius:10px;">
                 <option value="dzd" ${selectedPozColumn==="dzd"?"selected":""}>POZ fiyat: DZD</option>
@@ -491,27 +531,10 @@
               </select>
             </div>
 
-            <div class="kv">
-              <div>Seçili POZ</div>
-              <div>${poz ? esc(poz.art) : "-"}</div>
+            ${chipsHtml}
 
-              <div>Açıklama</div>
-              <div style="text-align:right; font-weight:600;">${poz ? esc(poz.description) : "-"}</div>
-
-              <div>UM</div>
-              <div>${poz ? esc(poz.um) : "-"}</div>
-
-              <div>POZ birim fiyat</div>
-              <div>${pozValue != null ? fmt(pozValue) : "-"}</div>
-
-              <div>Senin birim maliyet</div>
-              <div>${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³</div>
-
-              <div>Fark (POZ - maliyet)</div>
-              <div>${diff != null ? fmt(diff) : "-"}</div>
-
-              <div>Fark (%)</div>
-              <div>${diffPct != null ? fmt(diffPct) + "%" : "-"}</div>
+            <div class="muted" style="margin-top:8px;">
+              Not: Euro seçersen karşılaştırma DZD ile aynı para birimi değil, fark hesabı kapalı olur.
             </div>
           </div>
 
@@ -531,27 +554,117 @@
         inp.addEventListener("input", () => {
           const k = inp.getAttribute("data-k");
           sheet.unitPanel[k] = Number(inp.value);
-          render(); // refresh
+          render();
         });
       });
 
-      // poz input listeners
-      const pozInput = panelTd.querySelector("#pozInput");
+      // poz controls
+      const pozPick = panelTd.querySelector("#pozPick");
+      const pozAddBtn = panelTd.querySelector("#pozAddBtn");
+      const pozClearBtn = panelTd.querySelector("#pozClearBtn");
       const pozCol = panelTd.querySelector("#pozCol");
 
-      pozInput.addEventListener("input", () => {
-        selectedPozArt = pozInput.value.trim();
-        localStorage.setItem(LS_KEY, selectedPozArt);
+      function doAddPoz() {
+        const art = (pozPick.value || "").trim();
+        addPoz(art);
+        pozPick.value = "";      // ✅ ekleyince input otomatik boşalır
+        pozPick.focus();
+        render();
+      }
+
+      pozAddBtn.addEventListener("click", doAddPoz);
+      pozPick.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); doAddPoz(); }
+      });
+
+      pozClearBtn.addEventListener("click", () => {
+        clearPozList();
         render();
       });
 
       pozCol.addEventListener("change", () => {
         selectedPozColumn = pozCol.value;
-        localStorage.setItem("selected_poz_col_v1", selectedPozColumn);
+        localStorage.setItem(LS_POZ_COL, selectedPozColumn);
         render();
       });
 
-      // Sections
+      // chip remove handlers
+      panelTd.querySelectorAll("button[data-remove]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const art = btn.getAttribute("data-remove");
+          removePoz(art);
+          render();
+        });
+      });
+
+      // ---- Comparison table (selected POZ list)
+      if (selectedPozList.length) {
+        const tr = document.createElement("tr");
+        tr.className = "subsection";
+        tr.innerHTML = `<td colspan="6">POZ Karşılaştırma (Birim maliyet: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³)</td>`;
+        tbody.appendChild(tr);
+
+        const tr2 = document.createElement("tr");
+        const td2 = document.createElement("td");
+        td2.colSpan = 6;
+
+        const rowsHtml = selectedPozList.map(art => {
+          const poz = dqeByArt.get(String(art).trim()) || null;
+          if (!poz) {
+            return `
+              <tr>
+                <td class="art">${esc(art)}</td>
+                <td colspan="2"><span class="warn">DQE’de bulunamadı</span></td>
+                <td class="num">-</td>
+                <td class="num">-</td>
+                <td class="num">-</td>
+              </tr>
+            `;
+          }
+
+          const pozVal = poz[selectedPozColumn];
+          const pozUM = String(poz.um || "").trim();
+          const umWarn = (pozUM && pozUM.toLowerCase() !== "m3") ? `<span class="warn">UM ≠ m3 (${esc(pozUM)})</span>` : "";
+
+          // euro seçiliyse diff kapalı
+          let diff = null, diffPct = null;
+          if (selectedPozColumn !== "euro" && dailyM3 > 0 && pozVal != null) {
+            diff = Number(pozVal) - internalUnitCost;
+            diffPct = Number(pozVal) !== 0 ? (diff / Number(pozVal) * 100) : null;
+          }
+
+          return `
+            <tr>
+              <td class="art">${esc(poz.art)}</td>
+              <td>${esc(poz.description)} ${umWarn}</td>
+              <td>${esc(poz.um || "-")}</td>
+              <td class="num">${pozVal != null ? fmt(pozVal) : "-"}</td>
+              <td class="num">${dailyM3>0 ? fmt(internalUnitCost) : "-"}</td>
+              <td class="num">${(diff!=null && diffPct!=null) ? (fmt(diff) + " (" + fmt(diffPct) + "%)") : "-"}</td>
+            </tr>
+          `;
+        }).join("");
+
+        td2.innerHTML = `
+          <table class="miniTable">
+            <thead>
+              <tr>
+                <th style="width:90px;">ART</th>
+                <th>DESCRIPTION</th>
+                <th style="width:80px;">UM</th>
+                <th style="width:130px;" class="num">POZ</th>
+                <th style="width:150px;" class="num">Senin (DZD/m³)</th>
+                <th style="width:180px;" class="num">Fark (POZ - maliyet)</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        `;
+        tr2.appendChild(td2);
+        tbody.appendChild(tr2);
+      }
+
+      // ---- Makina/İşçilik tabloları (filtre + highlight)
       addSubSection("MAKİNA");
       let shownM = 0;
       for (const ln of sheet.makina) {
@@ -572,7 +685,6 @@
         shownM++;
       }
       if (shownM === 0) addEmpty("Eşleşen makina satırı yok.");
-
       addSubtotal(`SUBTOTAL (MAKİNA)`, makinaTotal);
 
       addSubSection("İŞÇİLİK");
@@ -595,7 +707,6 @@
         shownL++;
       }
       if (shownL === 0) addEmpty("Eşleşen işçilik satırı yok.");
-
       addSubtotal(`SUBTOTAL (İŞÇİLİK)`, iscilikTotal);
 
       countEl.textContent = `Makina: ${shownM} | İşçilik: ${shownL}`;
@@ -651,7 +762,6 @@
       render();
       q.focus();
     });
-
     q.addEventListener("input", () => render());
 
     viewSel.addEventListener("change", () => {
@@ -671,12 +781,11 @@
 
     sortArtEl.addEventListener("change", render);
 
-    // DQE collapse click
     tbody.addEventListener("click", (e) => {
       if (currentView !== "dqe") return;
       const btn = e.target.closest("[data-gid]");
       if (!btn) return;
-      if (q.value.trim()) return; // filtre açıkken collapse kilitli
+      if (q.value.trim()) return;
 
       const gid = btn.getAttribute("data-gid");
       const g = dqeGroups.find(x => x.id === gid);
@@ -685,7 +794,6 @@
       render();
     });
 
-    // first render
     render();
   </script>
 </body>
