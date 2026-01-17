@@ -40,6 +40,7 @@
     .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
     .badge { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; }
 
+    /* COST UI */
     .panelBox{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
     .panelGrid{ display:grid; grid-template-columns: 190px 160px; gap:8px 10px; align-items:center; }
     .panelGrid input, .panelGrid select{
@@ -48,13 +49,9 @@
 
     .card {
       border:1px solid #e5e7eb; border-radius:14px; padding:12px;
-      background:#fff; min-width: 360px;
+      background:#fff; min-width: 380px;
     }
     .card h3 { margin:0 0 8px; font-size:13px; }
-
-    .kv { display:grid; grid-template-columns: 1fr 1fr; gap:6px 10px; align-items:center; font-size:12px; }
-    .kv div:nth-child(odd) { color:#6b7280; }
-    .kv div:nth-child(even) { font-weight:700; text-align:right; }
 
     .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .chipItem {
@@ -66,10 +63,46 @@
       border:none; background:transparent; cursor:pointer; font-weight:900; line-height:1;
     }
 
-    .miniTable { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
-    .miniTable th, .miniTable td { border-bottom:1px solid #eef2f7; padding:8px; vertical-align:top; }
-    .miniTable th { background:#f9fafb; text-align:left; position:sticky; top:0; }
-    .warn { color:#b45309; font-weight:700; }
+    .pozCard{
+      border:1px solid #e5e7eb; border-radius:14px; padding:12px; background:#fff;
+      margin-top:10px;
+    }
+    .pozHeader{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .pozHeader .title{ font-weight:900; }
+    .pozHeader .mini{ font-size:12px; color:#6b7280; }
+    .pozHeader .rightSide{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    .grid2{
+      display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+      margin-top:10px;
+    }
+    .box{
+      border:1px solid #eef2f7; border-radius:12px; padding:10px; background:#fcfcfd;
+    }
+    .boxTitle{ font-weight:800; margin-bottom:6px; }
+    .rowLine{
+      display:grid;
+      grid-template-columns: 1.6fr 0.6fr 0.6fr 0.9fr 0.9fr 40px;
+      gap:6px; align-items:center;
+      margin:6px 0;
+      font-size:12px;
+    }
+    .rowLine input{
+      width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:10px; background:#fff;
+      font-size:12px;
+    }
+    .rowLine .xbtn{
+      border:1px solid #e5e7eb; border-radius:10px; background:#fff; cursor:pointer;
+      height:30px;
+    }
+    .rowHead{
+      display:grid;
+      grid-template-columns: 1.6fr 0.6fr 0.6fr 0.9fr 0.9fr 40px;
+      gap:6px; font-size:11px; color:#6b7280; margin-top:6px;
+    }
+    .warn { color:#b45309; font-weight:800; }
   </style>
 </head>
 
@@ -149,21 +182,8 @@
     let currentView = "dqe";
     const sheet = costSheets[0]; // şimdilik tek sheet
 
-    // ---- POZ list state (multi-select)
-    const LS_POZ_LIST = "selected_poz_list_v1";
-    const LS_POZ_COL  = "selected_poz_col_v1";
-
-    let selectedPozList = [];
-    try {
-      const raw = localStorage.getItem(LS_POZ_LIST);
-      selectedPozList = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(selectedPozList)) selectedPozList = [];
-    } catch { selectedPozList = []; }
-
-    let selectedPozColumn = localStorage.getItem(LS_POZ_COL) || "dzdEqv"; // dzd | dzdEqv | euro
-
     // -----------------------
-    // Helpers
+    // Formatting helpers
     // -----------------------
     const fmt = (v) => {
       if (v === null || v === undefined || Number.isNaN(Number(v))) return "-";
@@ -191,7 +211,7 @@
       return `${esc(before)}<mark>${esc(mid)}</mark>${esc(after)}`;
     }
 
-    // ART natural compare (A2.10 > A2.2)
+    // ART compare (A2.10 > A2.2)
     function artKey(art) {
       const s = (art || "").trim();
       const m = s.match(/^([A-Za-z]+)\s*(.*)$/);
@@ -212,34 +232,8 @@
       return 0;
     }
 
-    function savePozList() {
-      localStorage.setItem(LS_POZ_LIST, JSON.stringify(selectedPozList));
-    }
-
-    function addPoz(art) {
-      const a = String(art || "").trim();
-      if (!a) return;
-      if (!selectedPozList.includes(a)) {
-        selectedPozList.push(a);
-        // natural sort
-        selectedPozList.sort((x,y)=>cmpArt(x,y));
-        savePozList();
-      }
-    }
-
-    function removePoz(art) {
-      const a = String(art || "").trim();
-      selectedPozList = selectedPozList.filter(x => x !== a);
-      savePozList();
-    }
-
-    function clearPozList() {
-      selectedPozList = [];
-      savePozList();
-    }
-
     // -----------------------
-    // DQE list / lookup
+    // DQE data lookup
     // -----------------------
     const dqeRows = dqe.filter(x => x.type === "row");
     const dqeByArt = new Map(dqeRows.map(r => [String(r.art).trim(), r]));
@@ -257,7 +251,7 @@
     fillDatalist();
 
     // -----------------------
-    // DQE grouping (level1 collapsible)
+    // DQE grouping (collapse)
     // -----------------------
     function buildGroups(items) {
       const groups = [];
@@ -283,7 +277,6 @@
       }
       return groups;
     }
-
     const dqeGroups = buildGroups(dqe);
 
     const sumCol = (rows, key) => rows.reduce((acc, r) => acc + (Number(r?.[key]) || 0), 0);
@@ -292,28 +285,153 @@
       for (const b of g.blocks) for (const it of b.items) if (it.type === "row") rows.push(it);
       return rows;
     }
-
     function searchableRowText(r) {
-      const parts = [
-        r.art, r.description, r.um,
-        r.dzd, r.euro, r.dzdEqv,
-        fmt(r.dzd), fmt(r.euro), fmt(r.dzdEqv)
-      ];
+      const parts = [r.art, r.description, r.um, r.dzd, r.euro, r.dzdEqv, fmt(r.dzd), fmt(r.euro), fmt(r.dzdEqv)];
       return parts.map(x => (x ?? "").toString().toLowerCase()).join(" | ");
     }
 
     // -----------------------
-    // COST helpers
+    // COST state (multi poz + lines)
     // -----------------------
-    function calcMachineTotal(line) {
-      return Number(line.miktar || 0) * Number(line.adet || 0) * Number(line.birimFiyatDzd || 0);
+    const LS_STATE = "cost_state_v2";
+    const defaultState = () => ({
+      pozCol: "dzdEqv",          // dzd | dzdEqv | euro
+      pozList: [],              // ["C3.1", "C4.3"]
+      unitPanel: {              // editable
+        daily_excavation_m3: sheet.unitPanel?.daily_excavation_m3 ?? 2700,
+        trip_km_loaded_empty: sheet.unitPanel?.trip_km_loaded_empty ?? 10,
+        bucket_volume_m3: sheet.unitPanel?.bucket_volume_m3 ?? 9,
+        trip_count: sheet.unitPanel?.trip_count ?? 15
+      },
+      poz: {                    // per-poz config
+        // "C3.1": { production: 2700, machines: [...], labor:[...] }
+      }
+    });
+
+    let costState = (() => {
+      try {
+        const raw = localStorage.getItem(LS_STATE);
+        if (!raw) return defaultState();
+        const obj = JSON.parse(raw);
+        // simple guard
+        if (!obj || typeof obj !== "object") return defaultState();
+        obj.pozList = Array.isArray(obj.pozList) ? obj.pozList : [];
+        obj.poz = obj.poz && typeof obj.poz === "object" ? obj.poz : {};
+        obj.unitPanel = obj.unitPanel && typeof obj.unitPanel === "object" ? obj.unitPanel : defaultState().unitPanel;
+        obj.pozCol = obj.pozCol || "dzdEqv";
+        return obj;
+      } catch { return defaultState(); }
+    })();
+
+    function saveCostState() {
+      localStorage.setItem(LS_STATE, JSON.stringify(costState));
     }
-    function calcLaborDayTotal(line) {
-      return Number(line.saat || 0) * Number(line.adet || 0) * Number(line.birimSaatDzd || 0);
+
+    function ensurePoz(art) {
+      const a = String(art || "").trim();
+      if (!a) return null;
+      if (!costState.poz[a]) {
+        costState.poz[a] = {
+          production: Number(costState.unitPanel.daily_excavation_m3 || 0),
+          machines: [],
+          labor: []
+        };
+      }
+      return costState.poz[a];
+    }
+
+    function addPoz(art) {
+      const a = String(art || "").trim();
+      if (!a) return;
+      if (!costState.pozList.includes(a)) {
+        costState.pozList.push(a);
+        costState.pozList.sort((x,y)=>cmpArt(x,y));
+        ensurePoz(a);
+        saveCostState();
+      }
+    }
+
+    function removePoz(art) {
+      const a = String(art || "").trim();
+      costState.pozList = costState.pozList.filter(x => x !== a);
+      // poz detayını silmiyoruz (istersen sileriz)
+      saveCostState();
+    }
+
+    function clearPozList() {
+      costState.pozList = [];
+      saveCostState();
+    }
+
+    // template lists
+    const machineTemplates = sheet.makina.map((m, idx) => ({ idx, ...m }));
+    const laborTemplates = sheet.iscilik.map((l, idx) => ({ idx, ...l }));
+
+    function makeId() {
+      return "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+    }
+
+    function addMachineLine(pozArt, templateIdx) {
+      const p = ensurePoz(pozArt);
+      if (!p) return;
+      const t = machineTemplates.find(x => x.idx === Number(templateIdx));
+      if (!t) return;
+      p.machines.push({
+        id: makeId(),
+        name: t.cinsi,
+        um: t.um,
+        miktar: Number(t.miktar),
+        adet: Number(t.adet),
+        birimFiyatDzd: Number(t.birimFiyatDzd)
+      });
+      saveCostState();
+    }
+
+    function addLaborLine(pozArt, templateIdx) {
+      const p = ensurePoz(pozArt);
+      if (!p) return;
+      const t = laborTemplates.find(x => x.idx === Number(templateIdx));
+      if (!t) return;
+      p.labor.push({
+        id: makeId(),
+        grup: t.grup,
+        pozisyon: t.pozisyon,
+        um: t.um,
+        saat: Number(t.saat),
+        adet: Number(t.adet),
+        birimSaatDzd: Number(t.birimSaatDzd),
+        maasDzd: Number(t.maasDzd)
+      });
+      saveCostState();
+    }
+
+    function removeLine(pozArt, type, id) {
+      const p = ensurePoz(pozArt);
+      if (!p) return;
+      if (type === "m") p.machines = p.machines.filter(x => x.id !== id);
+      if (type === "l") p.labor = p.labor.filter(x => x.id !== id);
+      saveCostState();
+    }
+
+    function machineLineTotal(x) {
+      return Number(x.miktar||0) * Number(x.adet||0) * Number(x.birimFiyatDzd||0);
+    }
+    function laborLineTotal(x) {
+      return Number(x.saat||0) * Number(x.adet||0) * Number(x.birimSaatDzd||0);
+    }
+
+    function pozTotals(pozArt) {
+      const p = ensurePoz(pozArt);
+      const m = p.machines.reduce((a,x)=>a + machineLineTotal(x), 0);
+      const l = p.labor.reduce((a,x)=>a + laborLineTotal(x), 0);
+      const total = m + l;
+      const prod = Number(p.production || 0);
+      const unit = prod > 0 ? (total / prod) : 0;
+      return { m, l, total, prod, unit };
     }
 
     // -----------------------
-    // Render DQE
+    // Render DQE view
     // -----------------------
     function renderDQE() {
       const needle = q.value.trim();
@@ -399,34 +517,14 @@
           for (const r of rowsToRender) {
             const tr = document.createElement("tr");
 
-            const tdArt = document.createElement("td");
-            tdArt.className = "art";
-            tdArt.innerHTML = highlight(r.art ?? "", needle);
-            tr.appendChild(tdArt);
-
-            const tdDesc = document.createElement("td");
-            tdDesc.innerHTML = highlight(r.description ?? "", needle);
-            tr.appendChild(tdDesc);
-
-            const tdUm = document.createElement("td");
-            tdUm.innerHTML = highlight(r.um ?? "", needle);
-            tr.appendChild(tdUm);
-
-            const tdDzd = document.createElement("td");
-            tdDzd.className = "num";
-            tdDzd.innerHTML = highlight(r.dzd != null ? `${fmt(r.dzd)} DZD` : "-", needle);
-            tr.appendChild(tdDzd);
-
-            const tdEuro = document.createElement("td");
-            tdEuro.className = "num";
-            tdEuro.innerHTML = highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle);
-            tr.appendChild(tdEuro);
-
-            const tdEqv = document.createElement("td");
-            tdEqv.className = "num";
-            tdEqv.innerHTML = highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle);
-            tr.appendChild(tdEqv);
-
+            tr.innerHTML = `
+              <td class="art">${highlight(r.art ?? "", needle)}</td>
+              <td>${highlight(r.description ?? "", needle)}</td>
+              <td>${highlight(r.um ?? "", needle)}</td>
+              <td class="num">${highlight(r.dzd != null ? `${fmt(r.dzd)} DZD` : "-", needle)}</td>
+              <td class="num">${highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle)}</td>
+              <td class="num">${highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle)}</td>
+            `;
             tbody.appendChild(tr);
             visibleRowCount++;
           }
@@ -449,67 +547,61 @@
     }
 
     // -----------------------
-    // Render COST (Makina & İşçilik + POZ list)
+    // Render COST view (poz + dropdown lines)
     // -----------------------
     function renderCOST() {
-      const needle = q.value.trim();
-      const needleLower = needle.toLowerCase();
-
       expandAllBtn.disabled = true;
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
 
-      const p = sheet.unitPanel;
-      const totalKm = Number(p.trip_km_loaded_empty || 0) * Number(p.trip_count || 0);
-
-      const makinaTotal = sheet.makina.reduce((a, x) => a + calcMachineTotal(x), 0);
-      const iscilikTotal = sheet.iscilik.reduce((a, x) => a + calcLaborDayTotal(x), 0);
-      const dailyTotalCost = makinaTotal + iscilikTotal;
-
-      const dailyM3 = Number(p.daily_excavation_m3 || 0);
-      const internalUnitCost = dailyM3 > 0 ? (dailyTotalCost / dailyM3) : 0; // DZD / m3
-
-      gtDzd.textContent = `${fmt(dailyTotalCost)} DZD`;
-      gtEuro.textContent = `-`;
-      gtEqv.textContent = `-`;
-      grandChip.textContent = `Günlük: ${fmt(dailyTotalCost)} DZD | Birim: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³`;
-
       tbody.innerHTML = "";
 
-      // Panel row
-      const panelTr = document.createElement("tr");
-      panelTr.className = "serie";
-      const panelTd = document.createElement("td");
-      panelTd.colSpan = 6;
+      // header / summary for cost view
+      const p = costState.unitPanel;
+      const totalKm = Number(p.trip_km_loaded_empty||0) * Number(p.trip_count||0);
 
-      // Chips html
-      const chipsHtml = selectedPozList.length
+      // grand summary across selected poz (optional)
+      let grandTotal = 0;
+      for (const a of costState.pozList) grandTotal += pozTotals(a).total;
+
+      gtDzd.textContent = `${fmt(grandTotal)} DZD`;
+      gtEuro.textContent = `-`;
+      gtEqv.textContent = `-`;
+      grandChip.textContent = `POZ toplamları: ${fmt(grandTotal)} DZD`;
+
+      // Top panel row
+      const trTop = document.createElement("tr");
+      trTop.className = "serie";
+      const tdTop = document.createElement("td");
+      tdTop.colSpan = 6;
+
+      const chipsHtml = costState.pozList.length
         ? `<div class="chips">
-            ${selectedPozList.map(a => `
+            ${costState.pozList.map(a => `
               <span class="chipItem">
                 ${esc(a)}
-                <button type="button" data-remove="${esc(a)}" title="Çıkar">×</button>
+                <button type="button" data-act="removePoz" data-art="${esc(a)}" title="Çıkar">×</button>
               </span>
             `).join("")}
           </div>`
         : `<div class="muted" style="margin-top:6px;">Henüz POZ eklemedin.</div>`;
 
-      panelTd.innerHTML = `
+      tdTop.innerHTML = `
         <div class="panelBox">
-          <div style="font-weight:900;">ÖLÇÜ BİRİMİ</div>
+          <div style="font-weight:900;">ÖLÇÜ BİRİMİ (Global)</div>
 
           <div class="panelGrid">
             <div>günlük kazı (m³)</div>
-            <input data-k="daily_excavation_m3" type="number" step="1" value="${p.daily_excavation_m3}" />
+            <input data-act="setUnit" data-k="daily_excavation_m3" type="number" step="1" value="${esc(p.daily_excavation_m3)}" />
 
             <div>sefer (dolu+boş) /km</div>
-            <input data-k="trip_km_loaded_empty" type="number" step="0.1" value="${p.trip_km_loaded_empty}" />
+            <input data-act="setUnit" data-k="trip_km_loaded_empty" type="number" step="0.1" value="${esc(p.trip_km_loaded_empty)}" />
 
             <div>kasa hacim (m³)</div>
-            <input data-k="bucket_volume_m3" type="number" step="0.1" value="${p.bucket_volume_m3}" />
+            <input data-act="setUnit" data-k="bucket_volume_m3" type="number" step="0.1" value="${esc(p.bucket_volume_m3)}" />
 
             <div>sefer adet</div>
-            <input data-k="trip_count" type="number" step="1" value="${p.trip_count}" />
+            <input data-act="setUnit" data-k="trip_count" type="number" step="1" value="${esc(p.trip_count)}" />
 
             <div style="font-weight:800;">toplam km</div>
             <div style="font-weight:900;">${fmt(totalKm)} km</div>
@@ -517,227 +609,218 @@
 
           <div class="card">
             <h3>POZ menü: seç → Ekle → listeden çıkar</h3>
-
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
               <input id="pozPick" list="dqeArtList" placeholder="ART seç (örn C3.1)" value=""
                      style="padding:8px;border:1px solid #d1d5db;border-radius:10px; min-width:170px;" />
-              <button class="btn" id="pozAddBtn" type="button">Ekle</button>
-              <button class="btn" id="pozClearBtn" type="button">Listeyi temizle</button>
+              <button class="btn" data-act="addPoz" type="button">Ekle</button>
+              <button class="btn" data-act="clearPoz" type="button">Listeyi temizle</button>
 
-              <select id="pozCol" style="padding:8px;border:1px solid #d1d5db;border-radius:10px;">
-                <option value="dzd" ${selectedPozColumn==="dzd"?"selected":""}>POZ fiyat: DZD</option>
-                <option value="dzdEqv" ${selectedPozColumn==="dzdEqv"?"selected":""}>POZ fiyat: DZDéqv</option>
-                <option value="euro" ${selectedPozColumn==="euro"?"selected":""}>POZ fiyat: Euro</option>
+              <select data-act="setPozCol" style="padding:8px;border:1px solid #d1d5db;border-radius:10px;">
+                <option value="dzd" ${costState.pozCol==="dzd"?"selected":""}>POZ fiyat: DZD</option>
+                <option value="dzdEqv" ${costState.pozCol==="dzdEqv"?"selected":""}>POZ fiyat: DZDéqv</option>
+                <option value="euro" ${costState.pozCol==="euro"?"selected":""}>POZ fiyat: Euro</option>
               </select>
             </div>
 
             ${chipsHtml}
-
             <div class="muted" style="margin-top:8px;">
-              Not: Euro seçersen karşılaştırma DZD ile aynı para birimi değil, fark hesabı kapalı olur.
+              POZ kartlarının içinde Makina/İşçilik dropdown’dan satır ekleyip manuel düzenle.
             </div>
           </div>
 
           <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap;">
-            <span class="badge">Makina: ${fmt(makinaTotal)} DZD</span>
-            <span class="badge">İşçilik: ${fmt(iscilikTotal)} DZD</span>
-            <span class="badge">Günlük: ${fmt(dailyTotalCost)} DZD</span>
-            <span class="badge">Birim: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³</span>
+            <span class="badge">Seçili POZ: ${costState.pozList.length}</span>
+            <span class="badge">Toplam: ${fmt(grandTotal)} DZD</span>
           </div>
         </div>
       `;
-      panelTr.appendChild(panelTd);
-      tbody.appendChild(panelTr);
 
-      // panel input listeners
-      panelTd.querySelectorAll("input[data-k]").forEach(inp => {
-        inp.addEventListener("input", () => {
-          const k = inp.getAttribute("data-k");
-          sheet.unitPanel[k] = Number(inp.value);
-          render();
-        });
-      });
+      trTop.appendChild(tdTop);
+      tbody.appendChild(trTop);
 
-      // poz controls
-      const pozPick = panelTd.querySelector("#pozPick");
-      const pozAddBtn = panelTd.querySelector("#pozAddBtn");
-      const pozClearBtn = panelTd.querySelector("#pozClearBtn");
-      const pozCol = panelTd.querySelector("#pozCol");
+      // Poz cards
+      for (const art of costState.pozList) {
+        ensurePoz(art);
+        const poz = dqeByArt.get(String(art).trim()) || null;
+        const t = pozTotals(art);
 
-      function doAddPoz() {
-        const art = (pozPick.value || "").trim();
-        addPoz(art);
-        pozPick.value = "";      // ✅ ekleyince input otomatik boşalır
-        pozPick.focus();
-        render();
-      }
+        const pozVal = poz ? (poz[costState.pozCol] ?? null) : null;
 
-      pozAddBtn.addEventListener("click", doAddPoz);
-      pozPick.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); doAddPoz(); }
-      });
+        const um = poz?.um ? String(poz.um).trim() : "";
+        const umWarn = (um && um.toLowerCase() !== "m3") ? `<span class="warn">UM ≠ m3 (${esc(um)})</span>` : "";
 
-      pozClearBtn.addEventListener("click", () => {
-        clearPozList();
-        render();
-      });
+        let diff = null, diffPct = null;
+        if (costState.pozCol !== "euro" && pozVal != null && Number(pozVal) !== 0) {
+          diff = Number(pozVal) - t.unit;
+          diffPct = (diff / Number(pozVal)) * 100;
+        }
 
-      pozCol.addEventListener("change", () => {
-        selectedPozColumn = pozCol.value;
-        localStorage.setItem(LS_POZ_COL, selectedPozColumn);
-        render();
-      });
+        const machineOptions = machineTemplates.map(m => `<option value="${m.idx}">${esc(m.cinsi)}</option>`).join("");
+        const laborOptions = laborTemplates.map(l => `<option value="${l.idx}">${esc(l.grup)} - ${esc(l.pozisyon)}</option>`).join("");
 
-      // chip remove handlers
-      panelTd.querySelectorAll("button[data-remove]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const art = btn.getAttribute("data-remove");
-          removePoz(art);
-          render();
-        });
-      });
+        const pconf = costState.poz[art];
 
-      // ---- Comparison table (selected POZ list)
-      if (selectedPozList.length) {
-        const tr = document.createElement("tr");
-        tr.className = "subsection";
-        tr.innerHTML = `<td colspan="6">POZ Karşılaştırma (Birim maliyet: ${dailyM3>0 ? fmt(internalUnitCost) : "-"} DZD/m³)</td>`;
-        tbody.appendChild(tr);
-
-        const tr2 = document.createElement("tr");
-        const td2 = document.createElement("td");
-        td2.colSpan = 6;
-
-        const rowsHtml = selectedPozList.map(art => {
-          const poz = dqeByArt.get(String(art).trim()) || null;
-          if (!poz) {
-            return `
-              <tr>
-                <td class="art">${esc(art)}</td>
-                <td colspan="2"><span class="warn">DQE’de bulunamadı</span></td>
-                <td class="num">-</td>
-                <td class="num">-</td>
-                <td class="num">-</td>
-              </tr>
-            `;
-          }
-
-          const pozVal = poz[selectedPozColumn];
-          const pozUM = String(poz.um || "").trim();
-          const umWarn = (pozUM && pozUM.toLowerCase() !== "m3") ? `<span class="warn">UM ≠ m3 (${esc(pozUM)})</span>` : "";
-
-          // euro seçiliyse diff kapalı
-          let diff = null, diffPct = null;
-          if (selectedPozColumn !== "euro" && dailyM3 > 0 && pozVal != null) {
-            diff = Number(pozVal) - internalUnitCost;
-            diffPct = Number(pozVal) !== 0 ? (diff / Number(pozVal) * 100) : null;
-          }
-
+        const machineRows = pconf.machines.map((m) => {
+          const total = machineLineTotal(m);
           return `
-            <tr>
-              <td class="art">${esc(poz.art)}</td>
-              <td>${esc(poz.description)} ${umWarn}</td>
-              <td>${esc(poz.um || "-")}</td>
-              <td class="num">${pozVal != null ? fmt(pozVal) : "-"}</td>
-              <td class="num">${dailyM3>0 ? fmt(internalUnitCost) : "-"}</td>
-              <td class="num">${(diff!=null && diffPct!=null) ? (fmt(diff) + " (" + fmt(diffPct) + "%)") : "-"}</td>
-            </tr>
+            <div class="rowLine" data-art="${esc(art)}" data-type="m" data-id="${esc(m.id)}">
+              <div><input data-f="name" type="text" value="${esc(m.name)}" /></div>
+              <div><input data-f="um" type="text" value="${esc(m.um)}" /></div>
+              <div><input data-f="miktar" type="number" step="0.01" value="${esc(m.miktar)}" /></div>
+              <div><input data-f="adet" type="number" step="0.01" value="${esc(m.adet)}" /></div>
+              <div><input data-f="birimFiyatDzd" type="number" step="0.01" value="${esc(m.birimFiyatDzd)}" /></div>
+              <button class="xbtn" type="button" data-act="removeLine" data-art="${esc(art)}" data-ltype="m" data-id="${esc(m.id)}">×</button>
+            </div>
+            <div class="muted" style="margin:-2px 0 8px 0; font-size:11px;">
+              Tutar: <b data-total="${esc(art)}|m|${esc(m.id)}">${fmt(total)} DZD</b>
+            </div>
           `;
         }).join("");
 
-        td2.innerHTML = `
-          <table class="miniTable">
-            <thead>
-              <tr>
-                <th style="width:90px;">ART</th>
-                <th>DESCRIPTION</th>
-                <th style="width:80px;">UM</th>
-                <th style="width:130px;" class="num">POZ</th>
-                <th style="width:150px;" class="num">Senin (DZD/m³)</th>
-                <th style="width:180px;" class="num">Fark (POZ - maliyet)</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        `;
-        tr2.appendChild(td2);
-        tbody.appendChild(tr2);
-      }
-
-      // ---- Makina/İşçilik tabloları (filtre + highlight)
-      addSubSection("MAKİNA");
-      let shownM = 0;
-      for (const ln of sheet.makina) {
-        const total = calcMachineTotal(ln);
-        const hay = `${ln.cinsi} ${ln.um} ${ln.miktar} ${ln.adet} ${ln.birimFiyatDzd} ${total}`.toLowerCase();
-        if (needleLower && !hay.includes(needleLower)) continue;
+        const laborRows = pconf.labor.map((l) => {
+          const total = laborLineTotal(l);
+          const label = `${l.grup} - ${l.pozisyon}`;
+          return `
+            <div class="rowLine" data-art="${esc(art)}" data-type="l" data-id="${esc(l.id)}">
+              <div><input data-f="label" type="text" value="${esc(label)}" /></div>
+              <div><input data-f="um" type="text" value="${esc(l.um)}" /></div>
+              <div><input data-f="saat" type="number" step="0.01" value="${esc(l.saat)}" /></div>
+              <div><input data-f="adet" type="number" step="0.01" value="${esc(l.adet)}" /></div>
+              <div><input data-f="birimSaatDzd" type="number" step="0.01" value="${esc(l.birimSaatDzd)}" /></div>
+              <button class="xbtn" type="button" data-act="removeLine" data-art="${esc(art)}" data-ltype="l" data-id="${esc(l.id)}">×</button>
+            </div>
+            <div class="muted" style="margin:-2px 0 8px 0; font-size:11px;">
+              Tutar: <b data-total="${esc(art)}|l|${esc(l.id)}">${fmt(total)} DZD</b> |
+              maaş: <span>${fmt(l.maasDzd)} DZD</span>
+            </div>
+          `;
+        }).join("");
 
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td class="art">${highlight(ln.cinsi, needle)}</td>
-          <td>${highlight("Kira Bedeli", needle)}</td>
-          <td>${highlight(ln.um, needle)}</td>
-          <td class="num">${highlight(`${fmt(ln.birimFiyatDzd)} DZD`, needle)}</td>
-          <td class="num">${highlight(`${fmt(total)} DZD`, needle)}</td>
-          <td class="num">${highlight(`miktar:${ln.miktar} adet:${ln.adet}`, needle)}</td>
+        const td = document.createElement("td");
+        td.colSpan = 6;
+
+        td.innerHTML = `
+          <div class="pozCard" data-poz="${esc(art)}">
+            <div class="pozHeader">
+              <span class="title">${esc(art)}</span>
+              <span class="mini">${poz ? esc(poz.description) : "<span class='warn'>DQE’de yok</span>"} ${umWarn}</span>
+
+              <div class="rightSide">
+                <span class="badge">POZ: ${pozVal != null ? fmt(pozVal) : "-"} ${costState.pozCol==="euro" ? "€" : "DZD"}</span>
+                <span class="badge">Birim maliyet: <b data-poz-unit="${esc(art)}">${fmt(t.unit)}</b> DZD/UM</span>
+                <span class="badge">Toplam: <b data-poz-total="${esc(art)}">${fmt(t.total)}</b> DZD</span>
+                <span class="badge">Fark: <b data-poz-diff="${esc(art)}">${(diff!=null)? (fmt(diff)+" ("+fmt(diffPct)+"%)") : "-"}</b></span>
+              </div>
+            </div>
+
+            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+              <div class="muted" style="font-size:12px;">Üretim (bu POZ için):</div>
+              <input data-act="setProduction" data-art="${esc(art)}" type="number" step="0.01"
+                     value="${esc(pconf.production)}"
+                     style="padding:8px;border:1px solid #d1d5db;border-radius:10px; width:140px;" />
+              <span class="muted" style="font-size:12px;">(ör: m³/gün). Birim maliyet = toplam / üretim</span>
+              <button class="btn" type="button" data-act="removePoz" data-art="${esc(art)}">Bu POZ’u listeden çıkar</button>
+            </div>
+
+            <div class="grid2">
+              <div class="box">
+                <div class="boxTitle">MAKİNA</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                  <select data-act="addMachineSelect" data-art="${esc(art)}">
+                    <option value="">Makina seç...</option>
+                    ${machineOptions}
+                  </select>
+                  <button class="btn" type="button" data-act="addMachineBtn" data-art="${esc(art)}">Ekle</button>
+                  <span class="badge">Subtotal: <b data-sub="${esc(art)}|m">${fmt(t.m)}</b> DZD</span>
+                </div>
+
+                <div class="rowHead">
+                  <div>Cinsi</div><div>UM</div><div>Miktar</div><div>Adet</div><div>Birim Fiyat</div><div></div>
+                </div>
+
+                <div data-list="${esc(art)}|m">
+                  ${machineRows || `<div class="muted" style="margin-top:8px;">Henüz makina eklemedin.</div>`}
+                </div>
+              </div>
+
+              <div class="box">
+                <div class="boxTitle">İŞÇİLİK</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                  <select data-act="addLaborSelect" data-art="${esc(art)}">
+                    <option value="">İşçilik seç...</option>
+                    ${laborOptions}
+                  </select>
+                  <button class="btn" type="button" data-act="addLaborBtn" data-art="${esc(art)}">Ekle</button>
+                  <span class="badge">Subtotal: <b data-sub="${esc(art)}|l">${fmt(t.l)}</b> DZD</span>
+                </div>
+
+                <div class="rowHead">
+                  <div>Grup - Pozisyon</div><div>UM</div><div>Saat</div><div>Adet</div><div>Birim Saat</div><div></div>
+                </div>
+
+                <div data-list="${esc(art)}|l">
+                  ${laborRows || `<div class="muted" style="margin-top:8px;">Henüz işçilik eklemedin.</div>`}
+                </div>
+              </div>
+            </div>
+          </div>
         `;
+
+        tr.appendChild(td);
         tbody.appendChild(tr);
-        shownM++;
       }
-      if (shownM === 0) addEmpty("Eşleşen makina satırı yok.");
-      addSubtotal(`SUBTOTAL (MAKİNA)`, makinaTotal);
 
-      addSubSection("İŞÇİLİK");
-      let shownL = 0;
-      for (const ln of sheet.iscilik) {
-        const total = calcLaborDayTotal(ln);
-        const hay = `${ln.grup} ${ln.pozisyon} ${ln.um} ${ln.saat} ${ln.adet} ${ln.birimSaatDzd} ${total} ${ln.maasDzd}`.toLowerCase();
-        if (needleLower && !hay.includes(needleLower)) continue;
+      countEl.textContent = `POZ: ${costState.pozList.length}`;
+    }
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td class="art">${highlight(ln.grup, needle)}</td>
-          <td>${highlight(ln.pozisyon, needle)}</td>
-          <td>${highlight(ln.um, needle)}</td>
-          <td class="num">${highlight(`${fmt(ln.birimSaatDzd)} DZD / saat`, needle)}</td>
-          <td class="num">${highlight(`${fmt(total)} DZD / gün`, needle)}</td>
-          <td class="num">${highlight(`maaş: ${fmt(ln.maasDzd)} DZD`, needle)}</td>
-        `;
-        tbody.appendChild(tr);
-        shownL++;
+    // -----------------------
+    // Cost: live update (NO rerender on typing)
+    // -----------------------
+    function updatePozUI(art) {
+      const t = pozTotals(art);
+
+      const subM = document.querySelector(`[data-sub="${CSS.escape(art)}|m"]`);
+      const subL = document.querySelector(`[data-sub="${CSS.escape(art)}|l"]`);
+      const totalEl = document.querySelector(`[data-poz-total="${CSS.escape(art)}"]`);
+      const unitEl = document.querySelector(`[data-poz-unit="${CSS.escape(art)}"]`);
+
+      if (subM) subM.textContent = fmt(t.m);
+      if (subL) subL.textContent = fmt(t.l);
+      if (totalEl) totalEl.textContent = fmt(t.total);
+      if (unitEl) unitEl.textContent = fmt(t.unit);
+
+      // diff update
+      const poz = dqeByArt.get(String(art).trim()) || null;
+      const pozVal = poz ? (poz[costState.pozCol] ?? null) : null;
+
+      const diffEl = document.querySelector(`[data-poz-diff="${CSS.escape(art)}"]`);
+      if (diffEl) {
+        if (costState.pozCol === "euro" || pozVal == null || Number(pozVal) === 0) {
+          diffEl.textContent = "-";
+        } else {
+          const diff = Number(pozVal) - t.unit;
+          const diffPct = (diff / Number(pozVal)) * 100;
+          diffEl.textContent = `${fmt(diff)} (${fmt(diffPct)}%)`;
+        }
       }
-      if (shownL === 0) addEmpty("Eşleşen işçilik satırı yok.");
-      addSubtotal(`SUBTOTAL (İŞÇİLİK)`, iscilikTotal);
 
-      countEl.textContent = `Makina: ${shownM} | İşçilik: ${shownL}`;
-    }
+      // totals inside each line
+      const p = ensurePoz(art);
+      for (const m of p.machines) {
+        const el = document.querySelector(`[data-total="${CSS.escape(art)}|m|${CSS.escape(m.id)}"]`);
+        if (el) el.textContent = `${fmt(machineLineTotal(m))} DZD`;
+      }
+      for (const l of p.labor) {
+        const el = document.querySelector(`[data-total="${CSS.escape(art)}|l|${CSS.escape(l.id)}"]`);
+        if (el) el.textContent = `${fmt(laborLineTotal(l))} DZD`;
+      }
 
-    function addSubSection(label) {
-      const tr = document.createElement("tr");
-      tr.className = "subsection";
-      const td = document.createElement("td");
-      td.colSpan = 6;
-      td.textContent = label;
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    }
-
-    function addSubtotal(label, totalDzd) {
-      const tr = document.createElement("tr");
-      tr.className = "subtotal";
-      tr.innerHTML = `
-        <td colspan="3">${label}</td>
-        <td class="num">${fmt(totalDzd)} DZD</td>
-        <td class="num">-</td>
-        <td class="num">-</td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    function addEmpty(msg) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="6" class="muted">${msg}</td>`;
-      tbody.appendChild(tr);
+      // global footer total
+      let grandTotal = 0;
+      for (const a of costState.pozList) grandTotal += pozTotals(a).total;
+      gtDzd.textContent = `${fmt(grandTotal)} DZD`;
+      grandChip.textContent = `POZ toplamları: ${fmt(grandTotal)} DZD`;
     }
 
     // -----------------------
@@ -781,6 +864,7 @@
 
     sortArtEl.addEventListener("change", render);
 
+    // DQE collapse click
     tbody.addEventListener("click", (e) => {
       if (currentView !== "dqe") return;
       const btn = e.target.closest("[data-gid]");
@@ -794,6 +878,151 @@
       render();
     });
 
+    // COST actions (buttons/selects) - delegated
+    tbody.addEventListener("click", (e) => {
+      if (currentView !== "cost") return;
+
+      const btn = e.target.closest("[data-act]");
+      if (!btn) return;
+
+      const act = btn.getAttribute("data-act");
+
+      if (act === "addPoz") {
+        const input = document.getElementById("pozPick");
+        const art = (input?.value || "").trim();
+        addPoz(art);
+        if (input) input.value = "";
+        render(); // poz ekleme/çıkarma = rerender OK
+      }
+
+      if (act === "clearPoz") {
+        clearPozList();
+        render();
+      }
+
+      if (act === "removePoz") {
+        const art = btn.getAttribute("data-art");
+        removePoz(art);
+        render();
+      }
+
+      if (act === "addMachineBtn") {
+        const art = btn.getAttribute("data-art");
+        const sel = document.querySelector(`select[data-act="addMachineSelect"][data-art="${CSS.escape(art)}"]`);
+        const v = sel?.value;
+        if (v !== "") {
+          addMachineLine(art, v);
+          if (sel) sel.value = "";
+          render(); // satır ekleme = rerender OK
+        }
+      }
+
+      if (act === "addLaborBtn") {
+        const art = btn.getAttribute("data-art");
+        const sel = document.querySelector(`select[data-act="addLaborSelect"][data-art="${CSS.escape(art)}"]`);
+        const v = sel?.value;
+        if (v !== "") {
+          addLaborLine(art, v);
+          if (sel) sel.value = "";
+          render();
+        }
+      }
+
+      if (act === "removeLine") {
+        const art = btn.getAttribute("data-art");
+        const ltype = btn.getAttribute("data-ltype"); // m or l
+        const id = btn.getAttribute("data-id");
+        removeLine(art, ltype, id);
+        render();
+      }
+    });
+
+    // COST input changes (NO rerender) - delegated
+    tbody.addEventListener("input", (e) => {
+      if (currentView !== "cost") return;
+
+      const inp = e.target.closest("input");
+      if (!inp) return;
+
+      // global unit panel
+      const act = inp.getAttribute("data-act");
+      if (act === "setUnit") {
+        const k = inp.getAttribute("data-k");
+        costState.unitPanel[k] = Number(inp.value);
+        saveCostState();
+        // total km yazısı için rerender lazım ama focus kaçmasın diye KESMİYORUZ.
+        // kullanıcı bırakınca (blur) rerender yapacağız.
+        return;
+      }
+
+      // production per poz
+      if (act === "setProduction") {
+        const art = inp.getAttribute("data-art");
+        const p = ensurePoz(art);
+        p.production = Number(inp.value);
+        saveCostState();
+        updatePozUI(art);
+        return;
+      }
+
+      // line edits
+      const lineWrap = inp.closest(".rowLine");
+      if (!lineWrap) return;
+
+      const art = lineWrap.getAttribute("data-art");
+      const type = lineWrap.getAttribute("data-type"); // m / l
+      const id = lineWrap.getAttribute("data-id");
+      const field = inp.getAttribute("data-f");
+      const p = ensurePoz(art);
+
+      if (type === "m") {
+        const line = p.machines.find(x => x.id === id);
+        if (!line) return;
+        if (field === "name" || field === "um") line[field] = inp.value;
+        else line[field] = Number(inp.value);
+        saveCostState();
+        updatePozUI(art);
+      }
+
+      if (type === "l") {
+        const line = p.labor.find(x => x.id === id);
+        if (!line) return;
+        if (field === "label") {
+          // label = "Grup - Pozisyon" tek input
+          const txt = inp.value;
+          const parts = txt.split("-").map(s=>s.trim());
+          line.grup = parts[0] || line.grup;
+          line.pozisyon = parts.slice(1).join(" - ") || line.pozisyon;
+        } else if (field === "um") {
+          line.um = inp.value;
+        } else {
+          line[field] = Number(inp.value);
+        }
+        saveCostState();
+        updatePozUI(art);
+      }
+    });
+
+    // blur: global unit panel değişince km satırını güncellemek için render
+    tbody.addEventListener("blur", (e) => {
+      if (currentView !== "cost") return;
+      const inp = e.target.closest('input[data-act="setUnit"]');
+      if (!inp) return;
+      // artık yazmayı bitirdi -> rerender ile km satırı güncellensin, ama bu blur zaten fokus bırakmış olur
+      render();
+    }, true);
+
+    // pozCol change
+    tbody.addEventListener("change", (e) => {
+      if (currentView !== "cost") return;
+      const sel = e.target.closest('select[data-act="setPozCol"]');
+      if (!sel) return;
+      costState.pozCol = sel.value;
+      saveCostState();
+      render();
+    });
+
+    // first render
     render();
   </script>
 </body>
