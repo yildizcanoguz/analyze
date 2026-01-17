@@ -424,13 +424,16 @@
   </div>
 
   <script type="module">
-    import { dqe, costSheets } from "./database.js";
+    import (async () => {
+  const ok = await requireLogin();
+  if (!ok) return;
+{ dqe, costSheets } from "./database.js";
 
     // ====== PASSWORD GATE (hashli) ======
     // Şifreyi değiştirmek istersen:
     // 1) Aşağıdaki PASS_PLAINTEXT'i değiştir
-    // 2) PASS_HASH'ı otomatik üretmek için Console'da:
-    //    crypto.subtle.digest('SHA-256', new TextEncoder().encode('SIFRE')).then(b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')).then(console.log)
+    // 2) PASS_HASH'ı otomatik üretmek için ole'da:
+    //    crypto.subtle.digest('SHA-256', new TextEncoder().encode('SIFRE')).then(b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')).then(ole.log)
     const LOCK_KEY = "dqe_unlocked_v1";
 
     // --- ŞİFREN (kolay değişsin diye) ---
@@ -508,8 +511,8 @@
     }
 
     // Şifre doğru değilse render etme
-    const ok = await requireLogin();
-    if (!ok) return;
+   
+
     // ====== /PASSWORD GATE ======
 
     const tbody = document.getElementById("tbody");
@@ -1229,6 +1232,8 @@
     });
 
     render();
+      })();
+
   </script>
 </body>
 </html>
