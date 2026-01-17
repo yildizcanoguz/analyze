@@ -424,10 +424,11 @@
   </div>
 
   <script type="module">
-    import (async () => {
+    import { dqe, costSheets } from "./database.js";
+
+    (async () => {
   const ok = await requireLogin();
   if (!ok) return;
-{ dqe, costSheets } from "./database.js";
 
     // ====== PASSWORD GATE (hashli) ======
     // Şifreyi değiştirmek istersen:
