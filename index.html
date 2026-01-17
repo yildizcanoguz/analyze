@@ -1,9 +1,8 @@
 <!doctype html>
 <html lang="tr">
-<head>
+<head> 
   <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="googlebot" content="noindex, nofollow, noarchive">
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MASTER DQE</title>
@@ -31,11 +30,41 @@
     *{ box-sizing:border-box; }
     body{
       margin:0; padding:18px;
-      font-family: -le-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
       background:var(--bg); color:var(--text);
     }
+<div id="lock" style="
+  position:fixed; inset:0; z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(245,247,251,.92); backdrop-filter: blur(6px);
+">
+  <div style="
+    width:min(420px, 92vw);
+    background:#fff; border:1px solid #e5e7eb; border-radius:18px;
+    box-shadow: 0 20px 60px rgba(17,24,39,.10);
+    padding:16px;
+    font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;
+  ">
+    <div style="font-weight:900; font-size:16px; margin-bottom:8px;">Giriş</div>
+    <div style="color:#6b7280; font-size:12px; margin-bottom:12px;">
+      Şifreyi gir
+    </div>
 
-    .{
+    <input id="pass" type="password" placeholder="Şifre"
+      style="width:100%; height:42px; border-radius:12px; border:1px solid #e5e7eb; padding:0 12px; outline:none; font-weight:700;"
+    />
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button id="loginBtn" type="button"
+        style="height:42px; border-radius:12px; border:1px solid #111827; background:#111827; color:#fff; font-weight:900; padding:0 14px; cursor:pointer;">
+        Gir
+      </button>
+      <div id="msg" style="margin-left:auto; align-self:center; color:#b45309; font-weight:900; font-size:12px;"></div>
+    </div>
+  </div>
+</div>
+
+    .app{
       max-width:1280px; margin:0 auto;
       background:var(--card);
       border:1px solid var(--line);
@@ -113,8 +142,8 @@
       font-size:12px;
       letter-spacing:.2px;
     }
-    tbody td, tfoot td{ border-bottom:1px solid var(--line2); padding:12px 10px; vertical-align:top; }
-    tbody tr:hover td{ background:#fcfcfd; }
+    t td, tfoot td{ border-bottom:1px solid var(--line2); padding:12px 10px; vertical-align:top; }
+    t tr:hover td{ background:#fcfcfd; }
 
     tfoot td{
       background:#0b1220; color:#fff; font-weight:900;
@@ -322,8 +351,8 @@
   </style>
 </head>
 
-<body>
-  <div class="">
+<>
+  <div class="app">
     <div class="topbar">
       <div class="title">MASTER DQE</div>
       <div class="grow"></div>
@@ -362,7 +391,7 @@
             <th class="num" style="width:190px">DZDéqv</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <t id="t"></t>
         <tfoot>
           <tr>
             <td colspan="3">GRAND TOTAL</td>
@@ -380,7 +409,7 @@
   <script type="module">
     import { dqe, costSheets } from "./database.js";
 
-    const tbody = document.getElementById("tbody");
+    const t = document.getElementById("t");
     const q = document.getElementById("q");
     const clearBtn = document.getElementById("clearBtn");
     const expandAllBtn = document.getElementById("expandAll");
@@ -446,7 +475,7 @@
         const opt = document.createElement("option");
         opt.value = r.art;
         opt.label = `${r.art} — ${r.description}`;
-        dqeArtList.endChild(opt);
+        dqeArtList.appendChild(opt);
       }
     }
     fillDatalist();
@@ -594,7 +623,7 @@
       gtEqv.textContent = `${fmt(gtq)} DZD`;
       grandChip.textContent = `Grand: ${fmt(gtd)} DZD | ${fmt(gte)} € | ${fmt(gtq)} DZD`;
 
-      tbody.innerHTML="";
+      t.innerHTML="";
       let visible = 0;
 
       for (const g of dqeGroups){
@@ -633,7 +662,7 @@
             </div>
           </td>
         `;
-        tbody.endChild(trH);
+        t.appendChild(trH);
         if (collapsed) continue;
 
         for (const b of g.blocks){
@@ -649,7 +678,7 @@
             const trS = document.createElement("tr");
             trS.className="subsection";
             trS.innerHTML = `<td colspan="6">${highlight(subHeader.label, needle)}</td>`;
-            tbody.endChild(trS);
+            t.appendChild(trS);
           }
 
           for (const r of rowsToRender){
@@ -662,7 +691,7 @@
               <td class="num">${highlight(r.euro != null ? `${fmt(r.euro)} €` : "- €", needle)}</td>
               <td class="num">${highlight(r.dzdEqv != null ? `${fmt(r.dzdEqv)} DZD` : "-", needle)}</td>
             `;
-            tbody.endChild(tr);
+            t.appendChild(tr);
             visible++;
           }
         }
@@ -676,7 +705,7 @@
             <td class="num">${fmt(subEuro)} €</td>
             <td class="num">${fmt(subEqv)} DZD</td>
           `;
-          tbody.endChild(trSub);
+          t.appendChild(trSub);
         }
       }
 
@@ -689,7 +718,7 @@
       collapseAllBtn.disabled = true;
       sortArtEl.disabled = true;
 
-      tbody.innerHTML = "";
+      t.innerHTML = "";
 
       let grandTotal = 0;
       for (const a of costState.pozList) grandTotal += pozTotals(a).total;
@@ -771,7 +800,7 @@
           </div>
         </td>
       `;
-      tbody.endChild(trTop);
+      t.appendChild(trTop);
 
       // POZ cards
       for (const art of costState.pozList){
@@ -894,7 +923,7 @@
             </div>
           </td>
         `;
-        tbody.endChild(tr);
+        t.appendChild(tr);
       }
 
       countEl.textContent = `POZ: ${costState.pozList.length}`;
@@ -965,7 +994,7 @@
     sortArtEl.addEventListener("change", render);
 
     // DQE collapse
-    tbody.addEventListener("click", (e)=>{
+    t.addEventListener("click", (e)=>{
       if (currentView !== "dqe") return;
       const btn = e.target.closest("[data-gid]");
       if (!btn) return;
@@ -978,7 +1007,7 @@
     });
 
     // COST actions (delegated)
-    tbody.addEventListener("click", (e)=>{
+    t.addEventListener("click", (e)=>{
       if (currentView !== "cost") return;
       const el = e.target.closest("[data-act]");
       if (!el) return;
@@ -1027,7 +1056,7 @@
     });
 
     // COST inputs (no rerender while typing)
-    tbody.addEventListener("input", (e)=>{
+    t.addEventListener("input", (e)=>{
       if (currentView !== "cost") return;
       const inp = e.target.closest("input");
       if (!inp) return;
@@ -1088,7 +1117,7 @@
     });
 
     // blur: after unit panel editing rerender to update km etc
-    tbody.addEventListener("blur", (e)=>{
+    t.addEventListener("blur", (e)=>{
       if (currentView !== "cost") return;
       const inp = e.target.closest('input[data-act="setUnit"]');
       if (!inp) return;
@@ -1096,7 +1125,7 @@
     }, true);
 
     // pozCol change
-    tbody.addEventListener("change", (e)=>{
+    t.addEventListener("change", (e)=>{
       if (currentView !== "cost") return;
       const sel = e.target.closest('select[data-act="setPozCol"]');
       if (!sel) return;
@@ -1107,5 +1136,5 @@
 
     render();
   </script>
-</body>
+</>
 </html>
