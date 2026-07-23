@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Küçük Pazar — Çiftlik & Yerel Üretim</title>
+<style>
+  :root{
+    --bg:#fbf3e4;
+    --bg2:#f4e7cf;
+    --card:#fffdf8;
+    --ink:#3f3222;
+    --muted:#8a795f;
+    --line:#e7d8bd;
+    --green:#5a8f4e;
+    --green-d:#3f6e37;
+    --gold:#d99a2b;
+    --coin:#e0a92e;
+    --soft:#f7efe0;
+    --accent:#a8683f;
+    --r:16px;
+    --r2:12px;
+    --shadow:0 10px 30px rgba(90,60,20,.10);
+    --shadow2:0 4px 14px rgba(90,60,20,.08);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 500px at 50% -200px, #fff7e8, transparent),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+    min-height:100%;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:1120px; margin:0 auto; padding:16px 16px 60px; }
+
+  /* Top bar */
+  .top{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    box-shadow:var(--shadow);
+    padding:12px 16px;
+    position:sticky; top:10px; z-index:20;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; margin-right:6px; }
+  .brand .logo{ font-size:26px; }
+  .brand h1{ font-size:18px; margin:0; font-weight:900; letter-spacing:.2px; }
+  .brand .sub{ font-size:11px; color:var(--muted); font-weight:700; }
+  .grow{ flex:1; }
+  .stat{
+    display:flex; align-items:center; gap:8px;
+    background:var(--soft);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:7px 13px;
+    font-weight:800; font-size:14px; white-space:nowrap;
+  }
+  .stat .ico{ font-size:16px; }
+  .stat.coins{ background:#fff6df; border-color:#f0dca6; color:#8a6410; }
+  .btn{
+    cursor:pointer; border:1px solid var(--line);
+    background:var(--card); color:var(--ink);
+    border-radius:12px; padding:9px 14px; font-weight:800; font-size:14px;
+    transition:transform .05s ease, background .15s ease, box-shadow .15s;
+  }
+  .btn:hover{ background:var(--soft); }
+  .btn:active{ transform:translateY(1px); }
+  .btn.primary{ background:var(--green); border-color:var(--green-d); color:#fff; box-shadow:var(--shadow2); }
+  .btn.primary:hover{ background:var(--green-d); }
+  .btn.day{ font-size:15px; padding:10px 18px; }
+  .btn.small{ padding:6px 10px; font-size:13px; border-radius:10px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn.ghost{ background:transparent; }
+
+  /* Layout */
+  .layout{ display:grid; grid-template-columns: 1.35fr .95fr; gap:16px; margin-top:16px; }
+  @media (max-width: 900px){ .layout{ grid-template-columns:1fr; } .top{ position:static; } }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    box-shadow:var(--shadow2);
+    padding:16px;
+  }
+  .panel h2{ margin:0 0 4px; font-size:16px; font-weight:900; display:flex; align-items:center; gap:8px; }
+  .panel .hint{ font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.4; }
+
+  /* Farm grid */
+  .farm{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+  }
+  @media (max-width:520px){ .farm{ grid-template-columns:repeat(3,1fr); } }
+  .plot{
+    position:relative;
+    aspect-ratio:1/1;
+    border-radius:14px;
+    border:1px solid #cdb187;
+    background:
+      repeating-linear-gradient(45deg, #b98a55 0 6px, #b08048 6px 12px);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; overflow:hidden;
+    box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.12);
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .plot:hover{ transform:translateY(-2px); filter:brightness(1.03); }
+  .plot.empty{
+    background:
+      radial-gradient(circle at 50% 40%, rgba(255,255,255,.12), transparent 60%),
+      repeating-linear-gradient(45deg, #c39a63 0 7px, #b6884f 7px 14px);
+  }
+  .plot.locked{
+    background:linear-gradient(180deg,#efe5d2,#e6d8bd);
+    cursor:default; color:var(--muted);
+    box-shadow:none; border-style:dashed;
+  }
+  .plot.ready{ box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), 0 0 0 3px #f4d35e, 0 0 18px rgba(244,211,94,.5); }
+  .plot .emoji{ font-size:min(11vw,44px); line-height:1; filter:drop-shadow(0 3px 3px rgba(0,0,0,.18)); }
+  .plot.empty .emoji{ font-size:22px; opacity:.5; }
+  .plot .cropname{ position:absolute; top:6px; left:0; right:0; text-align:center; font-size:10px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
+  .plot .water{ position:absolute; top:6px; right:7px; font-size:11px; }
+  .plot .bar{
+    position:absolute; left:8px; right:8px; bottom:8px; height:7px;
+    background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden;
+  }
+  .plot .bar > i{ display:block; height:100%; background:linear-gradient(90deg,#8fd06f,#5a8f4e); border-radius:999px; }
+  .plot .tag{
+    position:absolute; bottom:8px; left:0; right:0; text-align:center;
+    font-size:11px; font-weight:900; color:#3f6e37; text-shadow:0 1px 2px rgba(255,255,255,.6);
+  }
+  .plot.ready .tag{ color:#7a5a00; }
+  .lockbig{ font-size:20px; }
+
+  .farm-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+
+  /* Tabs */
+  .tabs{ display:flex; gap:6px; margin-bottom:12px; background:var(--soft); padding:5px; border-radius:12px; border:1px solid var(--line); }
+  .tab{ flex:1; text-align:center; padding:8px 6px; border-radius:9px; cursor:pointer; font-weight:800; font-size:13px; color:var(--muted); }
+  .tab.active{ background:var(--card); color:var(--ink); box-shadow:var(--shadow2); }
+
+  /* List rows */
+  .row{
+    display:flex; align-items:center; gap:12px;
+    padding:11px; border:1px solid var(--line); border-radius:12px;
+    background:var(--card); margin-bottom:9px;
+  }
+  .row .rico{ font-size:26px; width:34px; text-align:center; }
+  .row .rmain{ flex:1; min-width:0; }
+  .row .rtitle{ font-weight:800; font-size:14px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .row .rmeta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .row .rprice{ font-weight:900; color:#8a6410; white-space:nowrap; }
+  .row .ract{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .emptxt{ color:var(--muted); font-size:13px; text-align:center; padding:22px 8px; }
+
+  .chip{ display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
+  .chip.pop{ background:#ffe9c2; color:#8a5a10; border:1px solid #f0cf90; }
+  .chip.new{ background:#dff0d6; color:#3f6e37; border:1px solid #bfe0af; }
+  .chip.qty{ background:var(--soft); color:var(--muted); border:1px solid var(--line); }
+
+  .lvlbar{ height:9px; background:var(--soft); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+  .lvlbar > i{ display:block; height:100%; background:linear-gradient(90deg,#f4d35e,#d99a2b); }
+
+  /* Season strip */
+  .season{
+    display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted);
+    margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); flex-wrap:wrap;
+  }
+
+  /* Message log */
+  .log{ margin-top:12px; }
+  .logline{ font-size:12.5px; color:var(--muted); padding:3px 0; border-bottom:1px dashed var(--line); }
+  .logline b{ color:var(--ink); }
+
+  /* Modal */
+  .scrim{ position:fixed; inset:0; background:rgba(60,40,15,.45); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:60; padding:16px; }
+  .scrim.on{ display:flex; }
+  .modal{ width:min(460px,96vw); background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:0 24px 60px rgba(60,40,15,.30); padding:16px; max-height:86vh; overflow:auto; }
+  .modal h3{ margin:0 0 10px; font-size:16px; display:flex; align-items:center; gap:8px; }
+  .modal .close{ margin-left:auto; }
+  .planttop{ display:flex; align-items:center; margin-bottom:8px; }
+
+  /* Toast */
+  .toasts{ position:fixed; left:0; right:0; bottom:18px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:80; pointer-events:none; }
+  .toast{
+    background:#3f3222; color:#fff; padding:10px 16px; border-radius:999px; font-weight:800; font-size:14px;
+    box-shadow:0 10px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(12px);
+    animation:pop 2.6s ease forwards;
+  }
+  .toast.good{ background:var(--green-d); }
+  .toast.gold{ background:#a97511; }
+  @keyframes pop{ 10%{opacity:1; transform:translateY(0)} 85%{opacity:1; transform:translateY(0)} 100%{opacity:0; transform:translateY(-8px)} }
+
+  .foot{ text-align:center; color:var(--muted); font-size:12px; margin-top:22px; }
+  .foot a{ color:var(--accent); }
+  .kbd{ background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:11px; font-weight:800; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="logo">🌾</div>
+      <div>
+        <h1>Küçük Pazar</h1>
+        <div class="sub">çiftlik · yerel üretim · sakin ekonomi</div>
+      </div>
+    </div>
+    <div class="grow"></div>
+    <div class="stat coins"><span class="ico">🪙</span><span id="coins">0</span></div>
+    <div class="stat"><span class="ico">📅</span>Gün <span id="day">1</span></div>
+    <div class="stat"><span class="ico">⭐</span>Sv <span id="level">1</span></div>
+    <button class="btn primary day" id="nextDay">🌙 Sonraki Gün</button>
+  </div>
+
+  <div class="layout">
+    <!-- FARM -->
+    <div class="panel">
+      <h2>🌱 Bahçe</h2>
+      <p class="hint">Boş toprağa tıkla → tohum ek. Olgunlaşan (parlayan) ürüne tıkla → hasat et. Sulanan tarlalar büyür; su bitince büyüme durur (kaybetmezsin, sadece yavaşlar).</p>
+      <div class="farm" id="farm"></div>
+      <div class="farm-actions">
+        <button class="btn" id="waterAll">🚿 Hepsini Sula</button>
+        <span class="hint" id="waterHint" style="margin:0;"></span>
+      </div>
+      <div class="season" id="seasonStrip"></div>
+    </div>
+
+    <!-- SIDE -->
+    <div class="panel">
+      <div class="tabs">
+        <div class="tab active" data-tab="market">🧺 Pazar</div>
+        <div class="tab" data-tab="work">🍯 Atölye</div>
+        <div class="tab" data-tab="shop">🛖 Dükkan</div>
+      </div>
+      <div id="tabBody"></div>
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:800; color:var(--muted);">
+          <span>Pazar itibarı — Seviye <span id="level2">1</span></span>
+          <span class="grow"></span>
+          <span id="lvlText">—</span>
+        </div>
+        <div class="lvlbar" style="margin-top:6px;"><i id="lvlFill" style="width:0%"></i></div>
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Otomatik kaydedilir (bu tarayıcıda). <button class="btn ghost small" id="resetBtn" style="padding:2px 8px;">↺ Sıfırla</button>
+    · İpucu: günü ilerletmek için <span class="kbd">boşluk</span> tuşu.
+  </div>
+</div>
+
+<!-- Plant modal -->
+<div class="scrim" id="scrim">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ İÇERİK / DENGE ============ */
+  const CROPS = {
+    carrot:    { name:"Havuç",         emoji:"🥕", seed:5,  grow:2, sell:9,   yield:1, lvl:1 },
+    potato:    { name:"Patates",       emoji:"🥔", seed:8,  grow:3, sell:16,  yield:1, lvl:1 },
+    tomato:    { name:"Domates",       emoji:"🍅", seed:12, grow:3, sell:20,  yield:2, lvl:1 },
+    wheat:     { name:"Buğday",        emoji:"🌾", seed:6,  grow:2, sell:11,  yield:2, lvl:2 },
+    corn:      { name:"Mısır",         emoji:"🌽", seed:18, grow:4, sell:34,  yield:2, lvl:2 },
+    strawberry:{ name:"Çilek",         emoji:"🍓", seed:22, grow:4, sell:42,  yield:2, lvl:3 },
+    blueberry: { name:"Yaban Mersini", emoji:"🫐", seed:28, grow:5, sell:55,  yield:3, lvl:3 },
+    grape:     { name:"Üzüm",          emoji:"🍇", seed:35, grow:5, sell:70,  yield:3, lvl:4 },
+    pumpkin:   { name:"Balkabağı",     emoji:"🎃", seed:45, grow:6, sell:120, yield:1, lvl:4 },
+  };
+
+  // Atölye tarifleri. premium: Şaraphane gerektirir.
+  const GOODS = {
+    bread:   { name:"Ekmek",            emoji:"🍞", from:"wheat",      qty:3, days:1, sell:60,  lvl:2 },
+    sauce:   { name:"Domates Sosu",     emoji:"🥫", from:"tomato",     qty:4, days:1, sell:120, lvl:2 },
+    popcorn: { name:"Patlamış Mısır",   emoji:"🍿", from:"corn",       qty:3, days:1, sell:140, lvl:3 },
+    jam:     { name:"Reçel",            emoji:"🍯", from:"blueberry",  qty:3, days:1, sell:230, lvl:3 },
+    juice:   { name:"Çilek Suyu",       emoji:"🧃", from:"strawberry", qty:3, days:1, sell:175, lvl:3 },
+    wine:    { name:"Üzüm Şarabı",      emoji:"🍷", from:"grape",      qty:4, days:2, sell:400, lvl:4, premium:true },
+    pie:     { name:"Balkabağı Turtası",emoji:"🥧", from:"pumpkin",    qty:2, days:2, sell:340, lvl:4, premium:true },
+  };
+
+  const SEASONS = [
+    { name:"İlkbahar", emoji:"🌷" },
+    { name:"Yaz",      emoji:"☀️" },
+    { name:"Sonbahar", emoji:"🍂" },
+    { name:"Kış",      emoji:"❄️" },
+  ];
+  const SEASON_LEN = 8; // gün
+
+  // Seviye eşikleri (toplam kazanç). Index = seviye-1.
+  const LEVELS = [0, 120, 450, 1400, 3800, 9000, 20000, 42000];
+
+  const UPGRADES = {
+    kitchen:   { name:"Mutfak / Atölye", emoji:"🍳", cost:150, desc:"Ürünleri işlemeyi açar (reçel, ekmek, sos...)." },
+    sprinkler: { name:"Otomatik Sulama", emoji:"💧", cost:320, desc:"Tüm tarlalar kendi kendine sulanır. Bir daha sulama derdi yok." },
+    stall:     { name:"Şirin Tezgah",    emoji:"🏵️", cost:450, desc:"Tüm satışlarda +%15 fiyat." },
+    winery:    { name:"Şaraphane",       emoji:"🍇", cost:750, desc:"Premium ürünleri açar (şarap, turta)." },
+  };
+  const PLOT_BASE = 55; // yeni tarla temel fiyatı (×1.6 artan)
+
+  /* ============ DURUM ============ */
+  const SAVE_KEY = "kucuk_pazar_v1";
+
+  function newPlot(unlocked){ return { crop:null, grown:0, water:0, unlocked:!!unlocked }; }
+
+  function defaultState(){
+    const plots = [];
+    for (let i=0;i<9;i++) plots.push(newPlot(i<3)); // 3 açık, 6 kilitli (dükkandan alınır)
+    return {
+      day:1, coins:55, totalEarned:0,
+      plots,
+      crops:{}, goods:{},
+      jobs:[],           // {good, ready}
+      up:{ kitchen:false, sprinkler:false, stall:false, winery:false },
+      plotCost:PLOT_BASE,
+      popular:[],        // bugün popüler item id'leri
+      log:[],
+      seenLevel:1,
+    };
+  }
+
+  let S = load() || defaultState();
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(!raw) return null;
+      const o = JSON.parse(raw);
+      if(!o || typeof o!=="object" || !Array.isArray(o.plots)) return null;
+      return o;
+    }catch(e){ return null; }
+  }
+  function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+
+  /* ============ YARDIMCILAR ============ */
+  const $ = id => document.getElementById(id);
+  const fmt = n => new Intl.NumberFormat("tr-TR").format(Math.round(n));
+  const rnd = n => Math.floor(Math.random()*n);
+  const pick = arr => arr[rnd(arr.length)];
+
+  function levelOf(earned){
+    let lv=1;
+    for(let i=0;i<LEVELS.length;i++){ if(earned>=LEVELS[i]) lv=i+1; }
+    return lv;
+  }
+  function level(){ return levelOf(S.totalEarned); }
+
+  function isPopular(id){ return S.popular.includes(id); }
+  function stallMult(){ return S.up.stall ? 1.15 : 1; }
+  function priceOf(baseSell, id){
+    let p = baseSell * stallMult();
+    if(isPopular(id)) p *= 1.4;
+    return Math.round(p);
+  }
+
+  function addLog(msg){
+    S.log.unshift(msg);
+    if(S.log.length>7) S.log.length=7;
+  }
+
+  function rollPopular(silent){
+    const lvl = level();
+    const pool = [];
+    for(const id in CROPS) if(CROPS[id].lvl<=lvl) pool.push(id);
+    for(const id in GOODS){ const g=GOODS[id]; if(g.lvl<=lvl && (!g.premium || S.up.winery)) pool.push(id); }
+    S.popular = [];
+    if(pool.length){
+      S.popular.push(pick(pool));
+      if(pool.length>3 && Math.random()<0.5){
+        let b = pick(pool);
+        if(b!==S.popular[0]) S.popular.push(b);
+      }
+    }
+  }
+
+  function itemName(id){ return CROPS[id]?CROPS[id].name:(GOODS[id]?GOODS[id].name:id); }
+  function itemEmoji(id){ return CROPS[id]?CROPS[id].emoji:(GOODS[id]?GOODS[id].emoji:"❔"); }
+
+  /* ============ AKSİYONLAR ============ */
+  function plant(plotIdx, cropId){
+    const p = S.plots[plotIdx], c = CROPS[cropId];
+    if(!p || p.crop || !c) return;
+    if(S.coins < c.seed){ toast("Yetersiz altın 🪙"); return; }
+    S.coins -= c.seed;
+    p.crop = cropId; p.grown = 0; p.water = 2;
+    closeModal(); render(); save();
+    toast(c.emoji+" "+c.name+" ekildi");
+  }
+
+  function harvest(plotIdx){
+    const p = S.plots[plotIdx];
+    if(!p || !p.crop) return;
+    const c = CROPS[p.crop];
+    if(p.grown < c.grow) return;
+    let y = c.yield;
+    if(S.up.sprinkler) y += 1; // sulama bonusu
+    S.crops[p.crop] = (S.crops[p.crop]||0) + y;
+    const nm = c.name, em = c.emoji;
+    p.crop=null; p.grown=0; p.water=0;
+    render(); save();
+    toast("+"+y+" "+em+" "+nm, "good");
+  }
+
+  function waterAll(){
+    let n=0;
+    for(const p of S.plots){ if(p.unlocked && p.crop && p.water<2){ p.water=2; n++; } }
+    if(n){ toast("💧 "+n+" tarla sulandı"); } else { toast("Sulanacak tarla yok 🙂"); }
+    render(); save();
+  }
+
+  function sell(id, all){
+    const bag = CROPS[id] ? S.crops : S.goods;
+    const have = bag[id]||0;
+    if(have<=0) return;
+    const base = CROPS[id] ? CROPS[id].sell : GOODS[id].sell;
+    const unit = priceOf(base, id);
+    const n = all ? have : 1;
+    bag[id] = have - n;
+    if(bag[id]<=0) delete bag[id];
+    const gain = unit*n;
+    S.coins += gain; S.totalEarned += gain;
+    checkLevel();
+    render(); save();
+    toast("+"+fmt(gain)+" 🪙", "gold");
+  }
+
+  function startProcess(goodId){
+    const g = GOODS[goodId];
+    if(!g) return;
+    if(!S.up.kitchen){ toast("Önce Mutfak lazım 🍳"); return; }
+    if(g.premium && !S.up.winery){ toast("Bunun için Şaraphane lazım 🍇"); return; }
+    const have = S.crops[g.from]||0;
+    if(have < g.qty){ toast("Yeterli "+CROPS[g.from].name+" yok"); return; }
+    S.crops[g.from] = have - g.qty;
+    if(S.crops[g.from]<=0) delete S.crops[g.from];
+    S.jobs.push({ good:goodId, ready:S.day+g.days });
+    render(); save();
+    toast(g.emoji+" "+g.name+" hazırlanıyor...");
+  }
+
+  function buyPlot(){
+    const idx = S.plots.findIndex(p=>!p.unlocked);
+    if(idx<0){ toast("Tüm tarlalar açık 🌻"); return; }
+    if(S.coins < S.plotCost){ toast("Yetersiz altın 🪙"); return; }
+    S.coins -= S.plotCost;
+    S.plots[idx].unlocked = true;
+    S.plotCost = Math.round(S.plotCost*1.6);
+    render(); save();
+    toast("🟫 Yeni tarla açıldı!", "good");
+  }
+
+  function buyUpgrade(key){
+    const u = UPGRADES[key];
+    if(!u || S.up[key]) return;
+    if(S.coins < u.cost){ toast("Yetersiz altın 🪙"); return; }
+    S.coins -= u.cost; S.up[key]=true;
+    render(); save();
+    toast(u.emoji+" "+u.name+" alındı!", "good");
+  }
+
+  function checkLevel(){
+    const lv = level();
+    if(lv > S.seenLevel){
+      S.seenLevel = lv;
+      addLog("⭐ <b>Seviye "+lv+"!</b> Yeni ürünler/olanaklar açıldı.");
+      toast("⭐ Seviye "+lv+"!", "gold");
+    }
+  }
+
+  function nextDay(){
+    let grownCount=0, doneJobs=0;
+    // Büyüme
+    for(const p of S.plots){
+      if(!p.unlocked || !p.crop) continue;
+      const watered = S.up.sprinkler || p.water>0;
+      if(watered && p.grown < CROPS[p.crop].grow){ p.grown++; grownCount++; }
+      if(!S.up.sprinkler && p.water>0) p.water--;
+    }
+    // Atölye teslimatları
+    const remain=[];
+    for(const j of S.jobs){
+      if(j.ready<=S.day+1){ S.goods[j.good]=(S.goods[j.good]||0)+1; doneJobs++; }
+      else remain.push(j);
+    }
+    S.jobs = remain;
+
+    S.day++;
+    rollPopular();
+
+    // Günlük mesaj / minik sürpriz
+    const readyN = S.plots.filter(p=>p.crop && p.grown>=CROPS[p.crop].grow).length;
+    let msg = "🌅 <b>Gün "+S.day+".</b> ";
+    const bits=[];
+    if(doneJobs) bits.push(doneJobs+" ürün atölyeden çıktı");
+    if(readyN) bits.push(readyN+" tarla hasada hazır");
+    msg += bits.length? bits.join(", ")+"." : "Sakin bir gün.";
+    addLog(msg);
+
+    // %18 ihtimalle komşu hediyesi
+    if(Math.random()<0.18){
+      const gift = 8 + rnd(14);
+      S.coins += gift;
+      addLog("🎁 Komşu uğradı, "+gift+" 🪙 bıraktı.");
+    }
+
+    save(); render();
+    if(readyN) toast("🌿 "+readyN+" tarla hasada hazır!","good");
+  }
+
+  function resetGame(){
+    if(!confirm("Oyunu sıfırlamak istediğine emin misin? İlerleme silinecek.")) return;
+    S = defaultState(); rollPopular(true); save(); render();
+    toast("Yeni bir başlangıç 🌱");
+  }
+
+  /* ============ RENDER ============ */
+  let activeTab = "market";
+
+  function render(){
+    const lvl = level();
+    $("coins").textContent = fmt(S.coins);
+    $("day").textContent = S.day;
+    $("level").textContent = lvl;
+    $("level2").textContent = lvl;
+
+    renderFarm();
+    renderSeason();
+    renderTab();
+    renderLevelBar(lvl);
+    renderLog();
+    renderWaterHint();
+  }
+
+  function renderWaterHint(){
+    $("waterHint").textContent = S.up.sprinkler ? "💧 Otomatik sulama açık — sulama gerekmiyor." : "";
+  }
+
+  function renderFarm(){
+    const el = $("farm"); el.innerHTML="";
+    S.plots.forEach((p,idx)=>{
+      const d = document.createElement("div");
+      if(!p.unlocked){
+        d.className="plot locked";
+        d.innerHTML = '<div class="lockbig">🔒</div><div class="tag" style="color:var(--muted)">kilitli</div>';
+        el.appendChild(d); return;
+      }
+      if(!p.crop){
+        d.className="plot empty";
+        d.innerHTML = '<div class="emoji">➕</div><div class="tag" style="color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">ek</div>';
+        d.addEventListener("click", ()=>openPlant(idx));
+        el.appendChild(d); return;
+      }
+      const c = CROPS[p.crop];
+      const ready = p.grown >= c.grow;
+      d.className = "plot" + (ready?" ready":"");
+      const pct = Math.min(100, Math.round(p.grown/c.grow*100));
+      const waterIco = S.up.sprinkler ? "💧" : (p.water>0 ? "💧".repeat(Math.min(p.water,2)) : "🏜️");
+      if(ready){
+        d.innerHTML =
+          '<div class="cropname">'+c.name+'</div>'+
+          '<div class="water">✅</div>'+
+          '<div class="emoji">'+c.emoji+'</div>'+
+          '<div class="tag">HASAT ET</div>';
+        d.addEventListener("click", ()=>harvest(idx));
+      }else{
+        const seedling = p.grown===0 ? "🌱" : (p.grown/c.grow<0.6 ? "🌿" : c.emoji);
+        d.innerHTML =
+          '<div class="cropname">'+c.name+'</div>'+
+          '<div class="water" title="su">'+waterIco+'</div>'+
+          '<div class="emoji" style="opacity:'+(0.55+0.45*p.grown/c.grow).toFixed(2)+'">'+seedling+'</div>'+
+          '<div class="bar"><i style="width:'+pct+'%"></i></div>';
+        d.addEventListener("click", ()=>{
+          if(!S.up.sprinkler && p.water<2){ p.water=2; render(); save(); toast("💧 sulandı"); }
+          else toast(c.name+": "+(c.grow-p.grown)+" gün kaldı");
+        });
+      }
+      el.appendChild(d);
+    });
+  }
+
+  function renderSeason(){
+    const s = SEASONS[Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length];
+    const dayInSeason = ((S.day-1)%SEASON_LEN)+1;
+    let popTxt = S.popular.length
+      ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ")
+      : "—";
+    $("seasonStrip").innerHTML =
+      '<span style="font-weight:800;color:var(--ink)">'+s.emoji+' '+s.name+'</span>'+
+      '<span>· gün '+dayInSeason+'/'+SEASON_LEN+'</span>'+
+      '<span class="grow"></span>'+
+      '<span class="chip pop">🔥 Bugün popüler: '+popTxt+' (+%40)</span>';
+  }
+
+  function renderLevelBar(lvl){
+    const cur = LEVELS[lvl-1] ?? 0;
+    const nxt = LEVELS[lvl] ?? null;
+    if(nxt===null){
+      $("lvlFill").style.width="100%";
+      $("lvlText").textContent = "Maks seviye 🌟";
+    }else{
+      const pct = Math.max(0,Math.min(100, (S.totalEarned-cur)/(nxt-cur)*100));
+      $("lvlFill").style.width = pct+"%";
+      $("lvlText").textContent = fmt(S.totalEarned)+" / "+fmt(nxt)+" 🪙";
+    }
+  }
+
+  function renderLog(){
+    const el=$("log");
+    if(!S.log.length){ el.innerHTML=""; return; }
+    el.innerHTML = S.log.map(l=>'<div class="logline">'+l+'</div>').join("");
+  }
+
+  function renderTab(){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===activeTab));
+    const body = $("tabBody");
+    if(activeTab==="market") body.innerHTML = marketHTML();
+    else if(activeTab==="work") body.innerHTML = workHTML();
+    else body.innerHTML = shopHTML();
+    // wire buttons
+    body.querySelectorAll("[data-act]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        const a=b.dataset.act, id=b.dataset.id;
+        if(a==="sell1") sell(id,false);
+        else if(a==="sellAll") sell(id,true);
+        else if(a==="make") startProcess(id);
+        else if(a==="plot") buyPlot();
+        else if(a==="up") buyUpgrade(id);
+      });
+    });
+  }
+
+  function sellRow(id, kind){
+    const have = (kind==="crop"?S.crops:S.goods)[id]||0;
+    if(have<=0) return "";
+    const base = kind==="crop"?CROPS[id].sell:GOODS[id].sell;
+    const unit = priceOf(base,id);
+    const pop = isPopular(id) ? '<span class="chip pop">🔥 +%40</span>' : "";
+    return '<div class="row">'+
+      '<div class="rico">'+itemEmoji(id)+'</div>'+
+      '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+'</div>'+
+      '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
+      '<div class="ract">'+
+        '<button class="btn small" data-act="sell1" data-id="'+id+'">Sat 1</button>'+
+        '<button class="btn small primary" data-act="sellAll" data-id="'+id+'">Hepsi ('+fmt(unit*have)+')</button>'+
+      '</div></div>';
+  }
+
+  function marketHTML(){
+    let rows="";
+    for(const id in CROPS) rows += sellRow(id,"crop");
+    for(const id in GOODS) rows += sellRow(id,"good");
+    if(!rows) rows = '<div class="emptxt">Kileriniz boş. Bahçede bir şeyler yetiştir, sonra buradan sat 🧺</div>';
+    return '<h2 style="font-size:15px;margin:0 0 4px;">🧺 Pazar Tezgahı</h2>'+
+      '<p class="hint">Ürünlerini burada sat. <b>Bugün popüler</b> olanlar +%40 fazla kazandırır.</p>'+rows;
+  }
+
+  function workHTML(){
+    if(!S.up.kitchen){
+      return '<h2 style="font-size:15px;margin:0 0 4px;">🍯 Atölye</h2>'+
+        '<div class="emptxt">Atölye kilitli. <b>Dükkan</b>dan 🍳 Mutfak alınca ham ürünleri çok daha değerli ürünlere işleyebilirsin (reçel, ekmek, sos, şarap...).</div>';
+    }
+    const lvl = level();
+    let jobs="";
+    if(S.jobs.length){
+      jobs = '<div style="margin:6px 0 12px;">'+
+        S.jobs.map(j=>{
+          const g=GOODS[j.good], left=Math.max(0,j.ready-S.day);
+          return '<div class="row" style="margin-bottom:6px;"><div class="rico">'+g.emoji+'</div>'+
+            '<div class="rmain"><div class="rtitle">'+g.name+' hazırlanıyor</div>'+
+            '<div class="rmeta">'+(left<=0?"yarın hazır":left+" gün kaldı")+'</div></div>'+
+            '<div class="rprice">⏳</div></div>';
+        }).join("")+'</div>';
+    }
+    let rows="";
+    for(const id in GOODS){
+      const g=GOODS[id];
+      if(g.lvl>lvl) continue;
+      const locked = g.premium && !S.up.winery;
+      const have = S.crops[g.from]||0;
+      const can = have>=g.qty && !locked;
+      const unit = priceOf(g.sell,id);
+      const pop = isPopular(id)?'<span class="chip pop">🔥</span>':"";
+      const lockChip = locked?'<span class="chip qty">🍇 Şaraphane</span>':"";
+      rows += '<div class="row">'+
+        '<div class="rico">'+g.emoji+'</div>'+
+        '<div class="rmain"><div class="rtitle">'+g.name+' '+pop+lockChip+'</div>'+
+        '<div class="rmeta">'+g.qty+'× '+CROPS[g.from].emoji+' '+CROPS[g.from].name+
+          ' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="make" data-id="'+id+'" '+(can?"":"disabled")+'>Üret</button></div>'+
+        '</div>';
+    }
+    return '<h2 style="font-size:15px;margin:0 0 4px;">🍯 Atölye</h2>'+
+      '<p class="hint">Ham ürünleri işleyerek kârı katla. Üretim birkaç gün sürer.</p>'+jobs+rows;
+  }
+
+  function shopHTML(){
+    const nextPlotLocked = S.plots.some(p=>!p.unlocked);
+    let html = '<h2 style="font-size:15px;margin:0 0 4px;">🛖 Dükkan</h2>'+
+      '<p class="hint">Kazancını çiftliğine yatır. Alımlar kalıcıdır.</p>';
+
+    // Tarla
+    html += '<div class="row"><div class="rico">🟫</div>'+
+      '<div class="rmain"><div class="rtitle">Yeni Tarla</div>'+
+      '<div class="rmeta">'+(nextPlotLocked?("Ekilebilir alanı büyüt · "+fmt(S.plotCost)+" 🪙"):"Tüm tarlalar açık 🌻")+'</div></div>'+
+      '<div class="ract"><button class="btn small primary" data-act="plot" '+(nextPlotLocked&&S.coins>=S.plotCost?"":"disabled")+'>'+(nextPlotLocked?"Al":"—")+'</button></div></div>';
+
+    // Yükseltmeler
+    for(const key in UPGRADES){
+      const u=UPGRADES[key], owned=S.up[key];
+      html += '<div class="row"><div class="rico">'+u.emoji+'</div>'+
+        '<div class="rmain"><div class="rtitle">'+u.name+(owned?' <span class="chip new">✓ alındı</span>':'')+'</div>'+
+        '<div class="rmeta">'+u.desc+(owned?"":" · "+fmt(u.cost)+" 🪙")+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="up" data-id="'+key+'" '+((owned||S.coins<u.cost)?"disabled":"")+'>'+(owned?"—":"Al")+'</button></div></div>';
+    }
+    return html;
+  }
+
+  /* ============ PLANT MODAL ============ */
+  function openPlant(idx){
+    const lvl = level();
+    let list="";
+    for(const id in CROPS){
+      const c=CROPS[id];
+      if(c.lvl>lvl){
+        list += '<div class="row" style="opacity:.5"><div class="rico">🔒</div>'+
+          '<div class="rmain"><div class="rtitle">'+c.name+'</div>'+
+          '<div class="rmeta">Seviye '+c.lvl+' gerekir</div></div></div>';
+        continue;
+      }
+      const afford = S.coins>=c.seed;
+      const pop = isPopular(id)?'<span class="chip pop">🔥 popüler</span>':"";
+      list += '<div class="row"><div class="rico">'+c.emoji+'</div>'+
+        '<div class="rmain"><div class="rtitle">'+c.name+' '+pop+'</div>'+
+        '<div class="rmeta">tohum '+c.seed+' 🪙 · '+c.grow+' gün · satış ~'+fmt(priceOf(c.sell,id))+' 🪙 ×'+(c.yield+(S.up.sprinkler?1:0))+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-plant="'+id+'" '+(afford?"":"disabled")+'>Ek</button></div></div>';
+    }
+    const m=$("modal");
+    m.innerHTML = '<div class="planttop"><h3 style="margin:0;">🌱 Ne ekelim?</h3>'+
+      '<button class="btn small ghost close" id="closeModal">✕</button></div>'+list;
+    m.querySelectorAll("[data-plant]").forEach(b=>{
+      b.addEventListener("click", ()=>plant(idx, b.dataset.plant));
+    });
+    $("closeModal").addEventListener("click", closeModal);
+    $("scrim").classList.add("on");
+  }
+  function closeModal(){ $("scrim").classList.remove("on"); }
+  $("scrim").addEventListener("click", e=>{ if(e.target===$("scrim")) closeModal(); });
+
+  /* ============ TOAST ============ */
+  function toast(msg, kind){
+    const t=document.createElement("div");
+    t.className="toast"+(kind?" "+kind:"");
+    t.textContent=msg;
+    $("toasts").appendChild(t);
+    setTimeout(()=>t.remove(), 2600);
+  }
+
+  /* ============ EVENTS ============ */
+  $("nextDay").addEventListener("click", nextDay);
+  $("resetBtn").addEventListener("click", resetGame);
+  document.querySelectorAll(".tab").forEach(t=>{
+    t.addEventListener("click", ()=>{ activeTab=t.dataset.tab; renderTab(); });
+  });
+  document.addEventListener("keydown", e=>{
+    if(e.code==="Space" && !$("scrim").classList.contains("on")){
+      const tag=(e.target.tagName||"").toLowerCase();
+      if(tag!=="input" && tag!=="textarea"){ e.preventDefault(); nextDay(); }
+    }
+    if(e.key==="Escape") closeModal();
+  });
+
+  /* ============ BAŞLANGIÇ ============ */
+  if(!S.popular || !S.popular.length) rollPopular(true);
+  if(!S.log.length){
+    addLog("👋 <b>Küçük Pazar'a hoş geldin!</b> Boş tarlaya tıkla, tohum ek, birkaç gün büyüt ve pazarda sat.");
+  }
+  save();
+  render();
+})();
+</script>
+</body>
+</html>
