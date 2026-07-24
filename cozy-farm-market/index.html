@@ -203,6 +203,22 @@
   .ach .at{ font-weight:800; font-size:13px; }
   .ach .ad{ font-size:11.5px; color:var(--muted); margin-top:1px; }
 
+  /* Order board */
+  .orders h2 .ocount{ font-size:12px; color:var(--muted); font-weight:800; margin-left:6px; }
+  .ogrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+  .ocard{ border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,#fffdf6,#fdf5e4); padding:12px; box-shadow:var(--shadow2); display:flex; flex-direction:column; gap:10px; }
+  .ohead{ display:flex; align-items:center; gap:8px; }
+  .ohead .oemoji{ font-size:24px; }
+  .ohead .oname{ font-weight:900; font-size:14px; }
+  .ohead .odismiss{ margin-left:auto; border:1px solid var(--line); background:#fff; border-radius:8px; width:24px; height:24px; cursor:pointer; font-weight:900; color:var(--muted); line-height:1; }
+  .ohead .odismiss:hover{ background:var(--soft); color:var(--ink); }
+  .oitems{ display:flex; flex-wrap:wrap; gap:6px; }
+  .oitem{ font-size:12px; font-weight:800; padding:4px 9px; border-radius:999px; background:var(--soft); border:1px solid var(--line); color:var(--muted); }
+  .oitem.ok{ background:#dff0d6; border-color:#bfe0af; color:#3f6e37; }
+  .ofoot{ display:flex; align-items:center; gap:8px; margin-top:auto; }
+  .oreward{ font-weight:900; color:#8a6410; }
+  .ofoot .btn{ margin-left:auto; }
+
   /* Modal */
   .scrim{ position:fixed; inset:0; background:rgba(60,40,15,.45); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:60; padding:16px; }
   .scrim.on{ display:flex; }
@@ -301,6 +317,8 @@
     </div>
   </div>
 
+  <div class="panel orders" id="ordersPanel" style="margin-top:16px;"></div>
+
   <div class="foot">
     Otomatik kaydedilir (bu tarayıcıda). <button class="btn ghost small" id="resetBtn" style="padding:2px 8px;">↺ Sıfırla</button>
     · İpucu: günü ilerletmek için <span class="kbd">boşluk</span> tuşu.
@@ -355,6 +373,19 @@
     sheep:   { name:"Koyun", emoji:"🐑", cost:320, lvl:4, interval:3, prod:"wool" },
   };
 
+  // Sipariş panosu için kasabalılar
+  const CUSTOMERS = [
+    { name:"Komşu Ayşe",     emoji:"👩‍🌾" },
+    { name:"Fırıncı Mehmet", emoji:"🧑‍🍳" },
+    { name:"Nine",           emoji:"👵" },
+    { name:"Küçük Ali",      emoji:"🧒" },
+    { name:"Öğretmen",       emoji:"🧑‍🏫" },
+    { name:"Ressam",         emoji:"🧑‍🎨" },
+    { name:"Pazarcı Hasan",  emoji:"🧔" },
+    { name:"Doktor",         emoji:"🧑‍⚕️" },
+  ];
+  const MAX_ORDERS = 3;
+
   const SEASONS = [
     { name:"İlkbahar", emoji:"🌷", p:"🌸" },
     { name:"Yaz",      emoji:"☀️", p:"🦋" },
@@ -404,6 +435,8 @@
     { id:"barn1",     e:"🐄", t:"Ahır Sahibi",     d:"İlk hayvanını al",                 c:s=>s.animals.length>=1 },
     { id:"cheese",    e:"🧀", t:"Peynirci",        d:"Peynir üret",                      c:s=>!!s.stats.madeGoods.cheese },
     { id:"fullbarn",  e:"🐑", t:"Küçük Çiftlik",   d:"Her hayvandan en az bir tane al",  c:s=>Object.keys(ANIMALS).every(t=>s.animals.some(a=>a.type===t)) },
+    { id:"order1",    e:"📜", t:"İlk Sipariş",     d:"Bir kasaba siparişini teslim et",  c:s=>s.stats.ordersFilled>=1 },
+    { id:"order10",   e:"🛎️", t:"Güvenilir Tedarikçi", d:"10 sipariş teslim et",         c:s=>s.stats.ordersFilled>=10 },
     { id:"allup",     e:"🏆", t:"Tam Donanım",     d:"Tüm yükseltmeleri al",             c:s=>Object.keys(UPGRADES).every(k=>s.up[k]) },
     { id:"earn20000", e:"👑", t:"Pazar Kralı",     d:"Toplam 20.000 altın kazan",        c:s=>s.totalEarned>=20000 },
   ];
@@ -417,14 +450,14 @@
     for (let i=0;i<9;i++) plots.push(newPlot(i<3));
     return {
       day:1, coins:55, totalEarned:0,
-      plots, crops:{}, goods:{}, jobs:[], animals:[],
+      plots, crops:{}, goods:{}, jobs:[], animals:[], orders:[],
       up:{ kitchen:false, sprinkler:false, stall:false, barn:false, autofeed:false, winery:false },
       plotCost:PLOT_BASE,
       popular:[], log:[], seenLevel:1,
       muted:false,
       decor:{},
       achieved:{},
-      stats:{ planted:0, harvested:0, sold:0, processed:0, harvestedTypes:{}, madeGoods:{} },
+      stats:{ planted:0, harvested:0, sold:0, processed:0, ordersFilled:0, harvestedTypes:{}, madeGoods:{} },
     };
   }
 
@@ -432,6 +465,7 @@
     s.decor = s.decor || {};
     s.achieved = s.achieved || {};
     s.animals = Array.isArray(s.animals) ? s.animals : [];
+    s.orders = Array.isArray(s.orders) ? s.orders : [];
     s.up = s.up || {};
     s.muted = !!s.muted;
     s.stats = s.stats || {};
@@ -439,6 +473,7 @@
     s.stats.harvested = s.stats.harvested||0;
     s.stats.sold = s.stats.sold||0;
     s.stats.processed = s.stats.processed||0;
+    s.stats.ordersFilled = s.stats.ordersFilled||0;
     s.stats.harvestedTypes = s.stats.harvestedTypes||{};
     s.stats.madeGoods = s.stats.madeGoods||{};
     return s;
@@ -718,6 +753,55 @@
     render(); save();
   }
 
+  // ---- Siparişler ----
+  function orderPool(){
+    const lvl = level(); const arr=[];
+    for(const id in CROPS) if(CROPS[id].lvl<=lvl) arr.push(id);
+    if(S.up.barn) for(const id in APROD) arr.push(id);
+    if(S.up.kitchen) for(const id in GOODS){ const g=GOODS[id]; if(g.lvl<=lvl && (!g.premium||S.up.winery)) arr.push(id); }
+    return arr;
+  }
+  function makeOrder(){
+    const pool = orderPool();
+    if(!pool.length) return null;
+    const want = (pool.length>=4 && Math.random()<0.5) ? 2 : 1;
+    const items=[], used={};
+    for(let i=0;i<want;i++){
+      let id, guard=0;
+      do{ id=pick(pool); guard++; } while(used[id] && guard<12);
+      if(used[id]) continue;
+      used[id]=true;
+      const val = infoOf(id).sell;
+      let qty = Math.round((Math.random()*2+2) * (val<40?1.5 : val<120?1 : 0.5));
+      qty = Math.max(2, Math.min(qty, 8));
+      items.push({ id:id, qty:qty });
+    }
+    const base = items.reduce((a,it)=> a + infoOf(it.id).sell*it.qty, 0);
+    const reward = Math.round(base*1.5) + 20;
+    return { id:"o"+Math.random().toString(36).slice(2,9), cust:pick(CUSTOMERS), items:items, reward:reward, day:S.day };
+  }
+  function canFill(o){ return o.items.every(it => (invBag(it.id)[it.id]||0) >= it.qty); }
+  function fillOrder(oid){
+    const idx = S.orders.findIndex(o=>o.id===oid); if(idx<0) return;
+    const o = S.orders[idx];
+    if(!canFill(o)){ toast("Elinde yeterli ürün yok"); return; }
+    for(const it of o.items){ const bag=invBag(it.id); bag[it.id]-=it.qty; if(bag[it.id]<=0) delete bag[it.id]; }
+    S.coins += o.reward; S.totalEarned += o.reward;
+    S.stats.ordersFilled = (S.stats.ordersFilled||0)+1;
+    S.orders.splice(idx,1);
+    SFX.coin(); celebrate(); bumpCoins();
+    addLog("📜 <b>"+o.cust.name+"</b> siparişini teslim ettin (+"+fmt(o.reward)+" 🪙).");
+    toast("📜 Sipariş tamam! +"+fmt(o.reward)+" 🪙", "gold");
+    checkLevel(); checkAchievements();
+    render(); save();
+  }
+  function dismissOrder(oid){
+    const idx = S.orders.findIndex(o=>o.id===oid); if(idx<0) return;
+    S.orders.splice(idx,1);
+    render(); save();
+    toast("Sipariş reddedildi");
+  }
+
   function checkLevel(){
     const lv = level();
     if(lv > S.seenLevel){
@@ -762,11 +846,18 @@
     S.day++;
     rollPopular();
 
+    let newOrder=false;
+    if(S.orders.length < MAX_ORDERS && Math.random() < 0.55){
+      const o = makeOrder();
+      if(o){ S.orders.push(o); newOrder=true; }
+    }
+
     const readyN = S.plots.filter(p=>p.crop && p.grown>=CROPS[p.crop].grow).length;
     let msg = "🌅 <b>Gün "+S.day+".</b> ";
     const bits=[];
     if(doneJobs) bits.push(doneJobs+" ürün atölyeden çıktı");
     if(producedBarn) bits.push(producedBarn+" hayvan ürünü toplandı");
+    if(newOrder) bits.push("yeni sipariş geldi 📜");
     if(readyN) bits.push(readyN+" tarla hasada hazır");
     msg += bits.length? bits.join(", ")+"." : "Sakin bir gün.";
     addLog(msg);
@@ -781,6 +872,7 @@
     SFX.day();
     checkAchievements();
     save(); render();
+    if(newOrder) toast("📜 Yeni sipariş panoda!");
     if(readyN) toast("🌿 "+readyN+" tarla hasada hazır!","good");
   }
 
@@ -807,6 +899,7 @@
     renderGarden();
     renderSeason();
     renderTab();
+    renderOrders();
     renderLevelBar(lvl);
     renderLog();
     $("waterHint").textContent = S.up.sprinkler ? "💧 Otomatik sulama açık — sulama gerekmiyor." : "";
@@ -863,6 +956,32 @@
       items = '<span class="ghint">🌿 Bahçen sade. <b>Dükkan → Bahçe Süsleri</b>\'nden süs ekleyerek şirinleştir.</span>';
     }
     el.innerHTML = items + '<span class="cozy">🌼 Şirinlik: '+coziness()+'</span>';
+  }
+
+  function renderOrders(){
+    const el = $("ordersPanel");
+    let cards = S.orders.map(o=>{
+      const items = o.items.map(it=>{
+        const have = invBag(it.id)[it.id]||0;
+        const ok = have>=it.qty;
+        return '<span class="oitem'+(ok?" ok":"")+'">'+itemEmoji(it.id)+' '+itemName(it.id)+' '+have+'/'+it.qty+'</span>';
+      }).join("");
+      const can = canFill(o);
+      return '<div class="ocard"><div class="ohead"><span class="oemoji">'+o.cust.emoji+'</span>'+
+        '<span class="oname">'+o.cust.name+'</span>'+
+        '<button class="odismiss" data-oact="dismiss" data-oid="'+o.id+'" title="Reddet" aria-label="Reddet">✕</button></div>'+
+        '<div class="oitems">'+items+'</div>'+
+        '<div class="ofoot"><span class="oreward">🎁 '+fmt(o.reward)+' 🪙</span>'+
+        '<button class="btn small primary" data-oact="fill" data-oid="'+o.id+'" '+(can?"":"disabled")+'>Teslim Et</button></div></div>';
+    }).join("");
+    if(!S.orders.length) cards = '<div class="emptxt">Şu an sipariş yok. Yeni müşteriler zamanla uğrar — günü ilerlet 📜</div>';
+    el.innerHTML = '<h2>📜 Sipariş Panosu <span class="ocount">'+S.orders.length+'/'+MAX_ORDERS+'</span></h2>'+
+      '<p class="hint">Kasabalılar ürün ister ve pazar fiyatının üstünde ödül verir. Elinde ürünler tamamsa teslim et; istemediğini ✕ ile reddet.</p>'+
+      '<div class="ogrid">'+cards+'</div>';
+    el.querySelectorAll("[data-oact]").forEach(b=>b.addEventListener("click", ()=>{
+      const a=b.dataset.oact, id=b.dataset.oid;
+      if(a==="fill") fillOrder(id); else if(a==="dismiss") dismissOrder(id);
+    }));
   }
 
   function renderSeason(){
@@ -1130,8 +1249,9 @@
 
   /* ============ BAŞLANGIÇ ============ */
   if(!S.popular || !S.popular.length) rollPopular();
+  if(!S.orders.length){ const o0=makeOrder(); if(o0) S.orders.push(o0); }
   if(!S.log.length){
-    addLog("👋 <b>Küçük Pazar'a hoş geldin!</b> Boş tarlaya tıkla, tohum ek, birkaç gün büyüt ve pazarda sat.");
+    addLog("👋 <b>Küçük Pazar'a hoş geldin!</b> Boş tarlaya tıkla, tohum ek, birkaç gün büyüt ve pazarda sat. Sipariş panosunda bir müşteri seni bekliyor 📜");
   }
   save();
   render();

@@ -20,11 +20,14 @@ otomatik kaydedilir (localStorage).
    (buğday→ekmek, domates→sos, yaban mersini→reçel, üzüm→şarap, süt→peynir, yumurta→kek...).
 5. **🐄 Ahır** — Ahır alınca tavuk/inek/koyun besle; beslenen hayvanlar zamanla yumurta 🥚,
    süt 🥛, yün 🧶 verir. Yem olarak buğday (yoksa altın) harcanır — tarla ve ahır birbirine bağlı.
-6. **🛖 Dükkan** — Kazancı çiftliğe yatır: yeni tarla, mutfak, otomatik sulama, şirin tezgah
+6. **📜 Sipariş Panosu** — Kasabalılar (Fırıncı, Nine, Küçük Ali...) belirli ürünler ister ve
+   pazar fiyatının **üstünde** ödül verir. Elinde ürünler tamamsa "Teslim Et"; istemediğin
+   siparişi ✕ ile reddet. Süre sınırı ve ceza yok — sadece hoş bir hedef.
+7. **🛖 Dükkan** — Kazancı çiftliğe yatır: yeni tarla, mutfak, otomatik sulama, şirin tezgah
    (+%15 fiyat), ahır, otomatik yemlik, şaraphane (premium ürünler) ve **bahçe süsleri**.
 
 Toplam kazancın **Pazar itibarı** seviyeni yükseltir; her seviye yeni tohum, hayvan ve
-olanaklar açar. **🏆 Başarımlar** (15+) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
+olanaklar açar. **🏆 Başarımlar** (20) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
 
 ## Cila katmanı
 
@@ -49,13 +52,13 @@ Tümü `prefers-reduced-motion` açık olduğunda ağır animasyonları otomatik
 
 - Saf HTML/CSS/JS (vanilla), harici bağımlılık yok — çevrimdışı çalışır, CSP-güvenli.
 - Durum `localStorage` (`kucuk_pazar_v1` anahtarı) üzerinden kaydedilir; şema geriye dönük uyumlu.
-- İçerik veri-odaklı (`CROPS`, `APROD`, `ANIMALS`, `GOODS`, `UPGRADES`, `DECOR`, `ACHIEVEMENTS`,
-  `LEVELS`) — yeni ürün/hayvan/tarif/başarım eklemek kolay.
+- İçerik veri-odaklı (`CROPS`, `APROD`, `ANIMALS`, `GOODS`, `UPGRADES`, `DECOR`, `CUSTOMERS`,
+  `ACHIEVEMENTS`, `LEVELS`) — yeni ürün/hayvan/tarif/müşteri/başarım eklemek kolay.
 
 ## Sonraki adımlar (fikirler)
 
-- Kasaba müşterileri / özel siparişler (küçük hikâye dokunuşu)
 - Mevsime bağlı ürünler ve fiyat dalgalanması
 - Arı kovanı → bal, ek hayvan/ürün çeşitleri
 - Ekonomi denge ayarı ve zorluk eğrisi
+- Siparişlerde zaman/mevsim temalı özel istekler ve seri bonusları
 - "Koleksiyon defteri" ve haftalık pazar etkinlikleri
