@@ -6,6 +6,11 @@ sadece huzurlu bir ekonomi büyütme döngüsü: **yetiştir → hasat et → i�
 Tek dosya, bağımlılıksız. `index.html`'i tarayıcıda aç, hemen oynanır. İlerleme tarayıcıya
 otomatik kaydedilir (localStorage).
 
+> **`sandbox.html`** — "her şey açık" keşif sürümü: tüm tarlalar, yükseltmeler, ahır ve süsler
+> açık, 50.000 altın ve maksimum seviye ile başlar. Ayrı bir kayıt anahtarı (`kucuk_pazar_sandbox_v1`)
+> kullanır, yani normal oyundaki ilerlemene dokunmaz. `index.html`'den türetilir (bkz.
+> `tools/make-sandbox.mjs` mantığı: başlangıç durumunu açar + kayıt anahtarını değiştirir).
+
 ![önizleme](preview.png)
 
 ## Oynanış
