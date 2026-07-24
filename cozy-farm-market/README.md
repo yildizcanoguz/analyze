@@ -11,7 +11,16 @@ otomatik kaydedilir (localStorage).
 > kullanır, yani normal oyundaki ilerlemene dokunmaz. `index.html`'den türetilir (bkz.
 > `tools/make-sandbox.mjs` mantığı: başlangıç durumunu açar + kayıt anahtarını değiştirir).
 
+> **`3d/index.html`** — **gerçek zamanlı WebGL 3B köy** (Three.js). Ayrı bir teknik demo: gerçek
+> izometrik 3B geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES
+> filmik tonlama, dönen sinematik ortografik kamera, rüzgârda sallanan ağaçlar, dönen değirmen,
+> gölet ve **yol boyunca yürüyen köylüler** + otlayan inek/koyun. Stilize **low-poly** görünüm —
+> gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). `three.min.js`
+> (r160 UMD, npm'den vendor'lanmış) + `scene.js` (sahne kodu). Çevrimdışı çalışır, harici istek yok.
+
 ![önizleme](preview.png)
+
+![3B köy](3d/preview.png)
 
 ## Oynanış
 
