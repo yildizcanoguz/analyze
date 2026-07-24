@@ -39,12 +39,16 @@ otomatik kaydedilir (localStorage).
   buğday/üzüm/balkabağı). Mevsim dışı ürün **cezasız**, sadece bonus almaz.
 - **Kış = pazar mevsimi:** Kışın hiçbir ürün mevsiminde olmaz; bunun yerine **hayvan ürünleri
   ve işlenmiş mallar +%15** ("kış talebi"). Yani sıcak mevsimlerde yetiştir, kışın işle & sat.
-- **Şeffaf fiyat:** Nihai fiyat `taban × tezgah × mevsim × popüler` — pazar satırındaki çipler
-  hangi bonusun geçerli olduğunu gösterir (🔥 popüler, 🌱 mevsim, ❄️ kış). Ekim menüsü ve
-  tarlalar da mevsim ürünlerini 🌱 ile işaretler.
+- **🎪 Pazar Festivali:** Her mevsimin **son 2 günü** festivaldir → **tüm satışlar +%50** ve
+  panoda büyük ödüllü bir **festival siparişi** (Festival Komitesi) açılır. Festival bitince
+  özel sipariş kapanır (kaçırmak cezasız). Stok yapıp doğru anda satmaya değer bir ritim.
+  Mevsim şeridi festivale geri sayım gösterir; festivalde üst bar pembe parıltıyla işaretlenir.
+- **Şeffaf fiyat:** Nihai fiyat `taban × tezgah × mevsim × festival × popüler` — pazar
+  satırındaki çipler hangi bonusun geçerli olduğunu gösterir (🔥 popüler, 🌱 mevsim, ❄️ kış,
+  🎪 festival). Ekim menüsü ve tarlalar da mevsim ürünlerini 🌱 ile işaretler.
 
 Toplam kazancın **Pazar itibarı** seviyeni yükseltir; her seviye yeni tohum, hayvan ve
-olanaklar açar. **🏆 Başarımlar** (21) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
+olanaklar açar. **🏆 Başarımlar** (22) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
 
 ## Cila katmanı
 
@@ -77,4 +81,4 @@ Tümü `prefers-reduced-motion` açık olduğunda ağır animasyonları otomatik
 - Arı kovanı → bal, ek hayvan/ürün çeşitleri
 - Ekonomi denge ayarı ve zorluk eğrisi
 - Siparişlerde mevsim temalı özel istekler ve seri bonusları
-- "Koleksiyon defteri" ve haftalık pazar etkinlikleri
+- "Koleksiyon defteri" ve mevsim temalı festival varyasyonları

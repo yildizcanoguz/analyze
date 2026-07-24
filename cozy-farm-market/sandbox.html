@@ -183,6 +183,7 @@
   .chip.pop{ background:#ffe9c2; color:#8a5a10; border:1px solid #f0cf90; }
   .chip.new{ background:#dff0d6; color:#3f6e37; border:1px solid #bfe0af; }
   .chip.winter{ background:#e6f0ff; color:#3a6ea5; border:1px solid #bcd6f5; }
+  .chip.fest{ background:#ffe3f1; color:#a6266e; border:1px solid #f3b9d8; }
   .chip.qty{ background:var(--soft); color:var(--muted); border:1px solid var(--line); }
 
   .lvlbar{ height:9px; background:var(--soft); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
@@ -208,6 +209,8 @@
   .orders h2 .ocount{ font-size:12px; color:var(--muted); font-weight:800; margin-left:6px; }
   .ogrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
   .ocard{ border:1px solid var(--line); border-radius:14px; background:linear-gradient(180deg,#fffdf6,#fdf5e4); padding:12px; box-shadow:var(--shadow2); display:flex; flex-direction:column; gap:10px; }
+  .ocard.festival{ background:linear-gradient(180deg,#fff6fb,#fdeaf4); border-color:#f3b9d8; box-shadow:0 6px 18px rgba(166,38,110,.16); }
+  body[data-fest="1"] .top{ box-shadow:0 0 0 2px #f3b9d8, var(--shadow); }
   .ohead{ display:flex; align-items:center; gap:8px; }
   .ohead .oemoji{ font-size:24px; }
   .ohead .oname{ font-weight:900; font-size:14px; }
@@ -387,6 +390,7 @@
     { name:"Doktor",         emoji:"🧑‍⚕️" },
   ];
   const MAX_ORDERS = 3;
+  const FESTIVAL_DAYS = 2; // her mevsimin son 2 günü festival
 
   const SEASONS = [
     { name:"İlkbahar", emoji:"🌷", p:"🌸" },
@@ -440,6 +444,7 @@
     { id:"order1",    e:"📜", t:"İlk Sipariş",     d:"Bir kasaba siparişini teslim et",  c:s=>s.stats.ordersFilled>=1 },
     { id:"order10",   e:"🛎️", t:"Güvenilir Tedarikçi", d:"10 sipariş teslim et",         c:s=>s.stats.ordersFilled>=10 },
     { id:"season1",   e:"🍃", t:"Mevsim Ustası",   d:"Bir ürünü kendi mevsiminde hasat et", c:s=>!!s.stats.seasonHarvest },
+    { id:"festival",  e:"🎪", t:"Festival Tüccarı", d:"Bir festival siparişini teslim et", c:s=>(s.stats.festivalOrders||0)>=1 },
     { id:"allup",     e:"🏆", t:"Tam Donanım",     d:"Tüm yükseltmeleri al",             c:s=>Object.keys(UPGRADES).every(k=>s.up[k]) },
     { id:"earn20000", e:"👑", t:"Pazar Kralı",     d:"Toplam 20.000 altın kazan",        c:s=>s.totalEarned>=20000 },
   ];
@@ -460,7 +465,7 @@
       muted:false,
       decor:{},
       achieved:{},
-      stats:{ planted:0, harvested:0, sold:0, processed:0, ordersFilled:0, seasonHarvest:false, harvestedTypes:{}, madeGoods:{} },
+      stats:{ planted:0, harvested:0, sold:0, processed:0, ordersFilled:0, festivalOrders:0, seasonHarvest:false, harvestedTypes:{}, madeGoods:{} },
     };
   }
 
@@ -477,6 +482,7 @@
     s.stats.sold = s.stats.sold||0;
     s.stats.processed = s.stats.processed||0;
     s.stats.ordersFilled = s.stats.ordersFilled||0;
+    s.stats.festivalOrders = s.stats.festivalOrders||0;
     s.stats.seasonHarvest = !!s.stats.seasonHarvest;
     s.stats.harvestedTypes = s.stats.harvestedTypes||{};
     s.stats.madeGoods = s.stats.madeGoods||{};
@@ -536,7 +542,10 @@
   }
   function growDays(cropId){ const c=CROPS[cropId]; return c.season===curSeason() ? Math.max(1,c.grow-1) : c.grow; }
   function plotNeed(p){ return p.needGrow || CROPS[p.crop].grow; }
-  function priceOf(baseSell, id){ let p=baseSell*stallMult()*seasonMult(id); if(isPopular(id)) p*=1.4; return Math.round(p); }
+  function dayInSeason(){ return ((S.day-1)%SEASON_LEN)+1; }
+  function festivalActive(){ return dayInSeason() > SEASON_LEN - FESTIVAL_DAYS; }
+  function festMult(){ return festivalActive() ? 1.5 : 1; }
+  function priceOf(baseSell, id){ let p=baseSell*stallMult()*seasonMult(id)*festMult(); if(isPopular(id)) p*=1.4; return Math.round(p); }
 
   function addLog(msg){ S.log.unshift(msg); if(S.log.length>7) S.log.length=7; }
 
@@ -812,6 +821,25 @@
     const reward = Math.round(base*1.5) + 20;
     return { id:"o"+Math.random().toString(36).slice(2,9), cust:pick(CUSTOMERS), items:items, reward:reward, day:S.day };
   }
+  function makeFestivalOrder(){
+    const pool = orderPool();
+    if(!pool.length) return null;
+    const want = pool.length>=4 ? 3 : (pool.length>=2 ? 2 : 1);
+    const items=[], used={};
+    for(let i=0;i<want;i++){
+      let id, guard=0;
+      do{ id=pick(pool); guard++; } while(used[id] && guard<12);
+      if(used[id]) continue;
+      used[id]=true;
+      const val = infoOf(id).sell;
+      let qty = Math.round((Math.random()*2+3) * (val<40?1.4 : val<120?1 : 0.6));
+      qty = Math.max(3, Math.min(qty, 10));
+      items.push({ id:id, qty:qty });
+    }
+    const base = items.reduce((a,it)=> a + infoOf(it.id).sell*it.qty, 0);
+    const reward = Math.round(base*2.5) + 80;   // festival: çok daha cömert
+    return { id:"f"+Math.random().toString(36).slice(2,9), cust:{name:"Festival Komitesi",emoji:"🎪"}, items:items, reward:reward, day:S.day, festival:true };
+  }
   function canFill(o){ return o.items.every(it => (invBag(it.id)[it.id]||0) >= it.qty); }
   function fillOrder(oid){
     const idx = S.orders.findIndex(o=>o.id===oid); if(idx<0) return;
@@ -820,6 +848,7 @@
     for(const it of o.items){ const bag=invBag(it.id); bag[it.id]-=it.qty; if(bag[it.id]<=0) delete bag[it.id]; }
     S.coins += o.reward; S.totalEarned += o.reward;
     S.stats.ordersFilled = (S.stats.ordersFilled||0)+1;
+    if(o.festival) S.stats.festivalOrders = (S.stats.festivalOrders||0)+1;
     S.orders.splice(idx,1);
     SFX.coin(); celebrate(); bumpCoins();
     addLog("📜 <b>"+o.cust.name+"</b> siparişini teslim ettin (+"+fmt(o.reward)+" 🪙).");
@@ -875,11 +904,24 @@
       if(!S.up.autofeed) a.fed = false;
     }
 
+    const wasFest = festivalActive();
     S.day++;
     rollPopular();
+    const isFest = festivalActive();
+
+    let festStart=false;
+    if(!wasFest && isFest){
+      const fo = makeFestivalOrder();
+      if(fo){ S.orders.push(fo); }
+      festStart = true;
+    } else if(wasFest && !isFest){
+      const before = S.orders.length;
+      S.orders = S.orders.filter(o=>!o.festival);
+      if(S.orders.length < before) addLog("🎪 Festival bitti — özel sipariş kapandı.");
+    }
 
     let newOrder=false;
-    if(S.orders.length < MAX_ORDERS && Math.random() < 0.55){
+    if(S.orders.filter(o=>!o.festival).length < MAX_ORDERS && Math.random() < 0.55){
       const o = makeOrder();
       if(o){ S.orders.push(o); newOrder=true; }
     }
@@ -901,10 +943,12 @@
       addLog("🎁 Komşu uğradı, "+gift+" 🪙 bıraktı.");
     }
 
+    if(festStart) addLog("🎪 <b>Pazar Festivali başladı!</b> Tüm satışlar +%50, panoda özel sipariş var.");
     SFX.day();
     checkAchievements();
     save(); render();
-    if(newOrder) toast("📜 Yeni sipariş panoda!");
+    if(festStart){ SFX.level(); celebrate(); toast("🎪 Pazar Festivali! Satışlar +%50","gold"); }
+    else if(newOrder) toast("📜 Yeni sipariş panoda!");
     if(readyN) toast("🌿 "+readyN+" tarla hasada hazır!","good");
   }
 
@@ -1002,16 +1046,18 @@
         return '<span class="oitem'+(ok?" ok":"")+'">'+itemEmoji(it.id)+' '+itemName(it.id)+' '+have+'/'+it.qty+'</span>';
       }).join("");
       const can = canFill(o);
-      return '<div class="ocard"><div class="ohead"><span class="oemoji">'+o.cust.emoji+'</span>'+
-        '<span class="oname">'+o.cust.name+'</span>'+
+      const festBadge = o.festival ? ' <span class="chip fest">🎪 festival</span>' : "";
+      return '<div class="ocard'+(o.festival?" festival":"")+'"><div class="ohead"><span class="oemoji">'+o.cust.emoji+'</span>'+
+        '<span class="oname">'+o.cust.name+'</span>'+festBadge+
         '<button class="odismiss" data-oact="dismiss" data-oid="'+o.id+'" title="Reddet" aria-label="Reddet">✕</button></div>'+
         '<div class="oitems">'+items+'</div>'+
         '<div class="ofoot"><span class="oreward">🎁 '+fmt(o.reward)+' 🪙</span>'+
         '<button class="btn small primary" data-oact="fill" data-oid="'+o.id+'" '+(can?"":"disabled")+'>Teslim Et</button></div></div>';
     }).join("");
     if(!S.orders.length) cards = '<div class="emptxt">Şu an sipariş yok. Yeni müşteriler zamanla uğrar — günü ilerlet 📜</div>';
-    el.innerHTML = '<h2>📜 Sipariş Panosu <span class="ocount">'+S.orders.length+'/'+MAX_ORDERS+'</span></h2>'+
-      '<p class="hint">Kasabalılar ürün ister ve pazar fiyatının üstünde ödül verir. Elinde ürünler tamamsa teslim et; istemediğini ✕ ile reddet.</p>'+
+    const festHead = festivalActive() ? ' <span class="chip fest">🎪 Festival</span>' : "";
+    el.innerHTML = '<h2>📜 Sipariş Panosu <span class="ocount">'+S.orders.length+' aktif</span>'+festHead+'</h2>'+
+      '<p class="hint">Kasabalılar ürün ister ve pazar fiyatının üstünde ödül verir. Elinde ürünler tamamsa teslim et; istemediğini ✕ ile reddet. Festivalde 🎪 özel sipariş, festival bitince kapanır.</p>'+
       '<div class="ogrid">'+cards+'</div>';
     el.querySelectorAll("[data-oact]").forEach(b=>b.addEventListener("click", ()=>{
       const a=b.dataset.oact, id=b.dataset.oid;
@@ -1022,8 +1068,9 @@
   function renderSeason(){
     const idx = Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length;
     const s = SEASONS[idx];
-    const dayInSeason = ((S.day-1)%SEASON_LEN)+1;
+    const dis = ((S.day-1)%SEASON_LEN)+1;
     document.body.dataset.season = idx;
+    document.body.dataset.fest = festivalActive() ? "1" : "0";
     renderAmbient(idx);
     const popTxt = S.popular.length ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ") : "—";
     let seasonTxt;
@@ -1033,11 +1080,18 @@
       const crops = Object.keys(CROPS).filter(id=>CROPS[id].season===idx).map(id=>CROPS[id].emoji).join(" ");
       seasonTxt = '<span class="chip new">🌱 Mevsim ürünü: '+crops+' (+%30, hızlı)</span>';
     }
+    let festTxt;
+    if(festivalActive()){
+      festTxt = '<span class="chip fest">🎪 FESTİVAL! Tüm satışlar +%50</span>';
+    } else {
+      const untilFest = (SEASON_LEN - FESTIVAL_DAYS + 1) - dis;
+      festTxt = '<span class="chip qty">🎪 Festival: '+untilFest+' gün sonra</span>';
+    }
     $("seasonStrip").innerHTML =
       '<span style="font-weight:800;color:var(--ink)">'+s.emoji+' '+s.name+'</span>'+
-      '<span>· gün '+dayInSeason+'/'+SEASON_LEN+'</span>'+
+      '<span>· gün '+dis+'/'+SEASON_LEN+'</span>'+
       '<span class="grow"></span>'+
-      seasonTxt+
+      seasonTxt+ festTxt+
       '<span class="chip pop">🔥 Popüler: '+popTxt+' (+%40)</span>';
   }
 
@@ -1088,8 +1142,9 @@
     let seasonChip = "";
     if(inSeasonCrop(id)) seasonChip = '<span class="chip new">🌱 +%30</span>';
     else if(winterDemand(id)) seasonChip = '<span class="chip winter">❄️ +%15</span>';
+    const festChip = festivalActive() ? '<span class="chip fest">🎪 +%50</span>' : "";
     return '<div class="row"><div class="rico">'+itemEmoji(id)+'</div>'+
-      '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+seasonChip+'</div>'+
+      '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+seasonChip+festChip+'</div>'+
       '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
       '<div class="ract">'+
         '<button class="btn small" data-act="sell1" data-id="'+id+'">Sat 1</button>'+
