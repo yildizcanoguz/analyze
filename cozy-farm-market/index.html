@@ -182,6 +182,7 @@
   .chip{ display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
   .chip.pop{ background:#ffe9c2; color:#8a5a10; border:1px solid #f0cf90; }
   .chip.new{ background:#dff0d6; color:#3f6e37; border:1px solid #bfe0af; }
+  .chip.winter{ background:#e6f0ff; color:#3a6ea5; border:1px solid #bcd6f5; }
   .chip.qty{ background:var(--soft); color:var(--muted); border:1px solid var(--line); }
 
   .lvlbar{ height:9px; background:var(--soft); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
@@ -334,16 +335,17 @@
   "use strict";
 
   /* ============ İÇERİK / DENGE ============ */
+  // season: 0=İlkbahar 1=Yaz 2=Sonbahar (Kış'ta hiçbir ürün mevsiminde değildir)
   const CROPS = {
-    carrot:    { name:"Havuç",         emoji:"🥕", seed:5,  grow:2, sell:9,   yield:1, lvl:1 },
-    potato:    { name:"Patates",       emoji:"🥔", seed:8,  grow:3, sell:16,  yield:1, lvl:1 },
-    tomato:    { name:"Domates",       emoji:"🍅", seed:12, grow:3, sell:20,  yield:2, lvl:1 },
-    wheat:     { name:"Buğday",        emoji:"🌾", seed:6,  grow:2, sell:11,  yield:2, lvl:2 },
-    corn:      { name:"Mısır",         emoji:"🌽", seed:18, grow:4, sell:34,  yield:2, lvl:2 },
-    strawberry:{ name:"Çilek",         emoji:"🍓", seed:22, grow:4, sell:42,  yield:2, lvl:3 },
-    blueberry: { name:"Yaban Mersini", emoji:"🫐", seed:28, grow:5, sell:55,  yield:3, lvl:3 },
-    grape:     { name:"Üzüm",          emoji:"🍇", seed:35, grow:5, sell:70,  yield:3, lvl:4 },
-    pumpkin:   { name:"Balkabağı",     emoji:"🎃", seed:45, grow:6, sell:120, yield:1, lvl:4 },
+    carrot:    { name:"Havuç",         emoji:"🥕", seed:5,  grow:2, sell:9,   yield:1, lvl:1, season:0 },
+    potato:    { name:"Patates",       emoji:"🥔", seed:8,  grow:3, sell:16,  yield:1, lvl:1, season:0 },
+    strawberry:{ name:"Çilek",         emoji:"🍓", seed:22, grow:4, sell:42,  yield:2, lvl:3, season:0 },
+    tomato:    { name:"Domates",       emoji:"🍅", seed:12, grow:3, sell:20,  yield:2, lvl:1, season:1 },
+    corn:      { name:"Mısır",         emoji:"🌽", seed:18, grow:4, sell:34,  yield:2, lvl:2, season:1 },
+    blueberry: { name:"Yaban Mersini", emoji:"🫐", seed:28, grow:5, sell:55,  yield:3, lvl:3, season:1 },
+    wheat:     { name:"Buğday",        emoji:"🌾", seed:6,  grow:2, sell:11,  yield:2, lvl:2, season:2 },
+    grape:     { name:"Üzüm",          emoji:"🍇", seed:35, grow:5, sell:70,  yield:3, lvl:4, season:2 },
+    pumpkin:   { name:"Balkabağı",     emoji:"🎃", seed:45, grow:6, sell:120, yield:1, lvl:4, season:2 },
   };
 
   const GOODS = {
@@ -437,6 +439,7 @@
     { id:"fullbarn",  e:"🐑", t:"Küçük Çiftlik",   d:"Her hayvandan en az bir tane al",  c:s=>Object.keys(ANIMALS).every(t=>s.animals.some(a=>a.type===t)) },
     { id:"order1",    e:"📜", t:"İlk Sipariş",     d:"Bir kasaba siparişini teslim et",  c:s=>s.stats.ordersFilled>=1 },
     { id:"order10",   e:"🛎️", t:"Güvenilir Tedarikçi", d:"10 sipariş teslim et",         c:s=>s.stats.ordersFilled>=10 },
+    { id:"season1",   e:"🍃", t:"Mevsim Ustası",   d:"Bir ürünü kendi mevsiminde hasat et", c:s=>!!s.stats.seasonHarvest },
     { id:"allup",     e:"🏆", t:"Tam Donanım",     d:"Tüm yükseltmeleri al",             c:s=>Object.keys(UPGRADES).every(k=>s.up[k]) },
     { id:"earn20000", e:"👑", t:"Pazar Kralı",     d:"Toplam 20.000 altın kazan",        c:s=>s.totalEarned>=20000 },
   ];
@@ -457,7 +460,7 @@
       muted:false,
       decor:{},
       achieved:{},
-      stats:{ planted:0, harvested:0, sold:0, processed:0, ordersFilled:0, harvestedTypes:{}, madeGoods:{} },
+      stats:{ planted:0, harvested:0, sold:0, processed:0, ordersFilled:0, seasonHarvest:false, harvestedTypes:{}, madeGoods:{} },
     };
   }
 
@@ -474,6 +477,7 @@
     s.stats.sold = s.stats.sold||0;
     s.stats.processed = s.stats.processed||0;
     s.stats.ordersFilled = s.stats.ordersFilled||0;
+    s.stats.seasonHarvest = !!s.stats.seasonHarvest;
     s.stats.harvestedTypes = s.stats.harvestedTypes||{};
     s.stats.madeGoods = s.stats.madeGoods||{};
     return s;
@@ -505,7 +509,18 @@
 
   function isPopular(id){ return S.popular.includes(id); }
   function stallMult(){ return S.up.stall ? 1.15 : 1; }
-  function priceOf(baseSell, id){ let p=baseSell*stallMult(); if(isPopular(id)) p*=1.4; return Math.round(p); }
+  function curSeason(){ return Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length; }
+  const WINTER = 3;
+  function inSeasonCrop(id){ return !!CROPS[id] && CROPS[id].season===curSeason(); }
+  function winterDemand(id){ return curSeason()===WINTER && (!!APROD[id] || !!GOODS[id]); }
+  function seasonMult(id){
+    if(inSeasonCrop(id)) return 1.3;      // mevsim ürünü +%30
+    if(winterDemand(id)) return 1.15;     // kış talebi +%15
+    return 1;
+  }
+  function growDays(cropId){ const c=CROPS[cropId]; return c.season===curSeason() ? Math.max(1,c.grow-1) : c.grow; }
+  function plotNeed(p){ return p.needGrow || CROPS[p.crop].grow; }
+  function priceOf(baseSell, id){ let p=baseSell*stallMult()*seasonMult(id); if(isPopular(id)) p*=1.4; return Math.round(p); }
 
   function addLog(msg){ S.log.unshift(msg); if(S.log.length>7) S.log.length=7; }
 
@@ -629,7 +644,7 @@
     if(!p || p.crop || !c) return;
     if(S.coins < c.seed){ toast("Yetersiz altın 🪙"); return; }
     S.coins -= c.seed;
-    p.crop = cropId; p.grown = 0; p.water = 2;
+    p.crop = cropId; p.grown = 0; p.water = 2; p.needGrow = growDays(cropId);
     S.stats.planted++;
     popIdx = plotIdx;
     SFX.plant();
@@ -642,11 +657,12 @@
     const p = S.plots[plotIdx];
     if(!p || !p.crop) return;
     const c = CROPS[p.crop];
-    if(p.grown < c.grow) return;
+    if(p.grown < plotNeed(p)) return;
     let y = c.yield; if(S.up.sprinkler) y += 1;
     S.crops[p.crop] = (S.crops[p.crop]||0) + y;
     S.stats.harvested += y;
     S.stats.harvestedTypes[p.crop] = true;
+    if(c.season===curSeason()) S.stats.seasonHarvest = true;
     const nm=c.name, em=c.emoji;
     floatFromEl(el, "+"+y+" "+em, "good");
     SFX.harvest();
@@ -817,7 +833,7 @@
     for(const p of S.plots){
       if(!p.unlocked || !p.crop) continue;
       const watered = S.up.sprinkler || p.water>0;
-      if(watered && p.grown < CROPS[p.crop].grow){ p.grown++; }
+      if(watered && p.grown < plotNeed(p)){ p.grown++; }
       if(!S.up.sprinkler && p.water>0) p.water--;
     }
     const remain=[];
@@ -922,25 +938,28 @@
         el.appendChild(d); return;
       }
       const c = CROPS[p.crop];
-      const ready = p.grown >= c.grow;
+      const need = plotNeed(p);
+      const inS = c.season===curSeason();
+      const nameTag = (inS?"🌱 ":"")+c.name;
+      const ready = p.grown >= need;
       d.className = "plot"+(ready?" ready":"")+popCls;
-      const pct = Math.min(100, Math.round(p.grown/c.grow*100));
+      const pct = Math.min(100, Math.round(p.grown/need*100));
       const waterIco = S.up.sprinkler ? "💧" : (p.water>0 ? "💧".repeat(Math.min(p.water,2)) : "🏜️");
       if(ready){
         d.innerHTML =
-          '<div class="cropname">'+c.name+'</div><div class="water">✅</div>'+
+          '<div class="cropname">'+nameTag+'</div><div class="water">✅</div>'+
           '<div class="emoji">'+c.emoji+'</div><div class="tag">HASAT ET</div>';
         d.addEventListener("click", ()=>harvest(idx, d));
       }else{
-        const seedling = p.grown===0 ? "🌱" : (p.grown/c.grow<0.6 ? "🌿" : c.emoji);
+        const seedling = p.grown===0 ? "🌱" : (p.grown/need<0.6 ? "🌿" : c.emoji);
         d.innerHTML =
-          '<div class="cropname">'+c.name+'</div>'+
+          '<div class="cropname">'+nameTag+'</div>'+
           '<div class="water" title="su">'+waterIco+'</div>'+
-          '<div class="emoji sway" style="opacity:'+(0.55+0.45*p.grown/c.grow).toFixed(2)+'">'+seedling+'</div>'+
+          '<div class="emoji sway" style="opacity:'+(0.55+0.45*p.grown/need).toFixed(2)+'">'+seedling+'</div>'+
           '<div class="bar"><i style="width:'+pct+'%"></i></div>';
         d.addEventListener("click", ()=>{
           if(!S.up.sprinkler && p.water<2){ p.water=2; SFX.water(); render(); save(); toast("💧 sulandı"); }
-          else toast(c.name+": "+(c.grow-p.grown)+" gün kaldı");
+          else toast(c.name+": "+(need-p.grown)+" gün kaldı");
         });
       }
       el.appendChild(d);
@@ -991,11 +1010,19 @@
     document.body.dataset.season = idx;
     renderAmbient(idx);
     const popTxt = S.popular.length ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ") : "—";
+    let seasonTxt;
+    if(idx===WINTER){
+      seasonTxt = '<span class="chip winter">❄️ Kış talebi: hayvan ürünü & işlenmiş +%15</span>';
+    } else {
+      const crops = Object.keys(CROPS).filter(id=>CROPS[id].season===idx).map(id=>CROPS[id].emoji).join(" ");
+      seasonTxt = '<span class="chip new">🌱 Mevsim ürünü: '+crops+' (+%30, hızlı)</span>';
+    }
     $("seasonStrip").innerHTML =
       '<span style="font-weight:800;color:var(--ink)">'+s.emoji+' '+s.name+'</span>'+
       '<span>· gün '+dayInSeason+'/'+SEASON_LEN+'</span>'+
       '<span class="grow"></span>'+
-      '<span class="chip pop">🔥 Bugün popüler: '+popTxt+' (+%40)</span>';
+      seasonTxt+
+      '<span class="chip pop">🔥 Popüler: '+popTxt+' (+%40)</span>';
   }
 
   function renderLevelBar(lvl){
@@ -1042,8 +1069,11 @@
     if(have<=0) return "";
     const unit = priceOf(infoOf(id).sell, id);
     const pop = isPopular(id) ? '<span class="chip pop">🔥 +%40</span>' : "";
+    let seasonChip = "";
+    if(inSeasonCrop(id)) seasonChip = '<span class="chip new">🌱 +%30</span>';
+    else if(winterDemand(id)) seasonChip = '<span class="chip winter">❄️ +%15</span>';
     return '<div class="row"><div class="rico">'+itemEmoji(id)+'</div>'+
-      '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+'</div>'+
+      '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+seasonChip+'</div>'+
       '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
       '<div class="ract">'+
         '<button class="btn small" data-act="sell1" data-id="'+id+'">Sat 1</button>'+
@@ -1186,10 +1216,13 @@
         continue;
       }
       const afford = S.coins>=c.seed;
+      const inS = c.season===curSeason();
+      const g = growDays(id);
       const pop = isPopular(id)?'<span class="chip pop">🔥 popüler</span>':"";
+      const seasonChip = inS?'<span class="chip new">🌱 mevsim +%30</span>':"";
       list += '<div class="row"><div class="rico">'+c.emoji+'</div>'+
-        '<div class="rmain"><div class="rtitle">'+c.name+' '+pop+'</div>'+
-        '<div class="rmeta">tohum '+c.seed+' 🪙 · '+c.grow+' gün · satış ~'+fmt(priceOf(c.sell,id))+' 🪙 ×'+(c.yield+(S.up.sprinkler?1:0))+'</div></div>'+
+        '<div class="rmain"><div class="rtitle">'+c.name+' '+pop+seasonChip+'</div>'+
+        '<div class="rmeta">tohum '+c.seed+' 🪙 · '+g+' gün'+(inS?" (hızlı)":"")+' · satış ~'+fmt(priceOf(c.sell,id))+' 🪙 ×'+(c.yield+(S.up.sprinkler?1:0))+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-plant="'+id+'" '+(afford?"":"disabled")+'>Ek</button></div></div>';
     }
     const m=$("modal");

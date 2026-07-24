@@ -19,7 +19,8 @@ otomatik kaydedilir (localStorage).
    Olgunlaşan (parlayan) ürüne tıklayıp hasat et. Su biterse büyüme _durur_ ama bir şey
    kaybetmezsin; sadece yavaşlar.
 2. **🌙 Sonraki Gün** (veya `boşluk` tuşu) — Zaman ilerler, ürünler büyür, atölye üretimi ve
-   ahır ürünleri teslim edilir, her gün farklı bir ürün "popüler" olur (+%40 satış).
+   ahır ürünleri teslim edilir, her gün farklı bir ürün "popüler" olur (+%40 satış), mevsim
+   ilerler (her 8 gün: İlkbahar → Yaz → Sonbahar → Kış).
 3. **🧺 Pazar** — Ham ürünleri (tarla + hayvan) ve işlenmiş malları sat.
 4. **🍯 Atölye** — Mutfak aldıktan sonra ham ürünleri çok daha değerli ürünlere işle
    (buğday→ekmek, domates→sos, yaban mersini→reçel, üzüm→şarap, süt→peynir, yumurta→kek...).
@@ -31,8 +32,19 @@ otomatik kaydedilir (localStorage).
 7. **🛖 Dükkan** — Kazancı çiftliğe yatır: yeni tarla, mutfak, otomatik sulama, şirin tezgah
    (+%15 fiyat), ahır, otomatik yemlik, şaraphane (premium ürünler) ve **bahçe süsleri**.
 
+### 🌱 Mevsimler & fiyat dalgalanması
+
+- **Mevsim ürünü:** Her mevsim bazı ürünler "mevsimindedir" → **+%30 satış** ve **1 gün hızlı
+  büyüme** (İlkbahar: havuç/patates/çilek · Yaz: domates/mısır/yaban mersini · Sonbahar:
+  buğday/üzüm/balkabağı). Mevsim dışı ürün **cezasız**, sadece bonus almaz.
+- **Kış = pazar mevsimi:** Kışın hiçbir ürün mevsiminde olmaz; bunun yerine **hayvan ürünleri
+  ve işlenmiş mallar +%15** ("kış talebi"). Yani sıcak mevsimlerde yetiştir, kışın işle & sat.
+- **Şeffaf fiyat:** Nihai fiyat `taban × tezgah × mevsim × popüler` — pazar satırındaki çipler
+  hangi bonusun geçerli olduğunu gösterir (🔥 popüler, 🌱 mevsim, ❄️ kış). Ekim menüsü ve
+  tarlalar da mevsim ürünlerini 🌱 ile işaretler.
+
 Toplam kazancın **Pazar itibarı** seviyeni yükseltir; her seviye yeni tohum, hayvan ve
-olanaklar açar. **🏆 Başarımlar** (20) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
+olanaklar açar. **🏆 Başarımlar** (21) ve **🌼 Şirinlik** (süslerle artan) ilerlemene eşlik eder.
 
 ## Cila katmanı
 
@@ -62,8 +74,7 @@ Tümü `prefers-reduced-motion` açık olduğunda ağır animasyonları otomatik
 
 ## Sonraki adımlar (fikirler)
 
-- Mevsime bağlı ürünler ve fiyat dalgalanması
 - Arı kovanı → bal, ek hayvan/ürün çeşitleri
 - Ekonomi denge ayarı ve zorluk eğrisi
-- Siparişlerde zaman/mevsim temalı özel istekler ve seri bonusları
+- Siparişlerde mevsim temalı özel istekler ve seri bonusları
 - "Koleksiyon defteri" ve haftalık pazar etkinlikleri
