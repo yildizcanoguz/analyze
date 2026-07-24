@@ -64,7 +64,7 @@
 
   /* ===== Pastoral hero scene ===== */
   .hero{
-    position:relative; height:256px; margin-bottom:14px;
+    position:relative; height:256px; margin-bottom:0;
     border-radius:22px; overflow:hidden;
     background:linear-gradient(180deg, var(--sky1) 0%, var(--sky2) 82%);
     border:1px solid var(--line);
@@ -137,13 +137,13 @@
   /* Top bar */
   .top{
     display:flex; align-items:center; gap:11px; flex-wrap:wrap;
-    background:linear-gradient(180deg,#fffefb,#fbf4e5);
-    border:1px solid var(--line);
-    border-top:3px solid var(--green);
-    border-radius:var(--r);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), var(--shadow);
-    padding:12px 16px;
-    position:sticky; top:10px; z-index:20;
+    background:linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,251,242,.46));
+    -webkit-backdrop-filter:blur(18px) saturate(1.5); backdrop-filter:blur(18px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:20px;
+    box-shadow:0 16px 36px -12px rgba(38,26,8,.42), inset 0 1px 0 rgba(255,255,255,.85), inset 0 0 0 1px rgba(214,150,40,.12);
+    padding:11px 15px;
+    position:sticky; top:12px; z-index:30; margin-top:-56px;
   }
   .brand{ display:flex; align-items:center; gap:11px; margin-right:6px; }
   .brand .logo{ font-size:30px; filter:drop-shadow(0 2px 2px rgba(70,45,10,.16)); }
@@ -152,43 +152,48 @@
   .grow{ flex:1; }
   .stat{
     display:flex; align-items:center; gap:7px;
-    background:var(--card);
-    border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.8));
+    border:1px solid rgba(255,255,255,.9);
     border-radius:999px;
-    padding:6px 13px;
+    padding:6px 14px;
     font-family:var(--display); font-weight:600; font-size:14px; white-space:nowrap;
-    font-variant-numeric:tabular-nums;
-    box-shadow:var(--shadow2);
+    font-variant-numeric:tabular-nums; color:var(--ink);
+    box-shadow:0 3px 9px -3px rgba(38,26,8,.28), inset 0 1px 0 rgba(255,255,255,.95);
   }
-  .stat .ico{ font-size:16px; }
-  .stat.coins{ background:linear-gradient(180deg,#fff7e0,#ffeec0); border-color:#eecf94; color:#8a6410; }
-  .stat.coins.bump{ animation:coinbump .4s ease; }
-  @keyframes coinbump{ 0%,100%{transform:scale(1)} 40%{transform:scale(1.13)} }
+  .stat .ico{ font-size:16px; display:inline-flex; }
+  .stat.coins{ background:linear-gradient(180deg, rgba(255,247,222,.96), rgba(255,234,184,.9)); border-color:#f0d492; color:#8a6410; }
+  .stat.coins.bump{ animation:coinbump .4s cubic-bezier(.34,1.6,.64,1); }
+  @keyframes coinbump{ 0%,100%{transform:scale(1)} 40%{transform:scale(1.16)} }
   .iconbtn{
-    cursor:pointer; border:1px solid var(--line); background:var(--card);
-    border-radius:12px; padding:7px 11px; font-family:var(--display); font-weight:600; font-size:14px; white-space:nowrap;
-    box-shadow:var(--shadow2); transition:transform .05s ease, filter .15s ease;
+    cursor:pointer; border:1px solid rgba(255,255,255,.9);
+    background:linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.8));
+    border-radius:13px; padding:7px 11px; font-family:var(--display); font-weight:600; font-size:14px; white-space:nowrap;
+    box-shadow:0 3px 9px -3px rgba(38,26,8,.28), inset 0 1px 0 rgba(255,255,255,.95);
+    transition:transform .08s cubic-bezier(.34,1.6,.64,1), filter .15s ease;
   }
-  .iconbtn:hover{ filter:brightness(1.03); }
-  .iconbtn:active{ transform:translateY(1px); }
+  .iconbtn:hover{ filter:brightness(1.04); }
+  .iconbtn:active{ transform:translateY(1px) scale(.96); }
   .btn{
-    cursor:pointer; border:1px solid var(--line);
-    background:linear-gradient(180deg,#fffefb,#f5edda); color:var(--ink);
-    border-radius:12px; padding:8px 15px; font-family:var(--display); font-weight:600; font-size:14px; letter-spacing:.2px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.65), var(--shadow2);
-    transition:transform .05s ease, filter .15s ease, background .15s ease;
+    cursor:pointer; position:relative; border:1px solid var(--line);
+    background:linear-gradient(180deg,#fffefb,#f3e9d4); color:var(--ink);
+    border-radius:13px; padding:9px 16px; font-family:var(--display); font-weight:600; font-size:14px; letter-spacing:.2px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.85), 0 4px 10px -4px rgba(38,26,8,.3);
+    transition:transform .09s cubic-bezier(.34,1.7,.5,1), filter .15s ease, box-shadow .15s ease;
   }
   .btn:hover{ filter:brightness(1.03); }
-  .btn:active{ transform:translateY(1px); }
+  .btn:active{ transform:translateY(2px) scale(.96); }
   .btn.primary{
-    background:linear-gradient(180deg,#71a557,#4c7838); border:1px solid var(--green-d); color:#fff;
-    text-shadow:0 1px 1px rgba(30,50,15,.28);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 7px 15px -5px rgba(66,105,47,.55);
+    background:linear-gradient(180deg,#7cb35f 0%,#5c9143 46%,#4a7734 100%);
+    border:1px solid #3e6a2c; color:#fff; text-shadow:0 1px 1px rgba(20,40,10,.4);
+    box-shadow:0 7px 16px -5px rgba(58,96,38,.7), inset 0 1px 0 rgba(255,255,255,.45), inset 0 -3px 4px rgba(28,52,14,.32);
   }
-  .btn.primary:hover{ filter:brightness(1.05); }
+  .btn.primary::before{ content:""; position:absolute; left:2px; right:2px; top:2px; height:44%; border-radius:11px 11px 60% 60%/11px 11px 22px 22px; background:linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,0)); pointer-events:none; }
+  .btn.primary:hover{ filter:brightness(1.06); box-shadow:0 9px 20px -5px rgba(58,96,38,.8), inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 3px rgba(120,180,90,.25); }
+  .btn.primary:active{ transform:translateY(2px) scale(.96); box-shadow:0 3px 8px -3px rgba(58,96,38,.6), inset 0 2px 4px rgba(28,52,14,.4); }
   .btn.day{ font-size:15px; padding:10px 18px; }
-  .btn.small{ padding:6px 11px; font-size:13px; border-radius:10px; }
+  .btn.small{ padding:6px 11px; font-size:13px; border-radius:11px; }
   .btn:disabled{ opacity:.42; cursor:not-allowed; box-shadow:none; }
+  .btn:disabled::before{ display:none; }
   .btn.ghost{ background:transparent; box-shadow:none; border-color:transparent; }
   .btn.ghost:hover{ background:var(--soft); }
 
@@ -197,10 +202,10 @@
   @media (max-width: 900px){ .layout{ grid-template-columns:1fr; } .top{ position:static; } }
 
   .panel{
-    background:var(--card);
+    background:linear-gradient(180deg,#fffefb,#fbf4e6);
     border:1px solid var(--line);
-    border-radius:var(--r);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), var(--shadow2);
+    border-radius:20px;
+    box-shadow:0 22px 46px -22px rgba(78,52,16,.32), inset 0 1px 0 rgba(255,255,255,.92), inset 0 0 0 1px rgba(214,150,40,.07);
     padding:18px;
   }
   .panel h2{ font-family:var(--display); margin:0 0 4px; font-size:18px; font-weight:700; letter-spacing:.2px; display:flex; align-items:center; gap:8px; }
@@ -248,6 +253,7 @@
   .plot .emoji.sway{ animation:sway 3.6s ease-in-out infinite; transform-origin:50% 90%; }
   .plot.empty .emoji{ font-size:22px; opacity:.5; }
   .pico{ width:1em; height:1em; display:inline-block; vertical-align:-.15em; flex:none; }
+  .coin{ width:1.15em; height:1.15em; display:inline-block; vertical-align:-.24em; filter:drop-shadow(0 1px 1px rgba(120,80,10,.3)); }
   .plot .cropname{ position:absolute; top:6px; left:0; right:0; text-align:center; font-size:10px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
   .plot .water{ position:absolute; top:6px; right:7px; font-size:11px; }
   .plot .bar{ position:absolute; left:8px; right:8px; bottom:8px; height:7px; background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden; }
@@ -486,7 +492,7 @@
   </div>
 
   <div class="top">
-    <div class="stat coins" id="coinStat"><span class="ico">🪙</span><span id="coins">0</span></div>
+    <div class="stat coins" id="coinStat"><span class="ico"><svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#d99a2b"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#b87f1e" stroke-width="1"/><circle cx="12" cy="12" r="8" fill="#f6c948"/><circle cx="12" cy="12" r="8" fill="none" stroke="#e6ad2e" stroke-width="1"/><path d="M12 6.6l1.5 3.4 3.7.35-2.8 2.5.85 3.65L12 18l-3.2 1.95.85-3.65-2.8-2.5 3.7-.35z" fill="#e6ad2e"/><ellipse cx="8.6" cy="8.2" rx="2.4" ry="1.5" fill="#fff" opacity=".45" transform="rotate(-32 8.6 8.2)"/></svg></span><span id="coins">0</span></div>
     <div class="stat"><span class="ico">📅</span>Gün <span id="day">1</span></div>
     <div class="stat"><span class="ico">⭐</span>Sv <span id="level">1</span></div>
     <div class="grow"></div>
@@ -629,6 +635,7 @@
    scarf:`<path d="M13 13c0-2.6 3-4.6 7-4.6s7 2 7 4.6v2.4c0-2.6-3-4.1-7-4.1s-7 1.5-7 4.1z" fill="#c94f6a"/><rect x="13" y="13" width="5.4" height="19" rx="1.7" fill="#b23a5a"/><rect x="21.6" y="13" width="5.4" height="16" rx="1.7" fill="#c94f6a"/><g stroke="#9c2f4c" stroke-width=".9" opacity=".4" stroke-linecap="round"><path d="M13.6 18h4.2M13.6 22h4.2M13.6 26h4.2M22.2 18h4.2M22.2 22.5h4.2"/></g><g fill="#e79db0"><rect x="13.4" y="31.6" width="1.4" height="3" rx=".7"/><rect x="15.7" y="31.6" width="1.4" height="3" rx=".7"/><rect x="22" y="28.6" width="1.4" height="3" rx=".7"/><rect x="24.3" y="28.6" width="1.4" height="3" rx=".7"/></g>`,
   };
   function iconHTML(id){ return SVGICON[id] ? '<svg class="pico" viewBox="0 0 40 40" aria-hidden="true">'+SVGICON[id]+'</svg>' : itemEmoji(id); }
+  const COIN = '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#d99a2b"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#b87f1e" stroke-width="1"/><circle cx="12" cy="12" r="8" fill="#f6c948"/><circle cx="12" cy="12" r="8" fill="none" stroke="#e6ad2e" stroke-width="1"/><path d="M12 6.6l1.5 3.4 3.7.35-2.8 2.5.85 3.65L12 18l-3.2 1.95.85-3.65-2.8-2.5 3.7-.35z" fill="#e6ad2e"/><ellipse cx="8.6" cy="8.2" rx="2.4" ry="1.5" fill="#fff" opacity=".45" transform="rotate(-32 8.6 8.2)"/></svg>';
 
   const SEASONS = [
     { name:"İlkbahar", emoji:"🌷", p:"🌸" },
@@ -1289,7 +1296,7 @@
         '<span class="oname">'+o.cust.name+'</span>'+festBadge+
         '<button class="odismiss" data-oact="dismiss" data-oid="'+o.id+'" title="Reddet" aria-label="Reddet">✕</button></div>'+
         '<div class="oitems">'+items+'</div>'+
-        '<div class="ofoot"><span class="oreward">🎁 '+fmt(o.reward)+' 🪙</span>'+
+        '<div class="ofoot"><span class="oreward">🎁 '+fmt(o.reward)+' '+COIN+'</span>'+
         '<button class="btn small primary" data-oact="fill" data-oid="'+o.id+'" '+(can?"":"disabled")+'>Teslim Et</button></div></div>';
     }).join("");
     if(!S.orders.length) cards = '<div class="emptxt">Şu an sipariş yok. Yeni müşteriler zamanla uğrar — günü ilerlet 📜</div>';
@@ -1344,7 +1351,7 @@
     else{
       const pct = Math.max(0,Math.min(100, (S.totalEarned-cur)/(nxt-cur)*100));
       $("lvlFill").style.width = pct+"%";
-      $("lvlText").textContent = fmt(S.totalEarned)+" / "+fmt(nxt)+" 🪙";
+      $("lvlText").innerHTML = fmt(S.totalEarned)+" / "+fmt(nxt)+" "+COIN;
     }
   }
 
@@ -1387,7 +1394,7 @@
     const festChip = festivalActive() ? '<span class="chip fest">🎪 +%50</span>' : "";
     return '<div class="row"><div class="rico">'+iconHTML(id)+'</div>'+
       '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+seasonChip+festChip+'</div>'+
-      '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
+      '<div class="rmeta">tanesi '+fmt(unit)+' '+COIN+'</div></div>'+
       '<div class="ract">'+
         '<button class="btn small" data-act="sell1" data-id="'+id+'">Sat 1</button>'+
         '<button class="btn small primary" data-act="sellAll" data-id="'+id+'">Hepsi ('+fmt(unit*have)+')</button>'+

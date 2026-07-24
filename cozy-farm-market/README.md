@@ -82,6 +82,11 @@ yayılan **volumetrik ışık huzmeleri** ve altın-saat parıltısı, döner ye
 duman tüten** kırmızı ahır + silo, ağaçlar, çit, süzülen bulutlar, uçan kuşlar ve uçuşan
 **kelebekler**. Festivalde manzaraya renkli **bayrak süslemeleri** ve pembe parıltı gelir.
 
+**Premium oyun arayüzü:** Üst kontrol çubuğu, manzaranın üstünde yüzen **cam efektli (glassmorphism)
+HUD**'a dönüşür — arkasındaki peyzaj bulanıklaşır (`backdrop-filter`), altın hairline ve glossy
+istatistik hapları ile. Butonlar **parlak/kabartmalı 3B** ("şeker buton") — üst parlaklık, derin
+gölge, yaylanan basış. Para, el işi **altın sikke** SVG'siyle gösterilir (emoji değil).
+
 Sıcak, cozy bir görsel kimlik: başlık/butonlar/rakamlar için gömülü **Baloo 2** (yuvarlak,
 karakterli display fontu — Türkçe alt kümesiyle base64 olarak gömülü, harici istek yok), gövde
 metni için sistem fontu. Yeşil aksanlı üst bar, katmanlı yumuşak gölgeler, sürülmüş toprak
