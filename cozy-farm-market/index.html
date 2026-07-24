@@ -105,6 +105,34 @@
   .hero .bunting{ position:absolute; top:0; left:0; right:0; height:30px; display:none; z-index:2; }
   body[data-fest="1"] .hero .bunting{ display:block; }
   body[data-fest="1"] .hero{ box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 0 0 2px #f0b3d3, var(--shadow); }
+  /* volumetric god-rays around the sun */
+  .hero .rays{
+    position:absolute; left:var(--sun-x); top:var(--sun-top); width:360px; height:360px;
+    transform:translate(-50%,-50%); z-index:0; pointer-events:none; mix-blend-mode:screen;
+    background:repeating-conic-gradient(from 0deg, rgba(255,244,200,.28) 0deg 3.5deg, transparent 3.5deg 24deg);
+    border-radius:50%;
+    -webkit-mask:radial-gradient(circle, #000 6%, rgba(0,0,0,.5) 26%, transparent 60%);
+    mask:radial-gradient(circle, #000 6%, rgba(0,0,0,.5) 26%, transparent 60%);
+    transition:left 1s ease, top 1s ease;
+    animation:spin 120s linear infinite;
+  }
+  /* warm horizon glow (golden-hour feel) */
+  .hero::after{ content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(120% 80% at 50% 118%, rgba(255,214,140,.28), transparent 60%); }
+  /* butterflies */
+  .hero .bfly{ position:absolute; width:17px; height:17px; z-index:2; pointer-events:none; }
+  .hero .bf1{ left:30%; top:56%; animation:bfly1 15s ease-in-out infinite; }
+  .hero .bf2{ left:60%; top:64%; animation:bfly2 19s ease-in-out infinite; }
+  @keyframes bfly1{ 0%{transform:translate(0,0)} 25%{transform:translate(46px,-20px)} 50%{transform:translate(92px,4px)} 75%{transform:translate(140px,-14px)} 100%{transform:translate(190px,2px)} }
+  @keyframes bfly2{ 0%{transform:translate(0,0)} 30%{transform:translate(-40px,-16px)} 60%{transform:translate(-90px,8px)} 100%{transform:translate(-150px,-6px)} }
+  .hero .bfly .wl,.hero .bfly .wr{ transform-box:fill-box; animation:flap .26s ease-in-out infinite alternate; }
+  .hero .bfly .wl{ transform-origin:88% 50%; }
+  .hero .bfly .wr{ transform-origin:12% 50%; }
+  @keyframes flap{ to{ transform:scaleX(.62) } }
+  /* chimney smoke */
+  .hero .smoke circle{ transform-box:fill-box; animation:smoke 4.2s ease-in infinite; }
+  .hero .smoke .s2{ animation-delay:1.4s } .hero .smoke .s3{ animation-delay:2.8s }
+  @keyframes smoke{ 0%{transform:translateY(0) scale(.5); opacity:0} 12%{opacity:.55} 100%{transform:translateY(-30px) scale(1.5); opacity:0} }
 
   /* Top bar */
   .top{
@@ -216,9 +244,10 @@
   }
   .plot.pop{ animation:popIn .4s ease; }
   @keyframes popIn{ 0%{transform:scale(.55)} 55%{transform:scale(1.14)} 100%{transform:scale(1)} }
-  .plot .emoji{ font-size:min(11vw,44px); line-height:1; filter:drop-shadow(0 3px 3px rgba(0,0,0,.18)); }
+  .plot .emoji{ font-size:min(13vw,54px); line-height:1; filter:drop-shadow(0 4px 4px rgba(0,0,0,.2)); }
   .plot .emoji.sway{ animation:sway 3.6s ease-in-out infinite; transform-origin:50% 90%; }
   .plot.empty .emoji{ font-size:22px; opacity:.5; }
+  .pico{ width:1em; height:1em; display:inline-block; vertical-align:-.15em; flex:none; }
   .plot .cropname{ position:absolute; top:6px; left:0; right:0; text-align:center; font-size:10px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
   .plot .water{ position:absolute; top:6px; right:7px; font-size:11px; }
   .plot .bar{ position:absolute; left:8px; right:8px; bottom:8px; height:7px; background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden; }
@@ -368,10 +397,13 @@
       </svg>
     </div>
 
+    <div class="rays" aria-hidden="true"></div>
     <div class="sun" aria-hidden="true"></div>
     <div class="cloud c1" aria-hidden="true"></div>
     <div class="cloud c2" aria-hidden="true"></div>
     <div class="cloud c3" aria-hidden="true"></div>
+    <div class="bfly bf1" aria-hidden="true"><svg viewBox="0 0 20 20"><g class="wl"><ellipse cx="7" cy="7.5" rx="4.2" ry="5" fill="#f2b34e"/><ellipse cx="7.6" cy="13" rx="3" ry="3.6" fill="#e88a34"/></g><g class="wr"><ellipse cx="13" cy="7.5" rx="4.2" ry="5" fill="#f2b34e"/><ellipse cx="12.4" cy="13" rx="3" ry="3.6" fill="#e88a34"/></g><rect x="9.4" y="5.5" width="1.2" height="11" rx=".6" fill="#5a3d22"/><circle cx="10" cy="5.3" r="1" fill="#5a3d22"/></svg></div>
+    <div class="bfly bf2" aria-hidden="true"><svg viewBox="0 0 20 20"><g class="wl"><ellipse cx="7" cy="7.5" rx="4.2" ry="5" fill="#e88ab0"/><ellipse cx="7.6" cy="13" rx="3" ry="3.6" fill="#d16385"/></g><g class="wr"><ellipse cx="13" cy="7.5" rx="4.2" ry="5" fill="#e88ab0"/><ellipse cx="12.4" cy="13" rx="3" ry="3.6" fill="#d16385"/></g><rect x="9.4" y="5.5" width="1.2" height="11" rx=".6" fill="#5a3d22"/><circle cx="10" cy="5.3" r="1" fill="#5a3d22"/></svg></div>
 
     <svg class="scene" viewBox="0 0 1200 320" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
       <!-- birds -->
@@ -408,6 +440,9 @@
         <rect x="-6" y="30" width="30" height="68" fill="#b3452f"/>
         <polygon points="-14,32 42,-2 98,32" fill="#8f3626"/>
         <polygon points="-14,32 42,-2 42,-2 20,32" fill="#7c2f21"/>
+        <rect x="63" y="-2" width="9" height="17" rx="1.5" fill="#8f3626"/>
+        <rect x="62" y="-4.5" width="11" height="4.5" rx="1.5" fill="#7c2f21"/>
+        <g class="smoke" fill="#efe7db"><circle class="s1" cx="67.5" cy="-6" r="3.2"/><circle class="s2" cx="67.5" cy="-6" r="3.2"/><circle class="s3" cx="67.5" cy="-6" r="3.2"/></g>
         <rect x="30" y="60" width="30" height="38" rx="3" fill="#f2e6cd"/>
         <path d="M30,60 L60,60 M45,60 L45,98 M30,79 L60,79" stroke="#c24d3a" stroke-width="3"/>
         <rect x="66" y="44" width="18" height="18" rx="3" fill="#f2e6cd"/>
@@ -567,6 +602,33 @@
   ];
   const MAX_ORDERS = 3;
   const FESTIVAL_DAYS = 2; // her mevsimin son 2 günü festival
+
+  // El işi vektör ikonlar (viewBox 0 0 40 40) — emoji yerine
+  const SVGICON = {
+   carrot:`<g fill="#5aa83c"><path d="M20 13c-1.6-5-5-7-8.2-6.4.9 3.7 3.7 6 8.2 6.4z"/><path d="M20 13c1.6-5 5-7 8.2-6.4-.9 3.7-3.7 6-8.2 6.4z"/><path d="M20 12.6c-.5-4.6-.2-7.2-.2-7.2s2 2.4 2 5.2c0 1-.7 1.8-1.8 2z" fill="#4f9636"/></g><path d="M20 12.4c-4.6 0-7.6 2.5-7.6 5.1 0 5.5 4.7 18.3 7.6 18.3s7.6-12.8 7.6-18.3c0-2.6-3-5.1-7.6-5.1z" fill="#ef8a34"/><path d="M20 12.4c4.6 0 7.6 2.5 7.6 5.1 0 5.5-4.7 18.3-7.6 18.3z" fill="#e07524"/><g stroke="#cf631d" stroke-width="1.2" stroke-linecap="round" fill="none"><path d="M15.6 19.5l2.3 1"/><path d="M15.1 24.4l2.7 1.2"/><path d="M16.8 29.2l2.3 1"/></g>`,
+   potato:`<ellipse cx="20" cy="21" rx="13" ry="10.5" fill="#d6ab6c"/><path d="M20 31.5c7.2 0 13-4.7 13-10.5 0 8-26 8-26 0 0 5.8 5.8 10.5 13 10.5z" fill="#c39557"/><g fill="#a97f47"><circle cx="14.5" cy="19" r="1.2"/><circle cx="24.5" cy="18" r="1.05"/><circle cx="21" cy="24" r="1.2"/><circle cx="27" cy="22" r=".9"/></g><ellipse cx="15.5" cy="16.5" rx="4" ry="2.4" fill="#e4c088" opacity=".7"/>`,
+   tomato:`<path d="M20 8.5c.6-2 2.4-3 4-2.6-.4 1.8-2 3-4 2.6z" fill="#5aa83c"/><circle cx="20" cy="23" r="13" fill="#e8503a"/><path d="M20 36c7.2 0 13-5.8 13-13 0 10-26 10-26 0 0 7.2 5.8 13 13 13z" fill="#cf3f2c"/><path d="M14.5 14a8 8 0 0 0-2.5 5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".55"/><g fill="#4f9636"><path d="M20 12.5l-4-3.5 1.5 4z"/><path d="M20 12.5l4-3.5-1.5 4z"/><path d="M20 12.5l-.2-5-1.6 4.6z"/><circle cx="20" cy="11.5" r="2.1"/></g>`,
+   wheat:`<rect x="19" y="21" width="2" height="15" rx="1" fill="#c99a45"/><g stroke="#d9a52f" stroke-width="1" stroke-linecap="round"><path d="M20 8l-2.5-4M20 8l2.5-4M20 8v-4.5"/></g><g fill="#e8b74a"><ellipse cx="20" cy="9.5" rx="2.1" ry="3.4"/><ellipse cx="17.4" cy="12.5" rx="2" ry="3.2" transform="rotate(-32 17.4 12.5)"/><ellipse cx="22.6" cy="12.5" rx="2" ry="3.2" transform="rotate(32 22.6 12.5)"/><ellipse cx="17" cy="17" rx="2" ry="3.2" transform="rotate(-32 17 17)"/><ellipse cx="23" cy="17" rx="2" ry="3.2" transform="rotate(32 23 17)"/><ellipse cx="17.2" cy="21.5" rx="2" ry="3.2" transform="rotate(-32 17.2 21.5)"/><ellipse cx="22.8" cy="21.5" rx="2" ry="3.2" transform="rotate(32 22.8 21.5)"/></g><g fill="#d29a2f"><ellipse cx="22.6" cy="12.5" rx=".9" ry="3" transform="rotate(32 22.6 12.5)"/><ellipse cx="23" cy="17" rx=".9" ry="3" transform="rotate(32 23 17)"/><ellipse cx="22.8" cy="21.5" rx=".9" ry="3" transform="rotate(32 22.8 21.5)"/></g>`,
+   corn:`<path d="M12 16c-2-4-1-8-1-8s4 2 6 6z" fill="#7cbf4e"/><path d="M28 16c2-4 1-8 1-8s-4 2-6 6z" fill="#6bad42"/><path d="M20 10c-4.4 0-7 3-7 9s3 15 7 15 7-9 7-15-2.6-9-7-9z" fill="#f6cf4e"/><path d="M20 10c4.4 0 7 3 7 9s-3 15-7 15z" fill="#e8bc36"/><g stroke="#d9a52a" stroke-width="1" opacity=".55" stroke-linecap="round"><path d="M16.5 16h7M16 21h8M16.5 26h7"/></g>`,
+   strawberry:`<path d="M20 34c6.5-1 11-6 11-12 0-4.6-3.4-7.5-11-7.5S9 17.4 9 22c0 6 4.5 11 11 12z" fill="#e8443a"/><path d="M20 34c6.5-1 11-6 11-12 0-4.6-3.4-7.5-11-7.5z" fill="#d1362c"/><g fill="#4f9636"><path d="M20 14.5c-3-.2-5-2-6-4.5 3 .3 5 1.8 6 4.5z"/><path d="M20 14.5c3-.2 5-2 6-4.5-3 .3-5 1.8-6 4.5z"/><path d="M20 14.5c-.2-3 .4-5.5.4-5.5s1.4 2.4 1 5.2z"/><circle cx="20" cy="12.5" r="1.6"/></g><g fill="#fbe06a"><circle cx="15" cy="21" r="1"/><circle cx="20" cy="20" r="1"/><circle cx="25" cy="21" r="1"/><circle cx="17.5" cy="26" r="1"/><circle cx="22.5" cy="26" r="1"/><circle cx="20" cy="30" r="1"/></g>`,
+   blueberry:`<g fill="#5b7fd4"><circle cx="15" cy="22" r="7.5"/><circle cx="26" cy="21" r="7"/><circle cx="20" cy="28" r="7"/></g><g fill="#4767b8"><path d="M15 24.5a7.5 7.5 0 0 0 0-.02zM8 22a7.5 7.5 0 0 0 14 .5 7.5 7.5 0 0 1-14-.5z"/><path d="M19 21a7 7 0 0 0 14 .3 7 7 0 0 1-14-.3z"/><path d="M13 28a7 7 0 0 0 14 .3 7 7 0 0 1-14-.3z"/></g><g fill="#2f4a86"><path d="M13.6 20.5l1.4-1 1.4 1-1.4.6zM24.6 19.5l1.4-1 1.4 1-1.4.6zM18.6 26.5l1.4-1 1.4 1-1.4.6z"/></g><g fill="#a9c0ee" opacity=".8"><circle cx="12.5" cy="19.5" r="1.4"/><circle cx="23.5" cy="18.5" r="1.3"/><circle cx="17.5" cy="25.5" r="1.3"/></g>`,
+   grape:`<path d="M22 9c0-2 2-3.5 4.5-3.5-.3 2-1.8 3.3-4.5 3.5z" fill="#4f9636"/><rect x="19.5" y="7" width="1.8" height="5" rx=".9" fill="#7a5a34"/><g fill="#8a5fc0"><circle cx="20" cy="15" r="4"/><circle cx="15" cy="18" r="4"/><circle cx="25" cy="18" r="4"/><circle cx="17.5" cy="23" r="4"/><circle cx="22.5" cy="23" r="4"/><circle cx="20" cy="28" r="4"/></g><g fill="#714aa5"><circle cx="15" cy="18" r="4"/><circle cx="22.5" cy="23" r="4"/><circle cx="20" cy="28" r="4"/></g><g fill="#a988d6" opacity=".85"><circle cx="18.5" cy="13.5" r="1.2"/><circle cx="16" cy="21" r="1.1"/><circle cx="21" cy="26" r="1.1"/></g>`,
+   pumpkin:`<rect x="18.8" y="7.5" width="2.6" height="6" rx="1.3" fill="#6b8f3c"/><path d="M20 12c-2 0-2.5-1.5-5-1.5 1 1.5 1 2.5 1 3.5 1-.5 2.5-1 4-1z" fill="#7cbf4e"/><ellipse cx="20" cy="24" rx="14" ry="12" fill="#ef8a34"/><ellipse cx="20" cy="24" rx="9" ry="12" fill="#f89a44"/><ellipse cx="20" cy="24" rx="4" ry="12" fill="#ef8a34"/><path d="M8 24c0 6.6 5.4 12 12 12s12-5.4 12-12c0 3-24 3-24 0z" fill="#dd7526" opacity=".55"/><ellipse cx="31" cy="21" rx="3" ry="9" fill="#dd7526"/><ellipse cx="9" cy="21" rx="3" ry="9" fill="#dd7526"/>`,
+   egg:`<ellipse cx="20" cy="22" rx="10" ry="13" fill="#fffdf6"/><path d="M20 35c5.5 0 10-5.8 10-13 0 8-20 8-20 0 0 7.2 4.5 13 10 13z" fill="#ede2ca"/><ellipse cx="16" cy="16" rx="3.5" ry="4.5" fill="#fff" opacity=".8"/>`,
+   milk:`<path d="M16 11h8l1.5 3.5v18a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-18z" fill="#eef4f6"/><path d="M20 11h4l1.5 3.5v18a2 2 0 0 1-2 2H20z" fill="#dbe6ea"/><path d="M14.5 22h11v10.5a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2z" fill="#fff"/><path d="M20 22h5.5v10.5a2 2 0 0 1-2 2H20z" fill="#eaf1f3"/><rect x="16.5" y="24.5" width="7" height="4.5" rx="1.2" fill="#6fb0c9"/><path d="M17 8.5h6v3h-6z" fill="#d9e6ea"/>`,
+   wool:`<circle cx="20" cy="22" r="12.5" fill="#efe4cb"/><path d="M20 34.5c6.9 0 12.5-5.6 12.5-12.5 0 7.5-25 7.5-25 0 0 6.9 5.6 12.5 12.5 12.5z" fill="#e0d3b3"/><g fill="none" stroke="#d3c096" stroke-width="1.7" stroke-linecap="round"><path d="M9.5 17.5c6 3.4 14 4 20.6 1"/><path d="M8 23.5c7 3.6 16 3.4 23.4-1.4"/><path d="M12 31c5 2.4 10.5 2.2 15.6-.8"/><path d="M13.8 11.5c-2.2 6.4-2 13.6 1.6 20.6"/><path d="M22.4 10.6c-1.6 7-1 14.4 2.2 20.8"/></g><circle cx="15.5" cy="17" r="2.4" fill="#f7efdb" opacity=".8"/>`,
+   bread:`<path d="M9 26c0-6 5-10 11-10s11 4 11 10c0 1.5-1 2.5-2.5 2.5h-17C10 28.5 9 27.5 9 26z" fill="#e0a94e"/><path d="M31 26c0-6-5-10-11-10v12.5h8.5C30 28.5 31 27.5 31 26z" fill="#c98a34"/><path d="M14 30h12v3a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2z" fill="#caa05a"/><g stroke="#b07f30" stroke-width="1.4" stroke-linecap="round"><path d="M15 22l2-2.5"/><path d="M20 21l2-2.5"/><path d="M25 22l1.5-2.5"/></g>`,
+   cheese:`<path d="M8 30l22-11a3 3 0 0 1 4 2.7V30a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#f6cf4e"/><path d="M8 30h26a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#e6b636"/><path d="M8 30l22-11a3 3 0 0 1 2.6 1.2z" fill="#fbe07a"/><g fill="#e0ad2e"><circle cx="16" cy="27" r="2"/><circle cx="24" cy="25" r="1.6"/><circle cx="28" cy="28" r="1.4"/><circle cx="20" cy="29" r="1.3"/></g>`,
+   jam:`<path d="M15 12h10v2l1 1v3H14v-3l1-1z" fill="#c0392b"/><rect x="14" y="17" width="12" height="2" fill="#a52f22"/><path d="M13.5 20h13v12a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 13.5 32z" fill="#f0e6cf"/><path d="M20 20h6.5v12a2.5 2.5 0 0 1-2.5 2.5H20z" fill="#e2d5b8"/><path d="M15.5 23.5h9V32a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 15.5 32z" fill="#b23a5a"/><path d="M20 23.5h4.5V32a1.5 1.5 0 0 1-1.5 1.5H20z" fill="#9c2f4c"/><circle cx="17.5" cy="27" r="1.2" fill="#d16385"/>`,
+   juice:`<path d="M14 16h12l-1.2 17a2.5 2.5 0 0 1-2.5 2.3h-4.6a2.5 2.5 0 0 1-2.5-2.3z" fill="#f6eddc"/><path d="M20 16h6l-1.2 17a2.5 2.5 0 0 1-2.5 2.3H20z" fill="#e8ddc4"/><path d="M14.6 22h10.8l-.9 11a2.5 2.5 0 0 1-2.5 2.3h-4a2.5 2.5 0 0 1-2.5-2.3z" fill="#f27a9b"/><path d="M20 22h5.4l-.9 11a2.5 2.5 0 0 1-2.5 2.3H20z" fill="#e0567e"/><rect x="24" y="9" width="2.4" height="15" rx="1.2" transform="rotate(12 24 9)" fill="#e0567e"/><ellipse cx="17.5" cy="19" rx="2.2" ry="1.4" fill="#fff" opacity=".5"/>`,
+   wine:`<path d="M13 8h14c0 7-3 11-7 11s-7-4-7-11z" fill="#eef1f4" opacity=".9"/><path d="M13.6 10.5h12.8c-.6 4.6-3 7.2-6.4 7.2s-5.8-2.6-6.4-7.2z" fill="#9b2d43"/><rect x="18.8" y="19" width="2.4" height="10" fill="#d7dde2"/><rect x="14" y="29" width="12" height="3" rx="1.5" fill="#cfd6db"/><ellipse cx="16.5" cy="12.5" rx="1.6" ry="2.4" fill="#c0546b" opacity=".7"/>`,
+   pie:`<ellipse cx="20" cy="25" rx="14" ry="9" fill="#d19a44"/><ellipse cx="20" cy="23.5" rx="14" ry="9" fill="#e8b862"/><ellipse cx="20" cy="23" rx="10.5" ry="6.2" fill="#dd7f28"/><ellipse cx="20" cy="22.4" rx="10.5" ry="6.2" fill="#ea962f"/><path d="M10 22.4q10 3.5 20 0" fill="none" stroke="#cf7422" stroke-width="1.2" opacity=".5"/><g fill="#fff" opacity=".92"><ellipse cx="15" cy="20.5" rx="1.8" ry="1.2"/><ellipse cx="25" cy="21.5" rx="1.6" ry="1.1"/><ellipse cx="20" cy="24.5" rx="1.7" ry="1.1"/></g>`,
+   sauce:`<path d="M15 11h10v3l1 1v3H14v-3l1-1z" fill="#b23a2a"/><path d="M13.5 19h13v13a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 13.5 32z" fill="#f0e6cf"/><path d="M20 19h6.5v13a2.5 2.5 0 0 1-2.5 2.5H20z" fill="#e2d5b8"/><path d="M15.5 22.5h9V32a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 15.5 32z" fill="#d0402a"/><path d="M20 22.5h4.5V32a1.5 1.5 0 0 1-1.5 1.5H20z" fill="#b8351f"/><rect x="16" y="24.5" width="8" height="3.5" rx="1" fill="#f0e6cf"/>`,
+   popcorn:`<path d="M14 18h12l1.5 16a1.5 1.5 0 0 1-1.5 1.7h-11.5A1.5 1.5 0 0 1 13 34z" fill="#e05a4a"/><g fill="#fff"><path d="M14 18l.6 7h10.8l.6-7z"/></g><path d="M20 18l1.3 16a1.5 1.5 0 0 1-.3.03H20z" fill="#c94436" opacity=".3"/><g fill="#f8e7b0"><circle cx="16" cy="14" r="3.4"/><circle cx="21" cy="11.5" r="3.6"/><circle cx="25" cy="15" r="3.2"/><circle cx="19" cy="16" r="3"/></g><g fill="#ecd08a"><circle cx="21" cy="12.5" r="1.6"/><circle cx="25.5" cy="16" r="1.4"/></g>`,
+   cake:`<path d="M10 20c0-2 4.5-3.5 10-3.5s10 1.5 10 3.5v10a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2z" fill="#f6d9a0"/><path d="M20 16.5c5.5 0 10 1.5 10 3.5v10a2 2 0 0 1-2 2H20z" fill="#eac989"/><ellipse cx="20" cy="20" rx="10" ry="3.5" fill="#fff3e0"/><path d="M10 25c3 2 7 2.5 10 2.5s7-.5 10-2.5v2c-3 2-7 2.5-10 2.5s-7-.5-10-2.5z" fill="#e0567e"/><rect x="19" y="9" width="2" height="6" rx="1" fill="#5ec6b6"/><circle cx="20" cy="8.5" r="1.8" fill="#f6c045"/>`,
+   scarf:`<path d="M13 13c0-2.6 3-4.6 7-4.6s7 2 7 4.6v2.4c0-2.6-3-4.1-7-4.1s-7 1.5-7 4.1z" fill="#c94f6a"/><rect x="13" y="13" width="5.4" height="19" rx="1.7" fill="#b23a5a"/><rect x="21.6" y="13" width="5.4" height="16" rx="1.7" fill="#c94f6a"/><g stroke="#9c2f4c" stroke-width=".9" opacity=".4" stroke-linecap="round"><path d="M13.6 18h4.2M13.6 22h4.2M13.6 26h4.2M22.2 18h4.2M22.2 22.5h4.2"/></g><g fill="#e79db0"><rect x="13.4" y="31.6" width="1.4" height="3" rx=".7"/><rect x="15.7" y="31.6" width="1.4" height="3" rx=".7"/><rect x="22" y="28.6" width="1.4" height="3" rx=".7"/><rect x="24.3" y="28.6" width="1.4" height="3" rx=".7"/></g>`,
+  };
+  function iconHTML(id){ return SVGICON[id] ? '<svg class="pico" viewBox="0 0 40 40" aria-hidden="true">'+SVGICON[id]+'</svg>' : itemEmoji(id); }
 
   const SEASONS = [
     { name:"İlkbahar", emoji:"🌷", p:"🌸" },
@@ -1168,10 +1230,10 @@
       if(ready){
         d.innerHTML =
           '<div class="cropname">'+nameTag+'</div><div class="water">✅</div>'+
-          '<div class="emoji">'+c.emoji+'</div><div class="tag">HASAT ET</div>';
+          '<div class="emoji">'+iconHTML(p.crop)+'</div><div class="tag">HASAT ET</div>';
         d.addEventListener("click", ()=>harvest(idx, d));
       }else{
-        const seedling = p.grown===0 ? "🌱" : (p.grown/need<0.6 ? "🌿" : c.emoji);
+        const seedling = p.grown===0 ? "🌱" : (p.grown/need<0.6 ? "🌿" : iconHTML(p.crop));
         d.innerHTML =
           '<div class="cropname">'+nameTag+'</div>'+
           '<div class="water" title="su">'+waterIco+'</div>'+
@@ -1203,7 +1265,7 @@
       const items = o.items.map(it=>{
         const have = invBag(it.id)[it.id]||0;
         const ok = have>=it.qty;
-        return '<span class="oitem'+(ok?" ok":"")+'">'+itemEmoji(it.id)+' '+itemName(it.id)+' '+have+'/'+it.qty+'</span>';
+        return '<span class="oitem'+(ok?" ok":"")+'">'+iconHTML(it.id)+' '+itemName(it.id)+' '+have+'/'+it.qty+'</span>';
       }).join("");
       const can = canFill(o);
       const festBadge = o.festival ? ' <span class="chip fest">🎪 festival</span>' : "";
@@ -1236,12 +1298,12 @@
     document.body.style.setProperty("--sun-x", Math.round(12 + t*76) + "%");
     document.body.style.setProperty("--sun-top", Math.round(58 - Math.sin(t*Math.PI)*40) + "%");
     renderAmbient(idx);
-    const popTxt = S.popular.length ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ") : "—";
+    const popTxt = S.popular.length ? S.popular.map(id=>iconHTML(id)+" "+itemName(id)).join(", ") : "—";
     let seasonTxt;
     if(idx===WINTER){
       seasonTxt = '<span class="chip winter">❄️ Kış talebi: hayvan ürünü & işlenmiş +%15</span>';
     } else {
-      const crops = Object.keys(CROPS).filter(id=>CROPS[id].season===idx).map(id=>CROPS[id].emoji).join(" ");
+      const crops = Object.keys(CROPS).filter(id=>CROPS[id].season===idx).map(id=>iconHTML(id)).join(" ");
       seasonTxt = '<span class="chip new">🌱 Mevsim ürünü: '+crops+' (+%30, hızlı)</span>';
     }
     let festTxt;
@@ -1307,7 +1369,7 @@
     if(inSeasonCrop(id)) seasonChip = '<span class="chip new">🌱 +%30</span>';
     else if(winterDemand(id)) seasonChip = '<span class="chip winter">❄️ +%15</span>';
     const festChip = festivalActive() ? '<span class="chip fest">🎪 +%50</span>' : "";
-    return '<div class="row"><div class="rico">'+itemEmoji(id)+'</div>'+
+    return '<div class="row"><div class="rico">'+iconHTML(id)+'</div>'+
       '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+seasonChip+festChip+'</div>'+
       '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
       '<div class="ract">'+
@@ -1336,7 +1398,7 @@
     if(S.jobs.length){
       jobs = '<div style="margin:6px 0 12px;">'+
         S.jobs.map(j=>{ const g=GOODS[j.good], left=Math.max(0,j.ready-S.day);
-          return '<div class="row" style="margin-bottom:6px;"><div class="rico">'+g.emoji+'</div>'+
+          return '<div class="row" style="margin-bottom:6px;"><div class="rico">'+iconHTML(j.good)+'</div>'+
             '<div class="rmain"><div class="rtitle">'+g.name+' hazırlanıyor</div>'+
             '<div class="rmeta">'+(left<=0?"yarın hazır":left+" gün kaldı")+'</div></div>'+
             '<div class="rprice">⏳</div></div>';
@@ -1352,9 +1414,9 @@
       const pop = isPopular(id)?'<span class="chip pop">🔥</span>':"";
       const lockChip = locked?'<span class="chip qty">🍇 Şaraphane</span>':"";
       const inm = infoOf(g.from);
-      rows += '<div class="row"><div class="rico">'+g.emoji+'</div>'+
+      rows += '<div class="row"><div class="rico">'+iconHTML(id)+'</div>'+
         '<div class="rmain"><div class="rtitle">'+g.name+' '+pop+lockChip+'</div>'+
-        '<div class="rmeta">'+g.qty+'× '+inm.emoji+' '+inm.name+' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
+        '<div class="rmeta">'+g.qty+'× '+iconHTML(g.from)+' '+inm.name+' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-act="make" data-id="'+id+'" '+(can?"":"disabled")+'>Üret</button></div></div>';
     }
     return '<h2 style="font-size:15px;margin:0 0 4px;">🍯 Atölye</h2>'+
@@ -1389,7 +1451,7 @@
         const status = S.up.autofeed ? "" : (c.fed+"/"+c.n+" tok · ");
         html += '<div class="row"><div class="rico">'+A.emoji+'</div>'+
           '<div class="rmain"><div class="rtitle">'+A.name+' <span class="chip qty">×'+c.n+'</span></div>'+
-          '<div class="rmeta">Ürün: '+p.emoji+' '+p.name+' · her '+A.interval+' gün · '+status+'sonraki ~'+Math.max(0,c.minLeft)+' gün</div></div></div>';
+          '<div class="rmeta">Ürün: '+iconHTML(A.prod)+' '+p.name+' · her '+A.interval+' gün · '+status+'sonraki ~'+Math.max(0,c.minLeft)+' gün</div></div></div>';
       }
     } else {
       html += '<div class="emptxt" style="padding:12px 8px;">Ahırın boş. Aşağıdan hayvan al 🐣</div>';
@@ -1401,7 +1463,7 @@
       const locked = lvl < A.lvl;
       const can = !locked && S.coins>=A.cost;
       const meta = locked ? ("Seviye "+A.lvl+" gerekir")
-        : ("Ürün: "+p.emoji+" "+p.name+" · her "+A.interval+" gün · "+fmt(A.cost)+" 🪙");
+        : ("Ürün: "+iconHTML(A.prod)+" "+p.name+" · her "+A.interval+" gün · "+fmt(A.cost)+" 🪙");
       html += '<div class="row"'+(locked?' style="opacity:.55"':'')+'><div class="rico">'+(locked?"🔒":A.emoji)+'</div>'+
         '<div class="rmain"><div class="rtitle">'+A.name+'</div><div class="rmeta">'+meta+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-act="animal" data-id="'+type+'" '+(can?"":"disabled")+'>Al</button></div></div>';
@@ -1455,7 +1517,7 @@
       const g = growDays(id);
       const pop = isPopular(id)?'<span class="chip pop">🔥 popüler</span>':"";
       const seasonChip = inS?'<span class="chip new">🌱 mevsim +%30</span>':"";
-      list += '<div class="row"><div class="rico">'+c.emoji+'</div>'+
+      list += '<div class="row"><div class="rico">'+iconHTML(id)+'</div>'+
         '<div class="rmain"><div class="rtitle">'+c.name+' '+pop+seasonChip+'</div>'+
         '<div class="rmeta">tohum '+c.seed+' 🪙 · '+g+' gün'+(inS?" (hızlı)":"")+' · satış ~'+fmt(priceOf(c.sell,id))+' 🪙 ×'+(c.yield+(S.up.sprinkler?1:0))+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-plant="'+id+'" '+(afford?"":"disabled")+'>Ek</button></div></div>';
