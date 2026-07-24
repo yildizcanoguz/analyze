@@ -283,6 +283,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="market">🧺 Pazar</div>
         <div class="tab" data-tab="work">🍯 Atölye</div>
+        <div class="tab" data-tab="barn">🐄 Ahır</div>
         <div class="tab" data-tab="shop">🛖 Dükkan</div>
       </div>
       <div id="tabBody"></div>
@@ -335,6 +336,23 @@
     juice:   { name:"Çilek Suyu",        emoji:"🧃", from:"strawberry", qty:3, days:1, sell:175, lvl:3 },
     wine:    { name:"Üzüm Şarabı",       emoji:"🍷", from:"grape",      qty:4, days:2, sell:400, lvl:4, premium:true },
     pie:     { name:"Balkabağı Turtası", emoji:"🥧", from:"pumpkin",    qty:2, days:2, sell:340, lvl:4, premium:true },
+    cheese:  { name:"Peynir",            emoji:"🧀", from:"milk",       qty:3, days:1, sell:190, lvl:3 },
+    cake:    { name:"Kek",               emoji:"🎂", from:"egg",        qty:4, days:1, sell:130, lvl:3 },
+    scarf:   { name:"Yün Atkı",          emoji:"🧣", from:"wool",       qty:3, days:2, sell:280, lvl:4 },
+  };
+
+  // Hayvan ürünleri (ham malzeme — satılabilir + atölyede işlenebilir)
+  const APROD = {
+    egg:  { name:"Yumurta", emoji:"🥚", sell:15 },
+    milk: { name:"Süt",     emoji:"🥛", sell:32 },
+    wool: { name:"Yün",     emoji:"🧶", sell:60 },
+  };
+
+  // Ahır hayvanları
+  const ANIMALS = {
+    chicken: { name:"Tavuk", emoji:"🐔", cost:80,  lvl:2, interval:1, prod:"egg"  },
+    cow:     { name:"İnek",  emoji:"🐄", cost:220, lvl:3, interval:2, prod:"milk" },
+    sheep:   { name:"Koyun", emoji:"🐑", cost:320, lvl:4, interval:3, prod:"wool" },
   };
 
   const SEASONS = [
@@ -351,6 +369,8 @@
     kitchen:   { name:"Mutfak / Atölye", emoji:"🍳", cost:150, desc:"Ürünleri işlemeyi açar (reçel, ekmek, sos...)." },
     sprinkler: { name:"Otomatik Sulama", emoji:"💧", cost:320, desc:"Tüm tarlalar kendi kendine sulanır. Sulama derdi biter." },
     stall:     { name:"Şirin Tezgah",    emoji:"🏵️", cost:450, desc:"Tüm satışlarda +%15 fiyat." },
+    barn:      { name:"Ahır",            emoji:"🐄", cost:200, desc:"Hayvan beslemeyi açar (tavuk, inek, koyun)." },
+    autofeed:  { name:"Otomatik Yemlik", emoji:"🌾", cost:420, desc:"Ahırdaki hayvanlar kendiliğinden beslenir." },
     winery:    { name:"Şaraphane",       emoji:"🍇", cost:750, desc:"Premium ürünleri açar (şarap, turta)." },
   };
   const PLOT_BASE = 55;
@@ -381,6 +401,9 @@
     { id:"level5",    e:"⭐", t:"Pazarın Gözdesi", d:"5. seviyeye ulaş",                 c:s=>levelOf(s.totalEarned)>=5 },
     { id:"allplots",  e:"🌻", t:"Toprak Ağası",    d:"Tüm tarlaları aç",                 c:s=>s.plots.every(p=>p.unlocked) },
     { id:"collector", e:"🧺", t:"Koleksiyoner",    d:"Her ürün türünü en az bir kez hasat et", c:s=>Object.keys(CROPS).every(k=>s.stats.harvestedTypes[k]) },
+    { id:"barn1",     e:"🐄", t:"Ahır Sahibi",     d:"İlk hayvanını al",                 c:s=>s.animals.length>=1 },
+    { id:"cheese",    e:"🧀", t:"Peynirci",        d:"Peynir üret",                      c:s=>!!s.stats.madeGoods.cheese },
+    { id:"fullbarn",  e:"🐑", t:"Küçük Çiftlik",   d:"Her hayvandan en az bir tane al",  c:s=>Object.keys(ANIMALS).every(t=>s.animals.some(a=>a.type===t)) },
     { id:"allup",     e:"🏆", t:"Tam Donanım",     d:"Tüm yükseltmeleri al",             c:s=>Object.keys(UPGRADES).every(k=>s.up[k]) },
     { id:"earn20000", e:"👑", t:"Pazar Kralı",     d:"Toplam 20.000 altın kazan",        c:s=>s.totalEarned>=20000 },
   ];
@@ -394,8 +417,8 @@
     for (let i=0;i<9;i++) plots.push(newPlot(i<3));
     return {
       day:1, coins:55, totalEarned:0,
-      plots, crops:{}, goods:{}, jobs:[],
-      up:{ kitchen:false, sprinkler:false, stall:false, winery:false },
+      plots, crops:{}, goods:{}, jobs:[], animals:[],
+      up:{ kitchen:false, sprinkler:false, stall:false, barn:false, autofeed:false, winery:false },
       plotCost:PLOT_BASE,
       popular:[], log:[], seenLevel:1,
       muted:false,
@@ -408,6 +431,8 @@
   function normalize(s){
     s.decor = s.decor || {};
     s.achieved = s.achieved || {};
+    s.animals = Array.isArray(s.animals) ? s.animals : [];
+    s.up = s.up || {};
     s.muted = !!s.muted;
     s.stats = s.stats || {};
     s.stats.planted = s.stats.planted||0;
@@ -453,6 +478,7 @@
     const lvl = level();
     const pool = [];
     for(const id in CROPS) if(CROPS[id].lvl<=lvl) pool.push(id);
+    if(S.up.barn) for(const id in APROD) pool.push(id);
     for(const id in GOODS){ const g=GOODS[id]; if(g.lvl<=lvl && (!g.premium || S.up.winery)) pool.push(id); }
     S.popular = [];
     if(pool.length){
@@ -461,8 +487,10 @@
     }
   }
 
-  function itemName(id){ return CROPS[id]?CROPS[id].name:(GOODS[id]?GOODS[id].name:id); }
-  function itemEmoji(id){ return CROPS[id]?CROPS[id].emoji:(GOODS[id]?GOODS[id].emoji:"❔"); }
+  function infoOf(id){ return GOODS[id] || CROPS[id] || APROD[id] || null; }
+  function invBag(id){ return GOODS[id] ? S.goods : S.crops; }
+  function itemName(id){ const i=infoOf(id); return i?i.name:id; }
+  function itemEmoji(id){ const i=infoOf(id); return i?i.emoji:"❔"; }
 
   /* ============ SES (Web Audio, harici dosya yok) ============ */
   let actx=null;
@@ -602,10 +630,10 @@
   }
 
   function sell(id, all, btn){
-    const bag = CROPS[id] ? S.crops : S.goods;
+    const bag = invBag(id);
     const have = bag[id]||0; if(have<=0) return;
-    const base = CROPS[id] ? CROPS[id].sell : GOODS[id].sell;
-    const unit = priceOf(base, id);
+    const info = infoOf(id); if(!info) return;
+    const unit = priceOf(info.sell, id);
     const n = all ? have : 1;
     bag[id] = have - n; if(bag[id]<=0) delete bag[id];
     const gain = unit*n;
@@ -621,7 +649,7 @@
     if(!S.up.kitchen){ toast("Önce Mutfak lazım 🍳"); return; }
     if(g.premium && !S.up.winery){ toast("Bunun için Şaraphane lazım 🍇"); return; }
     const have = S.crops[g.from]||0;
-    if(have < g.qty){ toast("Yeterli "+CROPS[g.from].name+" yok"); return; }
+    if(have < g.qty){ toast("Yeterli "+infoOf(g.from).name+" yok"); return; }
     S.crops[g.from] = have - g.qty; if(S.crops[g.from]<=0) delete S.crops[g.from];
     S.jobs.push({ good:goodId, ready:S.day+g.days });
     SFX.buy();
@@ -659,6 +687,37 @@
     toast(d.emoji+" "+d.name+" bahçene eklendi!", "good");
   }
 
+  function buyAnimal(type){
+    const a = ANIMALS[type]; if(!a) return;
+    if(!S.up.barn){ toast("Önce Ahır lazım 🐄"); return; }
+    if(level() < a.lvl){ toast("Seviye "+a.lvl+" gerekir"); return; }
+    if(S.coins < a.cost){ toast("Yetersiz altın 🪙"); return; }
+    S.coins -= a.cost;
+    S.animals.push({ type:type, fed:false, timer:0 });
+    SFX.buy(); checkAchievements();
+    render(); save();
+    toast(a.emoji+" "+a.name+" ahıra katıldı!", "good");
+  }
+
+  function feedBarn(){
+    const unfed = S.animals.filter(a=>!(S.up.autofeed||a.fed));
+    if(!S.animals.length){ toast("Ahırda hayvan yok 🐔"); return; }
+    if(!unfed.length){ toast("Hayvanlar zaten tok 🙂"); return; }
+    let fedCount=0, wheatUsed=0, coinUsed=0;
+    for(const a of unfed){
+      if((S.crops.wheat||0) > 0){ S.crops.wheat--; if(S.crops.wheat<=0) delete S.crops.wheat; a.fed=true; fedCount++; wheatUsed++; }
+      else if(S.coins >= 5){ S.coins-=5; a.fed=true; fedCount++; coinUsed+=5; }
+      else break;
+    }
+    if(fedCount){
+      SFX.water();
+      let note = "🌾 "+fedCount+" hayvan beslendi";
+      if(coinUsed) note += " ("+coinUsed+" 🪙)";
+      toast(note);
+    } else { toast("Yem için buğday ya da altın lazım"); }
+    render(); save();
+  }
+
   function checkLevel(){
     const lv = level();
     if(lv > S.seenLevel){
@@ -686,6 +745,20 @@
     }
     S.jobs = remain;
 
+    let producedBarn=0;
+    for(const a of S.animals){
+      const fed = S.up.autofeed || a.fed;
+      if(!fed) continue;
+      a.timer++;
+      if(a.timer >= ANIMALS[a.type].interval){
+        a.timer = 0;
+        const prod = ANIMALS[a.type].prod;
+        S.crops[prod] = (S.crops[prod]||0) + 1;
+        producedBarn++;
+      }
+      if(!S.up.autofeed) a.fed = false;
+    }
+
     S.day++;
     rollPopular();
 
@@ -693,6 +766,7 @@
     let msg = "🌅 <b>Gün "+S.day+".</b> ";
     const bits=[];
     if(doneJobs) bits.push(doneJobs+" ürün atölyeden çıktı");
+    if(producedBarn) bits.push(producedBarn+" hayvan ürünü toplandı");
     if(readyN) bits.push(readyN+" tarla hasada hazır");
     msg += bits.length? bits.join(", ")+"." : "Sakin bir gün.";
     addLog(msg);
@@ -826,6 +900,7 @@
     const body = $("tabBody");
     if(activeTab==="market") body.innerHTML = marketHTML();
     else if(activeTab==="work") body.innerHTML = workHTML();
+    else if(activeTab==="barn") body.innerHTML = barnHTML();
     else body.innerHTML = shopHTML();
     body.querySelectorAll("[data-act]").forEach(b=>{
       b.addEventListener("click", ()=>{
@@ -836,15 +911,17 @@
         else if(a==="plot") buyPlot();
         else if(a==="up") buyUpgrade(id);
         else if(a==="decor") buyDecor(id);
+        else if(a==="feed") feedBarn();
+        else if(a==="animal") buyAnimal(id);
       });
     });
   }
 
-  function sellRow(id, kind){
-    const have = (kind==="crop"?S.crops:S.goods)[id]||0;
+  function sellRow(id){
+    const bag = invBag(id);
+    const have = bag[id]||0;
     if(have<=0) return "";
-    const base = kind==="crop"?CROPS[id].sell:GOODS[id].sell;
-    const unit = priceOf(base,id);
+    const unit = priceOf(infoOf(id).sell, id);
     const pop = isPopular(id) ? '<span class="chip pop">🔥 +%40</span>' : "";
     return '<div class="row"><div class="rico">'+itemEmoji(id)+'</div>'+
       '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+'</div>'+
@@ -857,8 +934,9 @@
 
   function marketHTML(){
     let rows="";
-    for(const id in CROPS) rows += sellRow(id,"crop");
-    for(const id in GOODS) rows += sellRow(id,"good");
+    for(const id in CROPS) rows += sellRow(id);
+    for(const id in APROD) rows += sellRow(id);
+    for(const id in GOODS) rows += sellRow(id);
     if(!rows) rows = '<div class="emptxt">Kileriniz boş. Bahçede bir şeyler yetiştir, sonra buradan sat 🧺</div>';
     return '<h2 style="font-size:15px;margin:0 0 4px;">🧺 Pazar Tezgahı</h2>'+
       '<p class="hint">Ürünlerini burada sat. <b>Bugün popüler</b> olanlar +%40 fazla kazandırır.</p>'+rows;
@@ -889,13 +967,62 @@
       const unit = priceOf(g.sell,id);
       const pop = isPopular(id)?'<span class="chip pop">🔥</span>':"";
       const lockChip = locked?'<span class="chip qty">🍇 Şaraphane</span>':"";
+      const inm = infoOf(g.from);
       rows += '<div class="row"><div class="rico">'+g.emoji+'</div>'+
         '<div class="rmain"><div class="rtitle">'+g.name+' '+pop+lockChip+'</div>'+
-        '<div class="rmeta">'+g.qty+'× '+CROPS[g.from].emoji+' '+CROPS[g.from].name+' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
+        '<div class="rmeta">'+g.qty+'× '+inm.emoji+' '+inm.name+' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-act="make" data-id="'+id+'" '+(can?"":"disabled")+'>Üret</button></div></div>';
     }
     return '<h2 style="font-size:15px;margin:0 0 4px;">🍯 Atölye</h2>'+
       '<p class="hint">Ham ürünleri işleyerek kârı katla. Üretim birkaç gün sürer.</p>'+jobs+rows;
+  }
+
+  function barnHTML(){
+    if(!S.up.barn){
+      return '<h2 style="font-size:15px;margin:0 0 4px;">🐄 Ahır</h2>'+
+        '<div class="emptxt">Ahır kilitli. <b>Dükkan</b>dan 🐄 Ahır alınca hayvan besleyip süt 🥛, yumurta 🥚 ve yün 🧶 üretebilirsin (satılır ya da atölyede peynir/kek/atkıya işlenir).</div>';
+    }
+    const lvl = level();
+    let html = '<h2 style="font-size:15px;margin:0 0 4px;">🐄 Ahır</h2>'+
+      '<p class="hint">Hayvanları besle (🌾 buğday, yoksa 5 🪙/hayvan). Beslenen hayvanlar zamanla ürün verir.</p>';
+
+    if(S.animals.length){
+      const unfed = S.animals.filter(a=>!(S.up.autofeed||a.fed)).length;
+      const feedInfo = S.up.autofeed ? "🌾 Otomatik yemlik açık — besleme gerekmiyor." : (unfed ? (unfed+" hayvan aç") : "Hepsi tok 🙂");
+      html += '<div class="row"><div class="rico">🌾</div>'+
+        '<div class="rmain"><div class="rtitle">Ahırı Besle</div><div class="rmeta">'+feedInfo+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="feed" '+((S.up.autofeed||!unfed)?"disabled":"")+'>Besle</button></div></div>';
+
+      const counts={};
+      for(const a of S.animals){
+        const c = counts[a.type] || (counts[a.type]={n:0,fed:0,minLeft:Infinity});
+        c.n++; if(S.up.autofeed||a.fed) c.fed++;
+        const left = ANIMALS[a.type].interval - a.timer;
+        if(left < c.minLeft) c.minLeft = left;
+      }
+      for(const type in counts){
+        const A=ANIMALS[type], c=counts[type], p=APROD[A.prod];
+        const status = S.up.autofeed ? "" : (c.fed+"/"+c.n+" tok · ");
+        html += '<div class="row"><div class="rico">'+A.emoji+'</div>'+
+          '<div class="rmain"><div class="rtitle">'+A.name+' <span class="chip qty">×'+c.n+'</span></div>'+
+          '<div class="rmeta">Ürün: '+p.emoji+' '+p.name+' · her '+A.interval+' gün · '+status+'sonraki ~'+Math.max(0,c.minLeft)+' gün</div></div></div>';
+      }
+    } else {
+      html += '<div class="emptxt" style="padding:12px 8px;">Ahırın boş. Aşağıdan hayvan al 🐣</div>';
+    }
+
+    html += '<div class="subhead">🐣 Hayvan Al</div>';
+    for(const type in ANIMALS){
+      const A=ANIMALS[type], p=APROD[A.prod];
+      const locked = lvl < A.lvl;
+      const can = !locked && S.coins>=A.cost;
+      const meta = locked ? ("Seviye "+A.lvl+" gerekir")
+        : ("Ürün: "+p.emoji+" "+p.name+" · her "+A.interval+" gün · "+fmt(A.cost)+" 🪙");
+      html += '<div class="row"'+(locked?' style="opacity:.55"':'')+'><div class="rico">'+(locked?"🔒":A.emoji)+'</div>'+
+        '<div class="rmain"><div class="rtitle">'+A.name+'</div><div class="rmeta">'+meta+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="animal" data-id="'+type+'" '+(can?"":"disabled")+'>Al</button></div></div>';
+    }
+    return html;
   }
 
   function shopHTML(){
@@ -909,6 +1036,7 @@
       '<div class="ract"><button class="btn small primary" data-act="plot" '+(nextPlotLocked&&S.coins>=S.plotCost?"":"disabled")+'>'+(nextPlotLocked?"Al":"—")+'</button></div></div>';
 
     for(const key in UPGRADES){
+      if(key==="autofeed" && !S.up.barn) continue;
       const u=UPGRADES[key], owned=S.up[key];
       html += '<div class="row"><div class="rico">'+u.emoji+'</div>'+
         '<div class="rmain"><div class="rtitle">'+u.name+(owned?' <span class="chip new">✓ alındı</span>':'')+'</div>'+
