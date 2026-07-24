@@ -69,6 +69,13 @@ Tümü `prefers-reduced-motion` açık olduğunda ağır animasyonları otomatik
 - **Derinlik seçeneği:** ham satış kolay yol; işleme (atölye) ve ahır kârı katlar ama planlama ister.
 - **Kaldığın yerden devam:** tarayıcı kapansa da ilerleme durur.
 
+## Görsel tasarım
+
+Sıcak, cozy bir görsel kimlik: başlık/butonlar/rakamlar için gömülü **Baloo 2** (yuvarlak,
+karakterli display fontu — Türkçe alt kümesiyle base64 olarak gömülü, harici istek yok), gövde
+metni için sistem fontu. Yeşil aksanlı üst bar, katmanlı yumuşak gölgeler, sürülmüş toprak
+dokulu tarlalar, "şeker buton" hissi ve mevsime göre değişen gök rengi. Tümü CSP-güvenli.
+
 ## Teknik
 
 - Saf HTML/CSS/JS (vanilla), harici bağımlılık yok — çevrimdışı çalışır, CSP-güvenli.
