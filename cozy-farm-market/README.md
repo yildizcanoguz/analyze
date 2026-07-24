@@ -16,10 +16,13 @@ otomatik kaydedilir (localStorage).
 > süre & değer); olgunlaşınca altın halka belirir, tıkla → hasat et, altın uçar. Sürükle: kamerayı
 > döndür · tekerlek: yakınlaştır. Ekonomi + `localStorage` kayıt. Teknik: gerçek izometrik 3B
 > geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES filmik tonlama,
-> raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. **El işi
-> prosedürel dokular** — kod içinde `<canvas>` ile çizilen ve `THREE.CanvasTexture` + `bumpMap`
-> olarak uygulanan malzemeler: kiremitli terracotta çatı, sıvalı duvar, sürülmüş toprak ve
-> gerçek zamanlı kayan **dalgalı su** (harici görsel/istek yok). Stilize **low-poly** görünüm —
+> raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. Sahne
+> **el işi ile zenginleştirildi**: çizgili tenteli **pazar tezgahı** + ürün sandıkları, **çitli
+> mera**, çiçekli çalılar, kayalar, çiçek açan (pembe) ağaçlar ve premium bir çerçeve hissi için
+> **vinyet**. **El işi prosedürel dokular** — kod içinde `<canvas>` ile çizilen ve
+> `THREE.CanvasTexture` + `bumpMap` olarak uygulanan malzemeler: dikişsiz organik çim, kiremitli
+> terracotta çatı, sıvalı duvar, sürülmüş toprak ve gerçek zamanlı kayan **dalgalı su** (harici
+> görsel/istek yok). Stilize **low-poly** görünüm —
 > gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). Vendor
 > `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
