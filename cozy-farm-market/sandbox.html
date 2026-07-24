@@ -133,6 +133,17 @@
   .hero .smoke circle{ transform-box:fill-box; animation:smoke 4.2s ease-in infinite; }
   .hero .smoke .s2{ animation-delay:1.4s } .hero .smoke .s3{ animation-delay:2.8s }
   @keyframes smoke{ 0%{transform:translateY(0) scale(.5); opacity:0} 12%{opacity:.55} 100%{transform:translateY(-30px) scale(1.5); opacity:0} }
+  /* golden-hour / sunset wash (intensifies toward season end) */
+  .hero .dusk{ position:absolute; inset:0; z-index:0; pointer-events:none; opacity:var(--dusk,0); transition:opacity 1.2s ease;
+    background:linear-gradient(180deg, rgba(255,190,110,.14) 0%, rgba(255,150,80,.32) 58%, rgba(232,108,58,.5) 100%); }
+  /* grazing animals in the pasture */
+  .hero .pasture{ position:absolute; inset:0; z-index:1; pointer-events:none; }
+  .hero .graze{ position:absolute; }
+  .hero .graze svg{ width:100%; height:auto; display:block; filter:drop-shadow(0 3px 2px rgba(30,50,15,.24)); animation:graze 3.4s ease-in-out infinite; transform-origin:bottom center; }
+  @keyframes graze{ 0%,100%{ transform:translateY(0) rotate(0deg) } 50%{ transform:translateY(-1.5px) rotate(-1.5deg) } }
+  /* level-up confetti */
+  .confetti{ position:absolute; width:8px; height:12px; border-radius:2px; opacity:0; animation:confetti 1.7s ease-in forwards; }
+  @keyframes confetti{ 0%{opacity:0; transform:translateY(0) rotate(0)} 12%{opacity:1} 100%{opacity:0; transform:translateY(340px) translateX(var(--dx,0)) rotate(var(--rot,360deg))} }
 
   /* Top bar */
   .top{
@@ -254,6 +265,7 @@
   .plot.empty .emoji{ font-size:22px; opacity:.5; }
   .pico{ width:1em; height:1em; display:inline-block; vertical-align:-.15em; flex:none; }
   .coin{ width:1.15em; height:1.15em; display:inline-block; vertical-align:-.24em; filter:drop-shadow(0 1px 1px rgba(120,80,10,.3)); }
+  .aico{ width:1.35em; height:1.15em; display:inline-block; vertical-align:-.22em; flex:none; }
   .plot .cropname{ position:absolute; top:6px; left:0; right:0; text-align:center; font-size:10px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
   .plot .water{ position:absolute; top:6px; right:7px; font-size:11px; }
   .plot .bar{ position:absolute; left:8px; right:8px; bottom:8px; height:7px; background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden; }
@@ -485,6 +497,9 @@
       </g>
     </svg>
 
+    <div class="dusk" aria-hidden="true"></div>
+    <div class="pasture" id="pasture" aria-hidden="true"></div>
+
     <div class="hero-title">
       <h1 class="hero-logo">Küçük Pazar</h1>
       <p class="hero-tag">her şey açık · keşif modu</p>
@@ -636,6 +651,13 @@
   };
   function iconHTML(id){ return SVGICON[id] ? '<svg class="pico" viewBox="0 0 40 40" aria-hidden="true">'+SVGICON[id]+'</svg>' : itemEmoji(id); }
   const COIN = '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#d99a2b"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#b87f1e" stroke-width="1"/><circle cx="12" cy="12" r="8" fill="#f6c948"/><circle cx="12" cy="12" r="8" fill="none" stroke="#e6ad2e" stroke-width="1"/><path d="M12 6.6l1.5 3.4 3.7.35-2.8 2.5.85 3.65L12 18l-3.2 1.95.85-3.65-2.8-2.5 3.7-.35z" fill="#e6ad2e"/><ellipse cx="8.6" cy="8.2" rx="2.4" ry="1.5" fill="#fff" opacity=".45" transform="rotate(-32 8.6 8.2)"/></svg>';
+  // El işi çiftlik hayvanları (viewBox 0 0 44 40)
+  const ANIMAL_ICON = {
+   chicken:`<ellipse cx="22" cy="35" rx="9" ry="2" fill="rgba(0,0,0,.12)"/><g fill="#e6a63e"><rect x="19" y="27" width="2" height="7" rx="1"/><rect x="23.5" y="27" width="2" height="7" rx="1"/><path d="M18 34l-3 1.5 3 .5zM23 34l-3 1.5 3 .5z"/></g><ellipse cx="22" cy="21" rx="9.5" ry="8.5" fill="#fffdf6"/><path d="M30 17c4-1 6 1 6 4s-3 4-6 3z" fill="#f2ede0"/><g fill="#e6a63e"><path d="M31 18l4-1-3 2zM31 21l4 .5-3 1.5z"/></g><circle cx="15" cy="14.5" r="5.5" fill="#fffdf6"/><path d="M13 9.5c.5-1.5 3-1.5 3 0 1-1.2 2.8-.4 2.2 1 1.2-.4 1.8 1.2.6 2-2.6.6-5.2.4-6.4-.8-.6-.8.4-2 .6-2.2z" fill="#e8503a"/><path d="M10 15l-4 .5 4 1.5z" fill="#f0a52e"/><path d="M10 15l-4 2 4 0z" fill="#e08a1e"/><circle cx="14" cy="13.5" r="1.1" fill="#3a3028"/>`,
+   cow:`<ellipse cx="24" cy="36" rx="15" ry="2.5" fill="rgba(0,0,0,.12)"/><g fill="#d7cdbc"><rect x="15" y="27" width="3.4" height="9" rx="1.6"/><rect x="30" y="27" width="3.4" height="9" rx="1.6"/></g><g fill="#c9bea8"><rect x="18.5" y="27" width="3.4" height="9" rx="1.6"/><rect x="26" y="27" width="3.4" height="9" rx="1.6"/></g><ellipse cx="25" cy="21" rx="13" ry="9" fill="#fdf9f2"/><path d="M16 16c3.5-1.6 6.5.4 6 3.4-.5 3-4.5 3.6-6.6 1.4-1.4-1.5-1-4 .6-4.8z" fill="#4a4038"/><ellipse cx="31" cy="24" rx="4.6" ry="3.6" fill="#4a4038"/><ellipse cx="9.5" cy="20" rx="6" ry="5.4" fill="#fdf9f2"/><path d="M5 14.5c-1.4-1.4-1-2.6-1-2.6s1.6.4 2.6 1.8z" fill="#c9bea8"/><path d="M12.5 14c1.2-1.6 2.6-1.6 2.6-1.6s-.2 1.6-1.4 2.6z" fill="#c9bea8"/><ellipse cx="8" cy="23" rx="4.2" ry="3.2" fill="#f3c9c2"/><g fill="#3a3028"><circle cx="9" cy="18.5" r="1.2"/><circle cx="6.5" cy="23" r=".8"/><circle cx="9.5" cy="23" r=".8"/></g>`,
+   sheep:`<ellipse cx="23" cy="36" rx="14" ry="2.5" fill="rgba(0,0,0,.12)"/><g fill="#5f5750"><rect x="16" y="28" width="3" height="8" rx="1.4"/><rect x="29" y="28" width="3" height="8" rx="1.4"/><rect x="19.5" y="28" width="3" height="8" rx="1.4"/><rect x="25.5" y="28" width="3" height="8" rx="1.4"/></g><g fill="#fbf7ee"><circle cx="16" cy="21" r="7.5"/><circle cx="31" cy="21" r="7.5"/><circle cx="23.5" cy="24" r="8.5"/><circle cx="20" cy="16" r="7.5"/><circle cx="28" cy="16" r="7.5"/><circle cx="24" cy="13.5" r="7"/></g><ellipse cx="10.5" cy="21" rx="5.2" ry="5.6" fill="#5f5750"/><path d="M6 17.5c-1.6-.6-2.6.6-2 1.8.5 1 2 .9 2.6-.2z" fill="#514a44"/><path d="M15 17.5c1.6-.6 2.6.6 2 1.8-.5 1-2 .9-2.6-.2z" fill="#514a44"/><circle cx="9" cy="20.5" r="1.2" fill="#fff"/><circle cx="12" cy="20.5" r="1.2" fill="#fff"/><path d="M9 24.5q1.5 1 3 0" stroke="#3a332e" stroke-width="1" fill="none" stroke-linecap="round"/><circle cx="10.5" cy="14" r="2.6" fill="#fbf7ee"/>`,
+  };
+  function animalHTML(type){ return ANIMAL_ICON[type] ? '<svg class="aico" viewBox="0 0 44 40" aria-hidden="true">'+ANIMAL_ICON[type]+'</svg>' : (ANIMALS[type]?ANIMALS[type].emoji:""); }
 
   const SEASONS = [
     { name:"İlkbahar", emoji:"🌷", p:"🌸" },
@@ -866,6 +888,19 @@
       s.style.animationDelay=(Math.random()*0.25)+"s";
       $("fx").appendChild(s);
       setTimeout(()=>s.remove(), 1500);
+    }
+    const cols=["#ef6f8e","#f6c045","#5ec6b6","#8a86e0","#7cb35f","#ef8a34"];
+    for(let i=0;i<22;i++){
+      const c=document.createElement("div");
+      c.className="confetti";
+      c.style.left=(cx + (Math.random()*320-160))+"px";
+      c.style.top=(66 + Math.random()*22)+"px";
+      c.style.background=cols[i%cols.length];
+      c.style.setProperty("--dx",(Math.random()*200-100)+"px");
+      c.style.setProperty("--rot",(Math.random()*720-360)+"deg");
+      c.style.animationDelay=(Math.random()*0.22)+"s";
+      $("fx").appendChild(c);
+      setTimeout(()=>c.remove(), 1900);
     }
   }
   function bumpCoins(){
@@ -1219,6 +1254,7 @@
     renderFarm();
     renderGarden();
     renderSeason();
+    renderPasture();
     renderTab();
     renderOrders();
     renderLevelBar(lvl);
@@ -1310,6 +1346,20 @@
     }));
   }
 
+  function renderPasture(){
+    const el = $("pasture"); if(!el) return;
+    const types = [];
+    for(const a of S.animals){ if(!types.includes(a.type)) types.push(a.type); }
+    const spots = [ {l:33,t:56,s:.78}, {l:51,t:59,s:.86}, {l:64,t:54,s:.74} ];
+    let html = "";
+    types.slice(0,3).forEach((type,i)=>{
+      const sp = spots[i];
+      html += '<div class="graze" style="left:'+sp.l+'%;top:'+sp.t+'%;width:'+Math.round(52*sp.s)+'px">'+
+        '<svg viewBox="0 0 44 40" style="animation-delay:'+(i*0.8).toFixed(1)+'s" aria-hidden="true">'+ANIMAL_ICON[type]+'</svg></div>';
+    });
+    el.innerHTML = html;
+  }
+
   function renderSeason(){
     const idx = Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length;
     const s = SEASONS[idx];
@@ -1320,6 +1370,7 @@
     const t = SEASON_LEN>1 ? (dis-1)/(SEASON_LEN-1) : 0.5;
     document.body.style.setProperty("--sun-x", Math.round(12 + t*76) + "%");
     document.body.style.setProperty("--sun-top", Math.round(58 - Math.sin(t*Math.PI)*40) + "%");
+    document.body.style.setProperty("--dusk", Math.max(0, Math.min(1, (t-0.5)/0.5)).toFixed(2));
     renderAmbient(idx);
     const popTxt = S.popular.length ? S.popular.map(id=>iconHTML(id)+" "+itemName(id)).join(", ") : "—";
     let seasonTxt;
@@ -1472,7 +1523,7 @@
       for(const type in counts){
         const A=ANIMALS[type], c=counts[type], p=APROD[A.prod];
         const status = S.up.autofeed ? "" : (c.fed+"/"+c.n+" tok · ");
-        html += '<div class="row"><div class="rico">'+A.emoji+'</div>'+
+        html += '<div class="row"><div class="rico">'+animalHTML(type)+'</div>'+
           '<div class="rmain"><div class="rtitle">'+A.name+' <span class="chip qty">×'+c.n+'</span></div>'+
           '<div class="rmeta">Ürün: '+iconHTML(A.prod)+' '+p.name+' · her '+A.interval+' gün · '+status+'sonraki ~'+Math.max(0,c.minLeft)+' gün</div></div></div>';
       }
@@ -1487,7 +1538,7 @@
       const can = !locked && S.coins>=A.cost;
       const meta = locked ? ("Seviye "+A.lvl+" gerekir")
         : ("Ürün: "+iconHTML(A.prod)+" "+p.name+" · her "+A.interval+" gün · "+fmt(A.cost)+" 🪙");
-      html += '<div class="row"'+(locked?' style="opacity:.55"':'')+'><div class="rico">'+(locked?"🔒":A.emoji)+'</div>'+
+      html += '<div class="row"'+(locked?' style="opacity:.55"':'')+'><div class="rico">'+(locked?"🔒":animalHTML(type))+'</div>'+
         '<div class="rmain"><div class="rtitle">'+A.name+'</div><div class="rmeta">'+meta+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-act="animal" data-id="'+type+'" '+(can?"":"disabled")+'>Al</button></div></div>';
     }

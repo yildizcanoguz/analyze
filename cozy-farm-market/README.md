@@ -77,10 +77,12 @@ ikonlarla** gösterilir — emoji yok. İkonlar `font-size`'a göre ölçeklenir
 pazarda/siparişte küçük).
 
 Üstte **yaşayan bir kır manzarası** (tamamen satır-içi SVG/CSS — harici görsel yok): mevsime
-göre renk değiştiren gökyüzü ve tepeler, **mevsim boyunca gökte yay çizen güneş**, güneşten
-yayılan **volumetrik ışık huzmeleri** ve altın-saat parıltısı, döner yel değirmeni, **bacasından
-duman tüten** kırmızı ahır + silo, ağaçlar, çit, süzülen bulutlar, uçan kuşlar ve uçuşan
-**kelebekler**. Festivalde manzaraya renkli **bayrak süslemeleri** ve pembe parıltı gelir.
+göre renk değiştiren gökyüzü ve tepeler, **mevsim boyunca gökte yay çizen güneş** — gün
+ilerledikçe alçalır ve mevsim sonuna (festivale) doğru sahne gerçek bir **altın saat / gün
+batımına** döner. Güneşten **volumetrik ışık huzmeleri**, döner yel değirmeni, **bacasından duman
+tüten** kırmızı ahır + silo, ağaçlar, çit, bulutlar, kuşlar ve **kelebekler**. Ahır kurunca
+merada **el işi hayvanlar** (tavuk, inek, koyun) idle animasyonuyla otlar. Festivalde renkli
+**bayrak süslemeleri** + pembe parıltı; seviye atlayınca **konfeti** yağar.
 
 **Premium oyun arayüzü:** Üst kontrol çubuğu, manzaranın üstünde yüzen **cam efektli (glassmorphism)
 HUD**'a dönüşür — arkasındaki peyzaj bulanıklaşır (`backdrop-filter`), altın hairline ve glossy
