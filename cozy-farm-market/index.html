@@ -18,6 +18,7 @@
     --coin:#e0a92e;
     --soft:#f7efe0;
     --accent:#a8683f;
+    --skyc:#fff7e8;
     --r:16px;
     --r2:12px;
     --shadow:0 10px 30px rgba(90,60,20,.10);
@@ -30,12 +31,17 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     color:var(--ink);
     background:
-      radial-gradient(1200px 500px at 50% -200px, #fff7e8, transparent),
+      radial-gradient(1200px 520px at 50% -220px, var(--skyc), transparent),
       linear-gradient(180deg,var(--bg),var(--bg2));
     min-height:100%;
     -webkit-font-smoothing:antialiased;
+    transition:background .8s ease;
   }
-  .wrap{ max-width:1120px; margin:0 auto; padding:16px 16px 60px; }
+  body[data-season="0"]{ --skyc:#ffe6f0; }
+  body[data-season="1"]{ --skyc:#fff2cf; }
+  body[data-season="2"]{ --skyc:#ffe0c2; }
+  body[data-season="3"]{ --skyc:#e6f0ff; }
+  .wrap{ max-width:1120px; margin:0 auto; padding:16px 16px 60px; position:relative; z-index:2; }
 
   /* Top bar */
   .top{
@@ -62,6 +68,13 @@
   }
   .stat .ico{ font-size:16px; }
   .stat.coins{ background:#fff6df; border-color:#f0dca6; color:#8a6410; }
+  .stat.coins.bump{ animation:coinbump .4s ease; }
+  @keyframes coinbump{ 0%,100%{transform:scale(1)} 40%{transform:scale(1.12)} }
+  .iconbtn{
+    cursor:pointer; border:1px solid var(--line); background:var(--soft);
+    border-radius:12px; padding:8px 11px; font-weight:800; font-size:14px; white-space:nowrap;
+  }
+  .iconbtn:hover{ background:#fff; }
   .btn{
     cursor:pointer; border:1px solid var(--line);
     background:var(--card); color:var(--ink);
@@ -92,17 +105,14 @@
   .panel .hint{ font-size:12px; color:var(--muted); margin:0 0 12px; line-height:1.4; }
 
   /* Farm grid */
-  .farm{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
-  }
+  .farm{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
   @media (max-width:520px){ .farm{ grid-template-columns:repeat(3,1fr); } }
   .plot{
     position:relative;
     aspect-ratio:1/1;
     border-radius:14px;
     border:1px solid #cdb187;
-    background:
-      repeating-linear-gradient(45deg, #b98a55 0 6px, #b08048 6px 12px);
+    background:repeating-linear-gradient(45deg, #b98a55 0 6px, #b08048 6px 12px);
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     cursor:pointer; overflow:hidden;
     box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.12);
@@ -119,24 +129,39 @@
     cursor:default; color:var(--muted);
     box-shadow:none; border-style:dashed;
   }
-  .plot.ready{ box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), 0 0 0 3px #f4d35e, 0 0 18px rgba(244,211,94,.5); }
+  .plot.ready{ animation:readyPulse 1.9s ease-in-out infinite; }
+  @keyframes readyPulse{
+    0%,100%{ box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), 0 0 0 3px #f4d35e, 0 0 12px rgba(244,211,94,.4); }
+    50%{ box-shadow:inset 0 -8px 16px rgba(0,0,0,.12), 0 0 0 3px #f6d968, 0 0 26px rgba(244,211,94,.75); }
+  }
+  .plot.pop{ animation:popIn .4s ease; }
+  @keyframes popIn{ 0%{transform:scale(.55)} 55%{transform:scale(1.14)} 100%{transform:scale(1)} }
   .plot .emoji{ font-size:min(11vw,44px); line-height:1; filter:drop-shadow(0 3px 3px rgba(0,0,0,.18)); }
+  .plot .emoji.sway{ animation:sway 3.6s ease-in-out infinite; transform-origin:50% 90%; }
   .plot.empty .emoji{ font-size:22px; opacity:.5; }
   .plot .cropname{ position:absolute; top:6px; left:0; right:0; text-align:center; font-size:10px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
   .plot .water{ position:absolute; top:6px; right:7px; font-size:11px; }
-  .plot .bar{
-    position:absolute; left:8px; right:8px; bottom:8px; height:7px;
-    background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden;
-  }
-  .plot .bar > i{ display:block; height:100%; background:linear-gradient(90deg,#8fd06f,#5a8f4e); border-radius:999px; }
-  .plot .tag{
-    position:absolute; bottom:8px; left:0; right:0; text-align:center;
-    font-size:11px; font-weight:900; color:#3f6e37; text-shadow:0 1px 2px rgba(255,255,255,.6);
-  }
+  .plot .bar{ position:absolute; left:8px; right:8px; bottom:8px; height:7px; background:rgba(0,0,0,.25); border-radius:999px; overflow:hidden; }
+  .plot .bar > i{ display:block; height:100%; background:linear-gradient(90deg,#8fd06f,#5a8f4e); border-radius:999px; transition:width .3s ease; }
+  .plot .tag{ position:absolute; bottom:8px; left:0; right:0; text-align:center; font-size:11px; font-weight:900; color:#3f6e37; text-shadow:0 1px 2px rgba(255,255,255,.6); }
   .plot.ready .tag{ color:#7a5a00; }
   .lockbig{ font-size:20px; }
 
   .farm-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+
+  /* Garden decoration strip */
+  .garden{
+    margin-top:12px; border-radius:14px; padding:12px 14px;
+    background:linear-gradient(180deg,#eaf6df,#dcefcd);
+    border:1px solid #cfe6bd;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-height:58px;
+  }
+  .garden .gitem{ font-size:27px; filter:drop-shadow(0 3px 3px rgba(0,0,0,.12)); animation:sway 4.5s ease-in-out infinite; transform-origin:50% 90%; }
+  .garden .gitem:nth-child(2n){ animation-duration:5.5s; }
+  .garden .gitem:nth-child(3n){ animation-duration:3.8s; }
+  .garden .ghint{ color:#5f7c4b; font-size:12.5px; }
+  .garden .cozy{ margin-left:auto; font-size:12px; font-weight:800; color:#4d7a3a; background:#fff; border:1px solid #cfe6bd; border-radius:999px; padding:5px 11px; white-space:nowrap; }
+  @keyframes sway{ 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
 
   /* Tabs */
   .tabs{ display:flex; gap:6px; margin-bottom:12px; background:var(--soft); padding:5px; border-radius:12px; border:1px solid var(--line); }
@@ -144,11 +169,7 @@
   .tab.active{ background:var(--card); color:var(--ink); box-shadow:var(--shadow2); }
 
   /* List rows */
-  .row{
-    display:flex; align-items:center; gap:12px;
-    padding:11px; border:1px solid var(--line); border-radius:12px;
-    background:var(--card); margin-bottom:9px;
-  }
+  .row{ display:flex; align-items:center; gap:12px; padding:11px; border:1px solid var(--line); border-radius:12px; background:var(--card); margin-bottom:9px; }
   .row .rico{ font-size:26px; width:34px; text-align:center; }
   .row .rmain{ flex:1; min-width:0; }
   .row .rtitle{ font-weight:800; font-size:14px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -156,6 +177,7 @@
   .row .rprice{ font-weight:900; color:#8a6410; white-space:nowrap; }
   .row .ract{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
   .emptxt{ color:var(--muted); font-size:13px; text-align:center; padding:22px 8px; }
+  .subhead{ font-size:12px; font-weight:900; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; margin:14px 2px 8px; }
 
   .chip{ display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; }
   .chip.pop{ background:#ffe9c2; color:#8a5a10; border:1px solid #f0cf90; }
@@ -163,44 +185,66 @@
   .chip.qty{ background:var(--soft); color:var(--muted); border:1px solid var(--line); }
 
   .lvlbar{ height:9px; background:var(--soft); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
-  .lvlbar > i{ display:block; height:100%; background:linear-gradient(90deg,#f4d35e,#d99a2b); }
+  .lvlbar > i{ display:block; height:100%; background:linear-gradient(90deg,#f4d35e,#d99a2b); transition:width .4s ease; }
 
-  /* Season strip */
-  .season{
-    display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted);
-    margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); flex-wrap:wrap;
-  }
+  .season{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); flex-wrap:wrap; }
 
-  /* Message log */
   .log{ margin-top:12px; }
   .logline{ font-size:12.5px; color:var(--muted); padding:3px 0; border-bottom:1px dashed var(--line); }
   .logline b{ color:var(--ink); }
 
+  /* Achievements grid */
+  .achgrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  @media (max-width:460px){ .achgrid{ grid-template-columns:1fr; } }
+  .ach{ display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+  .ach.on{ background:#fff8e6; border-color:#f0dca6; }
+  .ach .ae{ font-size:24px; filter:grayscale(1); opacity:.45; }
+  .ach.on .ae{ filter:none; opacity:1; }
+  .ach .at{ font-weight:800; font-size:13px; }
+  .ach .ad{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+
   /* Modal */
   .scrim{ position:fixed; inset:0; background:rgba(60,40,15,.45); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:60; padding:16px; }
   .scrim.on{ display:flex; }
-  .modal{ width:min(460px,96vw); background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:0 24px 60px rgba(60,40,15,.30); padding:16px; max-height:86vh; overflow:auto; }
+  .modal{ width:min(480px,96vw); background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:0 24px 60px rgba(60,40,15,.30); padding:16px; max-height:86vh; overflow:auto; }
   .modal h3{ margin:0 0 10px; font-size:16px; display:flex; align-items:center; gap:8px; }
   .modal .close{ margin-left:auto; }
   .planttop{ display:flex; align-items:center; margin-bottom:8px; }
 
   /* Toast */
   .toasts{ position:fixed; left:0; right:0; bottom:18px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:80; pointer-events:none; }
-  .toast{
-    background:#3f3222; color:#fff; padding:10px 16px; border-radius:999px; font-weight:800; font-size:14px;
-    box-shadow:0 10px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(12px);
-    animation:pop 2.6s ease forwards;
-  }
+  .toast{ background:#3f3222; color:#fff; padding:10px 16px; border-radius:999px; font-weight:800; font-size:14px; box-shadow:0 10px 24px rgba(0,0,0,.25); opacity:0; transform:translateY(12px); animation:pop 2.6s ease forwards; }
   .toast.good{ background:var(--green-d); }
   .toast.gold{ background:#a97511; }
   @keyframes pop{ 10%{opacity:1; transform:translateY(0)} 85%{opacity:1; transform:translateY(0)} 100%{opacity:0; transform:translateY(-8px)} }
 
+  /* Floating fx + ambient */
+  #fx{ position:fixed; inset:0; pointer-events:none; z-index:70; overflow:hidden; }
+  .float{ position:absolute; transform:translate(-50%,-50%); font-weight:900; font-size:18px; color:#3f6e37; text-shadow:0 2px 4px rgba(255,255,255,.5); animation:floatUp 1.1s ease forwards; white-space:nowrap; }
+  .float.coin{ color:#a97511; }
+  @keyframes floatUp{ 0%{opacity:0; transform:translate(-50%,-35%) scale(.8)} 18%{opacity:1} 100%{opacity:0; transform:translate(-50%,-165%) scale(1.05)} }
+  .sparkle{ position:absolute; font-size:22px; transform:translate(-50%,-50%); animation:sparkle 1.3s ease forwards; }
+  @keyframes sparkle{ 0%{opacity:0; transform:translate(-50%,-50%) scale(.5)} 22%{opacity:1} 100%{opacity:0; transform:translate(-50%,-230%) scale(1.1) rotate(24deg)} }
+  .ambient{ position:fixed; inset:0; pointer-events:none; z-index:1; overflow:hidden; }
+  .particle{ position:absolute; top:-8vh; will-change:transform; animation-name:fall; animation-timing-function:linear; animation-iteration-count:infinite; }
+  @keyframes fall{ 0%{ transform:translateY(-8vh) translateX(0) rotate(0deg);} 100%{ transform:translateY(114vh) translateX(46px) rotate(360deg);} }
+
   .foot{ text-align:center; color:var(--muted); font-size:12px; margin-top:22px; }
   .foot a{ color:var(--accent); }
   .kbd{ background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:11px; font-weight:800; }
+
+  :focus-visible{ outline:3px solid #8fbf7e; outline-offset:2px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .ambient{ display:none; }
+    *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
 </style>
 </head>
+
 <body>
+<div class="ambient" id="ambient" aria-hidden="true"></div>
+
 <div class="wrap">
 
   <div class="top">
@@ -212,9 +256,11 @@
       </div>
     </div>
     <div class="grow"></div>
-    <div class="stat coins"><span class="ico">🪙</span><span id="coins">0</span></div>
+    <div class="stat coins" id="coinStat"><span class="ico">🪙</span><span id="coins">0</span></div>
     <div class="stat"><span class="ico">📅</span>Gün <span id="day">1</span></div>
     <div class="stat"><span class="ico">⭐</span>Sv <span id="level">1</span></div>
+    <button class="iconbtn" id="achBtn" title="Başarımlar">🏆 <span id="achCount">0/0</span></button>
+    <button class="iconbtn" id="muteBtn" title="Sesi aç/kapat" aria-label="Ses">🔊</button>
     <button class="btn primary day" id="nextDay">🌙 Sonraki Gün</button>
   </div>
 
@@ -228,6 +274,7 @@
         <button class="btn" id="waterAll">🚿 Hepsini Sula</button>
         <span class="hint" id="waterHint" style="margin:0;"></span>
       </div>
+      <div class="garden" id="garden"></div>
       <div class="season" id="seasonStrip"></div>
     </div>
 
@@ -259,12 +306,9 @@
   </div>
 </div>
 
-<!-- Plant modal -->
-<div class="scrim" id="scrim">
-  <div class="modal" id="modal"></div>
-</div>
-
+<div class="scrim" id="scrim"><div class="modal" id="modal"></div></div>
 <div class="toasts" id="toasts"></div>
+<div id="fx"></div>
 
 <script>
 (function(){
@@ -283,58 +327,99 @@
     pumpkin:   { name:"Balkabağı",     emoji:"🎃", seed:45, grow:6, sell:120, yield:1, lvl:4 },
   };
 
-  // Atölye tarifleri. premium: Şaraphane gerektirir.
   const GOODS = {
-    bread:   { name:"Ekmek",            emoji:"🍞", from:"wheat",      qty:3, days:1, sell:60,  lvl:2 },
-    sauce:   { name:"Domates Sosu",     emoji:"🥫", from:"tomato",     qty:4, days:1, sell:120, lvl:2 },
-    popcorn: { name:"Patlamış Mısır",   emoji:"🍿", from:"corn",       qty:3, days:1, sell:140, lvl:3 },
-    jam:     { name:"Reçel",            emoji:"🍯", from:"blueberry",  qty:3, days:1, sell:230, lvl:3 },
-    juice:   { name:"Çilek Suyu",       emoji:"🧃", from:"strawberry", qty:3, days:1, sell:175, lvl:3 },
-    wine:    { name:"Üzüm Şarabı",      emoji:"🍷", from:"grape",      qty:4, days:2, sell:400, lvl:4, premium:true },
-    pie:     { name:"Balkabağı Turtası",emoji:"🥧", from:"pumpkin",    qty:2, days:2, sell:340, lvl:4, premium:true },
+    bread:   { name:"Ekmek",             emoji:"🍞", from:"wheat",      qty:3, days:1, sell:60,  lvl:2 },
+    sauce:   { name:"Domates Sosu",      emoji:"🥫", from:"tomato",     qty:4, days:1, sell:120, lvl:2 },
+    popcorn: { name:"Patlamış Mısır",    emoji:"🍿", from:"corn",       qty:3, days:1, sell:140, lvl:3 },
+    jam:     { name:"Reçel",             emoji:"🍯", from:"blueberry",  qty:3, days:1, sell:230, lvl:3 },
+    juice:   { name:"Çilek Suyu",        emoji:"🧃", from:"strawberry", qty:3, days:1, sell:175, lvl:3 },
+    wine:    { name:"Üzüm Şarabı",       emoji:"🍷", from:"grape",      qty:4, days:2, sell:400, lvl:4, premium:true },
+    pie:     { name:"Balkabağı Turtası", emoji:"🥧", from:"pumpkin",    qty:2, days:2, sell:340, lvl:4, premium:true },
   };
 
   const SEASONS = [
-    { name:"İlkbahar", emoji:"🌷" },
-    { name:"Yaz",      emoji:"☀️" },
-    { name:"Sonbahar", emoji:"🍂" },
-    { name:"Kış",      emoji:"❄️" },
+    { name:"İlkbahar", emoji:"🌷", p:"🌸" },
+    { name:"Yaz",      emoji:"☀️", p:"🦋" },
+    { name:"Sonbahar", emoji:"🍂", p:"🍁" },
+    { name:"Kış",      emoji:"❄️", p:"❄️" },
   ];
-  const SEASON_LEN = 8; // gün
+  const SEASON_LEN = 8;
 
-  // Seviye eşikleri (toplam kazanç). Index = seviye-1.
   const LEVELS = [0, 120, 450, 1400, 3800, 9000, 20000, 42000];
 
   const UPGRADES = {
     kitchen:   { name:"Mutfak / Atölye", emoji:"🍳", cost:150, desc:"Ürünleri işlemeyi açar (reçel, ekmek, sos...)." },
-    sprinkler: { name:"Otomatik Sulama", emoji:"💧", cost:320, desc:"Tüm tarlalar kendi kendine sulanır. Bir daha sulama derdi yok." },
+    sprinkler: { name:"Otomatik Sulama", emoji:"💧", cost:320, desc:"Tüm tarlalar kendi kendine sulanır. Sulama derdi biter." },
     stall:     { name:"Şirin Tezgah",    emoji:"🏵️", cost:450, desc:"Tüm satışlarda +%15 fiyat." },
     winery:    { name:"Şaraphane",       emoji:"🍇", cost:750, desc:"Premium ürünleri açar (şarap, turta)." },
   };
-  const PLOT_BASE = 55; // yeni tarla temel fiyatı (×1.6 artan)
+  const PLOT_BASE = 55;
+
+  // Bahçe süsleri — kozmetik + "şirinlik"
+  const DECOR = {
+    sunflower: { name:"Ayçiçeği",       emoji:"🌻", cost:45  },
+    flowers:   { name:"Çiçek Tarhı",    emoji:"🌷", cost:70  },
+    tree:      { name:"Meyve Ağacı",    emoji:"🌳", cost:110 },
+    bench:     { name:"Bahçe Bankı",    emoji:"🪑", cost:140 },
+    cat:       { name:"Çiftlik Kedisi", emoji:"🐈", cost:180 },
+    bees:      { name:"Arı Kovanı",     emoji:"🐝", cost:220 },
+    fountain:  { name:"Çeşme",          emoji:"⛲", cost:300 },
+    shed:      { name:"Bahçe Kulübesi", emoji:"🏡", cost:380 },
+  };
+
+  const ACHIEVEMENTS = [
+    { id:"plant1",    e:"🌱", t:"İlk Tohum",       d:"İlk kez tohum ek",                 c:s=>s.stats.planted>=1 },
+    { id:"harvest1",  e:"🌿", t:"İlk Hasat",       d:"İlk ürünü hasat et",               c:s=>s.stats.harvested>=1 },
+    { id:"sell1",     e:"🪙", t:"İlk Satış",       d:"Pazarda ilk satışını yap",         c:s=>s.stats.sold>=1 },
+    { id:"kitchen",   e:"🍳", t:"Şef Adayı",       d:"Mutfağı satın al",                 c:s=>s.up.kitchen },
+    { id:"process1",  e:"🍯", t:"El Emeği",        d:"İlk ürünü işle",                   c:s=>s.stats.processed>=1 },
+    { id:"earn500",   e:"💰", t:"Cepler Doluyor",  d:"Toplam 500 altın kazan",           c:s=>s.totalEarned>=500 },
+    { id:"decor3",    e:"🌷", t:"Bahçıvan",        d:"3 bahçe süsü al",                  c:s=>Object.keys(s.decor).length>=3 },
+    { id:"harvest50", e:"🚜", t:"Bereket",         d:"Toplam 50 ürün hasat et",          c:s=>s.stats.harvested>=50 },
+    { id:"pumpkin",   e:"🎃", t:"Dev Kabak",       d:"Bir balkabağı hasat et",           c:s=>!!s.stats.harvestedTypes.pumpkin },
+    { id:"wine",      e:"🍷", t:"Bağ Bozumu",      d:"Üzüm şarabı üret",                 c:s=>!!s.stats.madeGoods.wine },
+    { id:"level5",    e:"⭐", t:"Pazarın Gözdesi", d:"5. seviyeye ulaş",                 c:s=>levelOf(s.totalEarned)>=5 },
+    { id:"allplots",  e:"🌻", t:"Toprak Ağası",    d:"Tüm tarlaları aç",                 c:s=>s.plots.every(p=>p.unlocked) },
+    { id:"collector", e:"🧺", t:"Koleksiyoner",    d:"Her ürün türünü en az bir kez hasat et", c:s=>Object.keys(CROPS).every(k=>s.stats.harvestedTypes[k]) },
+    { id:"allup",     e:"🏆", t:"Tam Donanım",     d:"Tüm yükseltmeleri al",             c:s=>Object.keys(UPGRADES).every(k=>s.up[k]) },
+    { id:"earn20000", e:"👑", t:"Pazar Kralı",     d:"Toplam 20.000 altın kazan",        c:s=>s.totalEarned>=20000 },
+  ];
 
   /* ============ DURUM ============ */
   const SAVE_KEY = "kucuk_pazar_v1";
-
   function newPlot(unlocked){ return { crop:null, grown:0, water:0, unlocked:!!unlocked }; }
 
   function defaultState(){
     const plots = [];
-    for (let i=0;i<9;i++) plots.push(newPlot(i<3)); // 3 açık, 6 kilitli (dükkandan alınır)
+    for (let i=0;i<9;i++) plots.push(newPlot(i<3));
     return {
       day:1, coins:55, totalEarned:0,
-      plots,
-      crops:{}, goods:{},
-      jobs:[],           // {good, ready}
+      plots, crops:{}, goods:{}, jobs:[],
       up:{ kitchen:false, sprinkler:false, stall:false, winery:false },
       plotCost:PLOT_BASE,
-      popular:[],        // bugün popüler item id'leri
-      log:[],
-      seenLevel:1,
+      popular:[], log:[], seenLevel:1,
+      muted:false,
+      decor:{},
+      achieved:{},
+      stats:{ planted:0, harvested:0, sold:0, processed:0, harvestedTypes:{}, madeGoods:{} },
     };
   }
 
-  let S = load() || defaultState();
+  function normalize(s){
+    s.decor = s.decor || {};
+    s.achieved = s.achieved || {};
+    s.muted = !!s.muted;
+    s.stats = s.stats || {};
+    s.stats.planted = s.stats.planted||0;
+    s.stats.harvested = s.stats.harvested||0;
+    s.stats.sold = s.stats.sold||0;
+    s.stats.processed = s.stats.processed||0;
+    s.stats.harvestedTypes = s.stats.harvestedTypes||{};
+    s.stats.madeGoods = s.stats.madeGoods||{};
+    return s;
+  }
+
+  let S = normalize(load() || defaultState());
 
   function load(){
     try{
@@ -352,28 +437,19 @@
   const fmt = n => new Intl.NumberFormat("tr-TR").format(Math.round(n));
   const rnd = n => Math.floor(Math.random()*n);
   const pick = arr => arr[rnd(arr.length)];
+  const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  function levelOf(earned){
-    let lv=1;
-    for(let i=0;i<LEVELS.length;i++){ if(earned>=LEVELS[i]) lv=i+1; }
-    return lv;
-  }
+  function levelOf(earned){ let lv=1; for(let i=0;i<LEVELS.length;i++){ if(earned>=LEVELS[i]) lv=i+1; } return lv; }
   function level(){ return levelOf(S.totalEarned); }
+  function coziness(){ return Object.keys(S.decor).length; }
 
   function isPopular(id){ return S.popular.includes(id); }
   function stallMult(){ return S.up.stall ? 1.15 : 1; }
-  function priceOf(baseSell, id){
-    let p = baseSell * stallMult();
-    if(isPopular(id)) p *= 1.4;
-    return Math.round(p);
-  }
+  function priceOf(baseSell, id){ let p=baseSell*stallMult(); if(isPopular(id)) p*=1.4; return Math.round(p); }
 
-  function addLog(msg){
-    S.log.unshift(msg);
-    if(S.log.length>7) S.log.length=7;
-  }
+  function addLog(msg){ S.log.unshift(msg); if(S.log.length>7) S.log.length=7; }
 
-  function rollPopular(silent){
+  function rollPopular(){
     const lvl = level();
     const pool = [];
     for(const id in CROPS) if(CROPS[id].lvl<=lvl) pool.push(id);
@@ -381,37 +457,139 @@
     S.popular = [];
     if(pool.length){
       S.popular.push(pick(pool));
-      if(pool.length>3 && Math.random()<0.5){
-        let b = pick(pool);
-        if(b!==S.popular[0]) S.popular.push(b);
-      }
+      if(pool.length>3 && Math.random()<0.5){ let b=pick(pool); if(b!==S.popular[0]) S.popular.push(b); }
     }
   }
 
   function itemName(id){ return CROPS[id]?CROPS[id].name:(GOODS[id]?GOODS[id].name:id); }
   function itemEmoji(id){ return CROPS[id]?CROPS[id].emoji:(GOODS[id]?GOODS[id].emoji:"❔"); }
 
+  /* ============ SES (Web Audio, harici dosya yok) ============ */
+  let actx=null;
+  function ensureAudio(){
+    if(S.muted) return null;
+    if(!actx){ try{ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; actx=new AC(); }catch(e){ return null; } }
+    if(actx.state==="suspended"){ try{ actx.resume(); }catch(e){} }
+    return actx;
+  }
+  function tone(freq, start, dur, type, vol){
+    const c=ensureAudio(); if(!c) return;
+    const t=c.currentTime+start;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type=type||"sine"; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(vol||0.14, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t+dur+0.03);
+  }
+  const SFX = {
+    plant(){ tone(196,0,0.18,"sine",0.13); tone(294,0.03,0.16,"sine",0.07); },
+    water(){ tone(660,0,0.07,"sine",0.07); tone(990,0.05,0.08,"sine",0.05); },
+    harvest(){ tone(523,0,0.13,"triangle",0.12); tone(659,0.08,0.15,"triangle",0.11); tone(784,0.16,0.2,"triangle",0.1); },
+    coin(){ tone(988,0,0.07,"triangle",0.10); tone(1319,0.06,0.1,"triangle",0.08); },
+    buy(){ tone(392,0,0.12,"sine",0.12); tone(587,0.08,0.16,"sine",0.09); },
+    day(){ tone(330,0,0.55,"sine",0.07); tone(494,0.01,0.55,"sine",0.045); },
+    level(){ [523,659,784,1047].forEach((f,i)=>tone(f,i*0.09,0.26,"triangle",0.12)); },
+    achieve(){ [784,988,1175,1568].forEach((f,i)=>tone(f,i*0.08,0.3,"triangle",0.12)); },
+  };
+
+  /* ============ ANİMASYON / PARÇACIK ============ */
+  function floatText(x,y,txt,cls){
+    const el=document.createElement("div");
+    el.className="float"+(cls?" "+cls:"");
+    el.textContent=txt; el.style.left=x+"px"; el.style.top=y+"px";
+    $("fx").appendChild(el);
+    setTimeout(()=>el.remove(), 1150);
+  }
+  function floatFromEl(el, txt, cls){
+    if(!el) return;
+    const r=el.getBoundingClientRect();
+    floatText(r.left+r.width/2, r.top+r.height/2, txt, cls);
+  }
+  function celebrate(){
+    if(REDUCED) return;
+    const cx=window.innerWidth/2;
+    for(let i=0;i<10;i++){
+      const s=document.createElement("div");
+      s.className="sparkle"; s.textContent=pick(["✨","🌟","⭐","🎉","🌻"]);
+      s.style.left=(cx + (Math.random()*260-130))+"px";
+      s.style.top=(90 + Math.random()*46)+"px";
+      s.style.animationDelay=(Math.random()*0.25)+"s";
+      $("fx").appendChild(s);
+      setTimeout(()=>s.remove(), 1500);
+    }
+  }
+  function bumpCoins(){
+    const el=$("coinStat"); if(!el||REDUCED) return;
+    el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+  }
+
+  let ambientSeason=-1;
+  function renderAmbient(seasonIdx){
+    const c=$("ambient");
+    if(REDUCED){ c.innerHTML=""; return; }
+    if(seasonIdx===ambientSeason) return;
+    ambientSeason=seasonIdx;
+    c.innerHTML="";
+    const emo=SEASONS[seasonIdx].p;
+    for(let i=0;i<11;i++){
+      const p=document.createElement("div");
+      p.className="particle"; p.textContent=emo;
+      p.style.left=(Math.random()*100)+"vw";
+      p.style.fontSize=(12+Math.random()*11)+"px";
+      const dur=(9+Math.random()*8);
+      p.style.animationDuration=dur+"s";
+      p.style.animationDelay=(-Math.random()*dur)+"s";
+      p.style.opacity=(0.28+Math.random()*0.24).toFixed(2);
+      c.appendChild(p);
+    }
+  }
+
+  /* ============ BAŞARIMLAR ============ */
+  function checkAchievements(){
+    for(const a of ACHIEVEMENTS){
+      if(!S.achieved[a.id] && a.c(S)){
+        S.achieved[a.id]=true;
+        addLog("🏆 <b>Başarım:</b> "+a.e+" "+a.t);
+        toast("🏆 "+a.t, "gold");
+        SFX.achieve();
+      }
+    }
+  }
+
   /* ============ AKSİYONLAR ============ */
+  let popIdx=-1;
+
   function plant(plotIdx, cropId){
     const p = S.plots[plotIdx], c = CROPS[cropId];
     if(!p || p.crop || !c) return;
     if(S.coins < c.seed){ toast("Yetersiz altın 🪙"); return; }
     S.coins -= c.seed;
     p.crop = cropId; p.grown = 0; p.water = 2;
+    S.stats.planted++;
+    popIdx = plotIdx;
+    SFX.plant();
+    checkAchievements();
     closeModal(); render(); save();
     toast(c.emoji+" "+c.name+" ekildi");
   }
 
-  function harvest(plotIdx){
+  function harvest(plotIdx, el){
     const p = S.plots[plotIdx];
     if(!p || !p.crop) return;
     const c = CROPS[p.crop];
     if(p.grown < c.grow) return;
-    let y = c.yield;
-    if(S.up.sprinkler) y += 1; // sulama bonusu
+    let y = c.yield; if(S.up.sprinkler) y += 1;
     S.crops[p.crop] = (S.crops[p.crop]||0) + y;
-    const nm = c.name, em = c.emoji;
+    S.stats.harvested += y;
+    S.stats.harvestedTypes[p.crop] = true;
+    const nm=c.name, em=c.emoji;
+    floatFromEl(el, "+"+y+" "+em, "good");
+    SFX.harvest();
     p.crop=null; p.grown=0; p.water=0;
+    popIdx = plotIdx;
+    checkAchievements();
     render(); save();
     toast("+"+y+" "+em+" "+nm, "good");
   }
@@ -419,36 +597,34 @@
   function waterAll(){
     let n=0;
     for(const p of S.plots){ if(p.unlocked && p.crop && p.water<2){ p.water=2; n++; } }
-    if(n){ toast("💧 "+n+" tarla sulandı"); } else { toast("Sulanacak tarla yok 🙂"); }
+    if(n){ SFX.water(); toast("💧 "+n+" tarla sulandı"); } else { toast("Sulanacak tarla yok 🙂"); }
     render(); save();
   }
 
-  function sell(id, all){
+  function sell(id, all, btn){
     const bag = CROPS[id] ? S.crops : S.goods;
-    const have = bag[id]||0;
-    if(have<=0) return;
+    const have = bag[id]||0; if(have<=0) return;
     const base = CROPS[id] ? CROPS[id].sell : GOODS[id].sell;
     const unit = priceOf(base, id);
     const n = all ? have : 1;
-    bag[id] = have - n;
-    if(bag[id]<=0) delete bag[id];
+    bag[id] = have - n; if(bag[id]<=0) delete bag[id];
     const gain = unit*n;
-    S.coins += gain; S.totalEarned += gain;
-    checkLevel();
+    S.coins += gain; S.totalEarned += gain; S.stats.sold += n;
+    floatFromEl(btn, "+"+fmt(gain)+" 🪙", "coin");
+    SFX.coin(); bumpCoins();
+    checkLevel(); checkAchievements();
     render(); save();
-    toast("+"+fmt(gain)+" 🪙", "gold");
   }
 
   function startProcess(goodId){
-    const g = GOODS[goodId];
-    if(!g) return;
+    const g = GOODS[goodId]; if(!g) return;
     if(!S.up.kitchen){ toast("Önce Mutfak lazım 🍳"); return; }
     if(g.premium && !S.up.winery){ toast("Bunun için Şaraphane lazım 🍇"); return; }
     const have = S.crops[g.from]||0;
     if(have < g.qty){ toast("Yeterli "+CROPS[g.from].name+" yok"); return; }
-    S.crops[g.from] = have - g.qty;
-    if(S.crops[g.from]<=0) delete S.crops[g.from];
+    S.crops[g.from] = have - g.qty; if(S.crops[g.from]<=0) delete S.crops[g.from];
     S.jobs.push({ good:goodId, ready:S.day+g.days });
+    SFX.buy();
     render(); save();
     toast(g.emoji+" "+g.name+" hazırlanıyor...");
   }
@@ -460,17 +636,27 @@
     S.coins -= S.plotCost;
     S.plots[idx].unlocked = true;
     S.plotCost = Math.round(S.plotCost*1.6);
+    SFX.buy(); checkAchievements();
     render(); save();
     toast("🟫 Yeni tarla açıldı!", "good");
   }
 
   function buyUpgrade(key){
-    const u = UPGRADES[key];
-    if(!u || S.up[key]) return;
+    const u = UPGRADES[key]; if(!u || S.up[key]) return;
     if(S.coins < u.cost){ toast("Yetersiz altın 🪙"); return; }
     S.coins -= u.cost; S.up[key]=true;
+    SFX.buy(); checkAchievements();
     render(); save();
     toast(u.emoji+" "+u.name+" alındı!", "good");
+  }
+
+  function buyDecor(key){
+    const d = DECOR[key]; if(!d || S.decor[key]) return;
+    if(S.coins < d.cost){ toast("Yetersiz altın 🪙"); return; }
+    S.coins -= d.cost; S.decor[key]=true;
+    SFX.buy(); checkAchievements();
+    render(); save();
+    toast(d.emoji+" "+d.name+" bahçene eklendi!", "good");
   }
 
   function checkLevel(){
@@ -479,30 +665,30 @@
       S.seenLevel = lv;
       addLog("⭐ <b>Seviye "+lv+"!</b> Yeni ürünler/olanaklar açıldı.");
       toast("⭐ Seviye "+lv+"!", "gold");
+      SFX.level(); celebrate();
     }
   }
 
   function nextDay(){
-    let grownCount=0, doneJobs=0;
-    // Büyüme
+    let doneJobs=0;
     for(const p of S.plots){
       if(!p.unlocked || !p.crop) continue;
       const watered = S.up.sprinkler || p.water>0;
-      if(watered && p.grown < CROPS[p.crop].grow){ p.grown++; grownCount++; }
+      if(watered && p.grown < CROPS[p.crop].grow){ p.grown++; }
       if(!S.up.sprinkler && p.water>0) p.water--;
     }
-    // Atölye teslimatları
     const remain=[];
     for(const j of S.jobs){
-      if(j.ready<=S.day+1){ S.goods[j.good]=(S.goods[j.good]||0)+1; doneJobs++; }
-      else remain.push(j);
+      if(j.ready<=S.day+1){
+        S.goods[j.good]=(S.goods[j.good]||0)+1;
+        S.stats.processed++; S.stats.madeGoods[j.good]=true; doneJobs++;
+      } else remain.push(j);
     }
     S.jobs = remain;
 
     S.day++;
     rollPopular();
 
-    // Günlük mesaj / minik sürpriz
     const readyN = S.plots.filter(p=>p.crop && p.grown>=CROPS[p.crop].grow).length;
     let msg = "🌅 <b>Gün "+S.day+".</b> ";
     const bits=[];
@@ -511,20 +697,23 @@
     msg += bits.length? bits.join(", ")+"." : "Sakin bir gün.";
     addLog(msg);
 
-    // %18 ihtimalle komşu hediyesi
-    if(Math.random()<0.18){
-      const gift = 8 + rnd(14);
+    const coz = coziness();
+    if(Math.random() < 0.12 + 0.03*coz){
+      const gift = 8 + rnd(14) + coz*2;
       S.coins += gift;
       addLog("🎁 Komşu uğradı, "+gift+" 🪙 bıraktı.");
     }
 
+    SFX.day();
+    checkAchievements();
     save(); render();
     if(readyN) toast("🌿 "+readyN+" tarla hasada hazır!","good");
   }
 
   function resetGame(){
     if(!confirm("Oyunu sıfırlamak istediğine emin misin? İlerleme silinecek.")) return;
-    S = defaultState(); rollPopular(true); save(); render();
+    const wasMuted = S.muted;
+    S = defaultState(); S.muted = wasMuted; rollPopular(); ambientSeason=-1; save(); render();
     toast("Yeni bir başlangıç 🌱");
   }
 
@@ -537,16 +726,15 @@
     $("day").textContent = S.day;
     $("level").textContent = lvl;
     $("level2").textContent = lvl;
+    $("achCount").textContent = Object.keys(S.achieved).length+"/"+ACHIEVEMENTS.length;
+    $("muteBtn").textContent = S.muted ? "🔇" : "🔊";
 
     renderFarm();
+    renderGarden();
     renderSeason();
     renderTab();
     renderLevelBar(lvl);
     renderLog();
-    renderWaterHint();
-  }
-
-  function renderWaterHint(){
     $("waterHint").textContent = S.up.sprinkler ? "💧 Otomatik sulama açık — sulama gerekmiyor." : "";
   }
 
@@ -554,51 +742,62 @@
     const el = $("farm"); el.innerHTML="";
     S.plots.forEach((p,idx)=>{
       const d = document.createElement("div");
+      const popCls = (idx===popIdx) ? " pop" : "";
       if(!p.unlocked){
-        d.className="plot locked";
+        d.className="plot locked"+popCls;
         d.innerHTML = '<div class="lockbig">🔒</div><div class="tag" style="color:var(--muted)">kilitli</div>';
         el.appendChild(d); return;
       }
       if(!p.crop){
-        d.className="plot empty";
+        d.className="plot empty"+popCls;
         d.innerHTML = '<div class="emoji">➕</div><div class="tag" style="color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)">ek</div>';
         d.addEventListener("click", ()=>openPlant(idx));
         el.appendChild(d); return;
       }
       const c = CROPS[p.crop];
       const ready = p.grown >= c.grow;
-      d.className = "plot" + (ready?" ready":"");
+      d.className = "plot"+(ready?" ready":"")+popCls;
       const pct = Math.min(100, Math.round(p.grown/c.grow*100));
       const waterIco = S.up.sprinkler ? "💧" : (p.water>0 ? "💧".repeat(Math.min(p.water,2)) : "🏜️");
       if(ready){
         d.innerHTML =
-          '<div class="cropname">'+c.name+'</div>'+
-          '<div class="water">✅</div>'+
-          '<div class="emoji">'+c.emoji+'</div>'+
-          '<div class="tag">HASAT ET</div>';
-        d.addEventListener("click", ()=>harvest(idx));
+          '<div class="cropname">'+c.name+'</div><div class="water">✅</div>'+
+          '<div class="emoji">'+c.emoji+'</div><div class="tag">HASAT ET</div>';
+        d.addEventListener("click", ()=>harvest(idx, d));
       }else{
         const seedling = p.grown===0 ? "🌱" : (p.grown/c.grow<0.6 ? "🌿" : c.emoji);
         d.innerHTML =
           '<div class="cropname">'+c.name+'</div>'+
           '<div class="water" title="su">'+waterIco+'</div>'+
-          '<div class="emoji" style="opacity:'+(0.55+0.45*p.grown/c.grow).toFixed(2)+'">'+seedling+'</div>'+
+          '<div class="emoji sway" style="opacity:'+(0.55+0.45*p.grown/c.grow).toFixed(2)+'">'+seedling+'</div>'+
           '<div class="bar"><i style="width:'+pct+'%"></i></div>';
         d.addEventListener("click", ()=>{
-          if(!S.up.sprinkler && p.water<2){ p.water=2; render(); save(); toast("💧 sulandı"); }
+          if(!S.up.sprinkler && p.water<2){ p.water=2; SFX.water(); render(); save(); toast("💧 sulandı"); }
           else toast(c.name+": "+(c.grow-p.grown)+" gün kaldı");
         });
       }
       el.appendChild(d);
     });
+    popIdx=-1;
+  }
+
+  function renderGarden(){
+    const el=$("garden");
+    const keys = Object.keys(S.decor);
+    let items = keys.map(k=>'<span class="gitem" title="'+DECOR[k].name+'">'+DECOR[k].emoji+'</span>').join("");
+    if(!keys.length){
+      items = '<span class="ghint">🌿 Bahçen sade. <b>Dükkan → Bahçe Süsleri</b>\'nden süs ekleyerek şirinleştir.</span>';
+    }
+    el.innerHTML = items + '<span class="cozy">🌼 Şirinlik: '+coziness()+'</span>';
   }
 
   function renderSeason(){
-    const s = SEASONS[Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length];
+    const idx = Math.floor((S.day-1)/SEASON_LEN)%SEASONS.length;
+    const s = SEASONS[idx];
     const dayInSeason = ((S.day-1)%SEASON_LEN)+1;
-    let popTxt = S.popular.length
-      ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ")
-      : "—";
+    document.body.dataset.season = idx;
+    renderAmbient(idx);
+    const popTxt = S.popular.length ? S.popular.map(id=>itemEmoji(id)+" "+itemName(id)).join(", ") : "—";
     $("seasonStrip").innerHTML =
       '<span style="font-weight:800;color:var(--ink)">'+s.emoji+' '+s.name+'</span>'+
       '<span>· gün '+dayInSeason+'/'+SEASON_LEN+'</span>'+
@@ -609,10 +808,8 @@
   function renderLevelBar(lvl){
     const cur = LEVELS[lvl-1] ?? 0;
     const nxt = LEVELS[lvl] ?? null;
-    if(nxt===null){
-      $("lvlFill").style.width="100%";
-      $("lvlText").textContent = "Maks seviye 🌟";
-    }else{
+    if(nxt===null){ $("lvlFill").style.width="100%"; $("lvlText").textContent="Maks seviye 🌟"; }
+    else{
       const pct = Math.max(0,Math.min(100, (S.totalEarned-cur)/(nxt-cur)*100));
       $("lvlFill").style.width = pct+"%";
       $("lvlText").textContent = fmt(S.totalEarned)+" / "+fmt(nxt)+" 🪙";
@@ -621,8 +818,7 @@
 
   function renderLog(){
     const el=$("log");
-    if(!S.log.length){ el.innerHTML=""; return; }
-    el.innerHTML = S.log.map(l=>'<div class="logline">'+l+'</div>').join("");
+    el.innerHTML = S.log.length ? S.log.map(l=>'<div class="logline">'+l+'</div>').join("") : "";
   }
 
   function renderTab(){
@@ -631,15 +827,15 @@
     if(activeTab==="market") body.innerHTML = marketHTML();
     else if(activeTab==="work") body.innerHTML = workHTML();
     else body.innerHTML = shopHTML();
-    // wire buttons
     body.querySelectorAll("[data-act]").forEach(b=>{
       b.addEventListener("click", ()=>{
         const a=b.dataset.act, id=b.dataset.id;
-        if(a==="sell1") sell(id,false);
-        else if(a==="sellAll") sell(id,true);
+        if(a==="sell1") sell(id,false,b);
+        else if(a==="sellAll") sell(id,true,b);
         else if(a==="make") startProcess(id);
         else if(a==="plot") buyPlot();
         else if(a==="up") buyUpgrade(id);
+        else if(a==="decor") buyDecor(id);
       });
     });
   }
@@ -650,8 +846,7 @@
     const base = kind==="crop"?CROPS[id].sell:GOODS[id].sell;
     const unit = priceOf(base,id);
     const pop = isPopular(id) ? '<span class="chip pop">🔥 +%40</span>' : "";
-    return '<div class="row">'+
-      '<div class="rico">'+itemEmoji(id)+'</div>'+
+    return '<div class="row"><div class="rico">'+itemEmoji(id)+'</div>'+
       '<div class="rmain"><div class="rtitle">'+itemName(id)+' <span class="chip qty">×'+have+'</span> '+pop+'</div>'+
       '<div class="rmeta">tanesi '+fmt(unit)+' 🪙</div></div>'+
       '<div class="ract">'+
@@ -678,8 +873,7 @@
     let jobs="";
     if(S.jobs.length){
       jobs = '<div style="margin:6px 0 12px;">'+
-        S.jobs.map(j=>{
-          const g=GOODS[j.good], left=Math.max(0,j.ready-S.day);
+        S.jobs.map(j=>{ const g=GOODS[j.good], left=Math.max(0,j.ready-S.day);
           return '<div class="row" style="margin-bottom:6px;"><div class="rico">'+g.emoji+'</div>'+
             '<div class="rmain"><div class="rtitle">'+g.name+' hazırlanıyor</div>'+
             '<div class="rmeta">'+(left<=0?"yarın hazır":left+" gün kaldı")+'</div></div>'+
@@ -688,21 +882,17 @@
     }
     let rows="";
     for(const id in GOODS){
-      const g=GOODS[id];
-      if(g.lvl>lvl) continue;
+      const g=GOODS[id]; if(g.lvl>lvl) continue;
       const locked = g.premium && !S.up.winery;
       const have = S.crops[g.from]||0;
       const can = have>=g.qty && !locked;
       const unit = priceOf(g.sell,id);
       const pop = isPopular(id)?'<span class="chip pop">🔥</span>':"";
       const lockChip = locked?'<span class="chip qty">🍇 Şaraphane</span>':"";
-      rows += '<div class="row">'+
-        '<div class="rico">'+g.emoji+'</div>'+
+      rows += '<div class="row"><div class="rico">'+g.emoji+'</div>'+
         '<div class="rmain"><div class="rtitle">'+g.name+' '+pop+lockChip+'</div>'+
-        '<div class="rmeta">'+g.qty+'× '+CROPS[g.from].emoji+' '+CROPS[g.from].name+
-          ' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
-        '<div class="ract"><button class="btn small primary" data-act="make" data-id="'+id+'" '+(can?"":"disabled")+'>Üret</button></div>'+
-        '</div>';
+        '<div class="rmeta">'+g.qty+'× '+CROPS[g.from].emoji+' '+CROPS[g.from].name+' → '+fmt(unit)+' 🪙 · '+g.days+' gün · elinde '+have+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="make" data-id="'+id+'" '+(can?"":"disabled")+'>Üret</button></div></div>';
     }
     return '<h2 style="font-size:15px;margin:0 0 4px;">🍯 Atölye</h2>'+
       '<p class="hint">Ham ürünleri işleyerek kârı katla. Üretim birkaç gün sürer.</p>'+jobs+rows;
@@ -713,13 +903,11 @@
     let html = '<h2 style="font-size:15px;margin:0 0 4px;">🛖 Dükkan</h2>'+
       '<p class="hint">Kazancını çiftliğine yatır. Alımlar kalıcıdır.</p>';
 
-    // Tarla
     html += '<div class="row"><div class="rico">🟫</div>'+
       '<div class="rmain"><div class="rtitle">Yeni Tarla</div>'+
       '<div class="rmeta">'+(nextPlotLocked?("Ekilebilir alanı büyüt · "+fmt(S.plotCost)+" 🪙"):"Tüm tarlalar açık 🌻")+'</div></div>'+
       '<div class="ract"><button class="btn small primary" data-act="plot" '+(nextPlotLocked&&S.coins>=S.plotCost?"":"disabled")+'>'+(nextPlotLocked?"Al":"—")+'</button></div></div>';
 
-    // Yükseltmeler
     for(const key in UPGRADES){
       const u=UPGRADES[key], owned=S.up[key];
       html += '<div class="row"><div class="rico">'+u.emoji+'</div>'+
@@ -727,10 +915,19 @@
         '<div class="rmeta">'+u.desc+(owned?"":" · "+fmt(u.cost)+" 🪙")+'</div></div>'+
         '<div class="ract"><button class="btn small primary" data-act="up" data-id="'+key+'" '+((owned||S.coins<u.cost)?"disabled":"")+'>'+(owned?"—":"Al")+'</button></div></div>';
     }
+
+    html += '<div class="subhead">🌸 Bahçe Süsleri</div>';
+    for(const key in DECOR){
+      const d=DECOR[key], owned=S.decor[key];
+      html += '<div class="row"><div class="rico">'+d.emoji+'</div>'+
+        '<div class="rmain"><div class="rtitle">'+d.name+(owned?' <span class="chip new">✓ bahçende</span>':'')+'</div>'+
+        '<div class="rmeta">'+(owned?"Bahçeni süslüyor · şirinlik +1":("Kozmetik · şirinlik +1 · "+fmt(d.cost)+" 🪙"))+'</div></div>'+
+        '<div class="ract"><button class="btn small primary" data-act="decor" data-id="'+key+'" '+((owned||S.coins<d.cost)?"disabled":"")+'>'+(owned?"—":"Al")+'</button></div></div>';
+    }
     return html;
   }
 
-  /* ============ PLANT MODAL ============ */
+  /* ============ MODAL ============ */
   function openPlant(idx){
     const lvl = level();
     let list="";
@@ -738,8 +935,7 @@
       const c=CROPS[id];
       if(c.lvl>lvl){
         list += '<div class="row" style="opacity:.5"><div class="rico">🔒</div>'+
-          '<div class="rmain"><div class="rtitle">'+c.name+'</div>'+
-          '<div class="rmeta">Seviye '+c.lvl+' gerekir</div></div></div>';
+          '<div class="rmain"><div class="rtitle">'+c.name+'</div><div class="rmeta">Seviye '+c.lvl+' gerekir</div></div></div>';
         continue;
       }
       const afford = S.coins>=c.seed;
@@ -750,14 +946,28 @@
         '<div class="ract"><button class="btn small primary" data-plant="'+id+'" '+(afford?"":"disabled")+'>Ek</button></div></div>';
     }
     const m=$("modal");
-    m.innerHTML = '<div class="planttop"><h3 style="margin:0;">🌱 Ne ekelim?</h3>'+
-      '<button class="btn small ghost close" id="closeModal">✕</button></div>'+list;
-    m.querySelectorAll("[data-plant]").forEach(b=>{
-      b.addEventListener("click", ()=>plant(idx, b.dataset.plant));
-    });
+    m.innerHTML = '<div class="planttop"><h3 style="margin:0;">🌱 Ne ekelim?</h3><button class="btn small ghost close" id="closeModal">✕</button></div>'+list;
+    m.querySelectorAll("[data-plant]").forEach(b=>b.addEventListener("click", ()=>plant(idx, b.dataset.plant)));
     $("closeModal").addEventListener("click", closeModal);
-    $("scrim").classList.add("on");
+    openModal();
   }
+
+  function openAchievements(){
+    const done = Object.keys(S.achieved).length;
+    let grid = ACHIEVEMENTS.map(a=>{
+      const on = !!S.achieved[a.id];
+      return '<div class="ach'+(on?" on":"")+'"><div class="ae">'+(on?a.e:"🔒")+'</div>'+
+        '<div><div class="at">'+a.t+'</div><div class="ad">'+a.d+'</div></div></div>';
+    }).join("");
+    const m=$("modal");
+    m.innerHTML = '<div class="planttop"><h3 style="margin:0;">🏆 Başarımlar ('+done+'/'+ACHIEVEMENTS.length+')</h3>'+
+      '<button class="btn small ghost close" id="closeModal">✕</button></div>'+
+      '<div class="achgrid">'+grid+'</div>';
+    $("closeModal").addEventListener("click", closeModal);
+    openModal();
+  }
+
+  function openModal(){ $("scrim").classList.add("on"); }
   function closeModal(){ $("scrim").classList.remove("on"); }
   $("scrim").addEventListener("click", e=>{ if(e.target===$("scrim")) closeModal(); });
 
@@ -773,9 +983,13 @@
   /* ============ EVENTS ============ */
   $("nextDay").addEventListener("click", nextDay);
   $("resetBtn").addEventListener("click", resetGame);
-  document.querySelectorAll(".tab").forEach(t=>{
-    t.addEventListener("click", ()=>{ activeTab=t.dataset.tab; renderTab(); });
+  $("achBtn").addEventListener("click", openAchievements);
+  $("muteBtn").addEventListener("click", ()=>{
+    S.muted = !S.muted; $("muteBtn").textContent = S.muted?"🔇":"🔊";
+    if(!S.muted) SFX.coin();
+    save();
   });
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click", ()=>{ activeTab=t.dataset.tab; renderTab(); }));
   document.addEventListener("keydown", e=>{
     if(e.code==="Space" && !$("scrim").classList.contains("on")){
       const tag=(e.target.tagName||"").toLowerCase();
@@ -783,9 +997,11 @@
     }
     if(e.key==="Escape") closeModal();
   });
+  // Tarayıcı ses için ilk dokunuşu bekler
+  document.addEventListener("pointerdown", ()=>ensureAudio(), { once:true });
 
   /* ============ BAŞLANGIÇ ============ */
-  if(!S.popular || !S.popular.length) rollPopular(true);
+  if(!S.popular || !S.popular.length) rollPopular();
   if(!S.log.length){
     addLog("👋 <b>Küçük Pazar'a hoş geldin!</b> Boş tarlaya tıkla, tohum ek, birkaç gün büyüt ve pazarda sat.");
   }
