@@ -11,12 +11,14 @@ otomatik kaydedilir (localStorage).
 > kullanır, yani normal oyundaki ilerlemene dokunmaz. `index.html`'den türetilir (bkz.
 > `tools/make-sandbox.mjs` mantığı: başlangıç durumunu açar + kayıt anahtarını değiştirir).
 
-> **`3d/index.html`** — **gerçek zamanlı WebGL 3B köy** (Three.js). Ayrı bir teknik demo: gerçek
-> izometrik 3B geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES
-> filmik tonlama, dönen sinematik ortografik kamera, rüzgârda sallanan ağaçlar, dönen değirmen,
-> gölet ve **yol boyunca yürüyen köylüler** + otlayan inek/koyun. Stilize **low-poly** görünüm —
-> gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). `three.min.js`
-> (r160 UMD, npm'den vendor'lanmış) + `scene.js` (sahne kodu). Çevrimdışı çalışır, harici istek yok.
+> **`3d/index.html`** — **oynanabilir gerçek zamanlı WebGL 3B çiftlik** (Three.js). Boş toprağa
+> tıkla → ek (para düşer); ürünler gerçek zamanlı 3B büyür (havuç/buğday/domates/balkabağı, farklı
+> süre & değer); olgunlaşınca altın halka belirir, tıkla → hasat et, altın uçar. Sürükle: kamerayı
+> döndür · tekerlek: yakınlaştır. Ekonomi + `localStorage` kayıt. Teknik: gerçek izometrik 3B
+> geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES filmik tonlama,
+> raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. Stilize
+> **low-poly** görünüm — gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi
+> işidir). Vendor `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
 ![önizleme](preview.png)
 

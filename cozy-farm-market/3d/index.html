@@ -3,27 +3,41 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Küçük Pazar — 3B Köy (WebGL)</title>
-<style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#bfe0f2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  #c{position:fixed;inset:0;width:100vw;height:100vh;display:block}
-  .hud{position:fixed;left:18px;top:16px;z-index:10;display:flex;align-items:center;gap:12px;
-    background:rgba(255,255,255,.52);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
-    border:1px solid rgba(255,255,255,.7);border-radius:18px;padding:11px 18px;
-    box-shadow:0 14px 32px -12px rgba(20,40,10,.45),inset 0 1px 0 rgba(255,255,255,.85)}
-  .hud .logo{font-size:30px;filter:drop-shadow(0 2px 2px rgba(30,50,15,.2))}
-  .hud h1{margin:0;font-size:22px;font-weight:800;letter-spacing:.3px;color:#2f5f28;line-height:1}
-  .hud .sub{font-size:11px;color:#436a2c;font-weight:700;letter-spacing:.3px;margin-top:2px}
-  .tag{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;white-space:nowrap;
-    background:rgba(22,42,16,.58);color:#fff;padding:8px 17px;border-radius:999px;font-size:12.5px;font-weight:700;
-    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 8px 20px -6px rgba(0,0,0,.4)}
-  @media (max-width:560px){.tag{font-size:10.5px;white-space:normal;max-width:90vw;text-align:center}.hud h1{font-size:18px}}
-</style>
+<title>Küçük Pazar — 3B Çiftlik (WebGL)</title>
 </head>
 <body>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#bfe0f2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+  #c{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none;cursor:grab}
+  #c:active{cursor:grabbing}
+  .hud{position:fixed;left:18px;top:16px;z-index:10;display:flex;gap:10px;align-items:center}
+  .glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid rgba(255,255,255,.72);box-shadow:0 12px 30px -10px rgba(20,40,10,.42),inset 0 1px 0 rgba(255,255,255,.85)}
+  .coinspod{border-radius:999px;padding:9px 18px;font-size:20px;font-weight:800;color:#8a6410;background:linear-gradient(180deg,rgba(255,247,222,.92),rgba(255,235,186,.86));border:1px solid #f0d492;box-shadow:0 8px 20px -8px rgba(40,28,8,.35)}
+  .coinspod.shake{animation:shk .35s}
+  @keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .title{border-radius:16px;padding:9px 15px;font-weight:800;color:#2f5f28;font-size:16px;letter-spacing:.3px}
+  .title small{display:block;font-size:10px;color:#436a2c;font-weight:700;letter-spacing:.4px}
+  .mute{position:fixed;right:18px;top:16px;z-index:10;border-radius:14px;padding:9px 12px;font-size:16px;cursor:pointer;border:1px solid rgba(255,255,255,.72)}
+  .seedbar{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:10;display:flex;gap:8px;padding:8px;border-radius:18px}
+  .seed{cursor:pointer;border:2px solid transparent;border-radius:13px;padding:8px 13px;font-family:inherit;font-weight:800;color:#3b2f1d;background:linear-gradient(180deg,#fffefb,#f3e9d4);box-shadow:0 4px 10px -4px rgba(38,26,8,.3);display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.1;transition:transform .08s}
+  .seed:active{transform:translateY(2px) scale(.97)}
+  .seed .sn{font-size:13px}.seed .sc{font-size:11px;color:#8a6410;font-weight:800}
+  .seed.on{border-color:#5c9143;background:linear-gradient(180deg,#eaf6df,#d7edc9)}
+  .seed.poor{opacity:.5}
+  .hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;white-space:nowrap;background:rgba(22,42,16,.58);color:#fff;padding:8px 16px;border-radius:999px;font-size:12px;font-weight:600;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .hint b{color:#bff09a}
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:20}
+  .floatc{position:absolute;transform:translate(-50%,-50%);font-weight:900;font-size:20px;color:#a97511;text-shadow:0 2px 4px rgba(255,255,255,.5);animation:fc 1.1s ease forwards;white-space:nowrap}
+  @keyframes fc{0%{opacity:0;transform:translate(-50%,-40%) scale(.8)}18%{opacity:1}100%{opacity:0;transform:translate(-50%,-180%) scale(1.05)}}
+  @media (max-width:640px){.hint{font-size:10px;white-space:normal;max-width:92vw;text-align:center}.seedbar{bottom:70px}.seed{padding:6px 9px}}
+</style>
 <canvas id="c"></canvas>
-<div class="hud"><div class="logo">🌾</div><div><h1>Küçük Pazar</h1><div class="sub">3B KÖY · GERÇEK ZAMANLI WEBGL</div></div></div>
-<div class="tag">Gerçek 3B · yumuşak gölgeler · PBR malzeme · yürüyen köylüler · dönen sinematik kamera</div>
+<div class="hud"><div class="glass title">🌾 Küçük Pazar<small>3B ÇİFTLİK</small></div><div id="coinsWrap" class="coinspod">🪙 <span id="coins">50</span></div></div>
+<button class="glass mute" id="mute">🔊</button>
+<div class="glass seedbar" id="seedbar"></div>
+<div class="hint">Boş toprağa tıkla: <b>ek</b> · Olgun ürüne tıkla: <b>hasat</b> · Sürükle: bak · Tekerlek: yakınlaştır</div>
+<div id="fx"></div>
+
 <script src="three.min.js"></script>
 <script src="scene.js"></script>
 </body>
