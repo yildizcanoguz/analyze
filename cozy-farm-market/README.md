@@ -71,10 +71,15 @@ Tümü `prefers-reduced-motion` açık olduğunda ağır animasyonları otomatik
 
 ## Görsel tasarım
 
+Üstte **yaşayan bir kır manzarası** (tamamen satır-içi SVG/CSS — harici görsel yok): mevsime
+göre renk değiştiren gökyüzü ve tepeler, **mevsim boyunca gökte yay çizen güneş** (günü
+ilerlettikçe hareket eder), döner yel değirmeni, kırmızı ahır + silo, ağaçlar, çit, süzülen
+bulutlar ve uçan kuşlar. Festivalde manzaraya renkli **bayrak süslemeleri** ve pembe parıltı gelir.
+
 Sıcak, cozy bir görsel kimlik: başlık/butonlar/rakamlar için gömülü **Baloo 2** (yuvarlak,
 karakterli display fontu — Türkçe alt kümesiyle base64 olarak gömülü, harici istek yok), gövde
 metni için sistem fontu. Yeşil aksanlı üst bar, katmanlı yumuşak gölgeler, sürülmüş toprak
-dokulu tarlalar, "şeker buton" hissi ve mevsime göre değişen gök rengi. Tümü CSP-güvenli.
+dokulu tarlalar ve "şeker buton" hissi. Tümü CSP-güvenli, `prefers-reduced-motion`'a saygılı.
 
 ## Teknik
 
