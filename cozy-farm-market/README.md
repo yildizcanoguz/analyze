@@ -22,14 +22,17 @@ otomatik kaydedilir (localStorage).
 > **vinyet**. **Zemin dokusu el boyaması** (üretilen görsel; kenarlarda çapraz-geçiş ile
 > **dikişsiz** hale getirilip base64 olarak gömüldü — bkz. `3d/textures/grass.jpg`). Diğer
 > malzemeler **prosedürel el işi** — kod içinde `<canvas>` ile çizilip `THREE.CanvasTexture` +
-> `bumpMap` olarak uygulanır: kiremitli terracotta çatı, sıvalı duvar, sürülmüş toprak ve gerçek
-> zamanlı kayan **dalgalı su**. Hepsi gömülü — harici istek yok. Stilize **low-poly** görünüm —
+> `bumpMap` olarak uygulanır: kiremitli terracotta çatı, sıvalı duvar, sürülmüş toprak, **kalas
+> dokulu ahşap** (çit/tezgah/sandık/kapı), **kabuk dokulu gövde**, **yapraklı ağaç tacı** ve gerçek
+> zamanlı kayan **dalgalı su**. Her nesnenin altına yumuşak **temas gölgesi** (AO kartı) konur —
+> nesneler zemine oturur; gölette **köpük kenarı + nilüfer yaprakları** var. Hepsi gömülü —
+> harici istek yok. Stilize **low-poly** görünüm —
 > gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). Vendor
 > `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
 ![önizleme](preview.png)
 
-![3B köy](3d/preview.png)
+![3B köy](3d/preview.jpg)
 
 ## Oynanış
 
