@@ -19,10 +19,11 @@ otomatik kaydedilir (localStorage).
 > raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. Sahne
 > **el işi ile zenginleştirildi**: çizgili tenteli **pazar tezgahı** + ürün sandıkları, **çitli
 > mera**, çiçekli çalılar, kayalar, çiçek açan (pembe) ağaçlar ve premium bir çerçeve hissi için
-> **vinyet**. **El işi prosedürel dokular** — kod içinde `<canvas>` ile çizilen ve
-> `THREE.CanvasTexture` + `bumpMap` olarak uygulanan malzemeler: dikişsiz organik çim, kiremitli
-> terracotta çatı, sıvalı duvar, sürülmüş toprak ve gerçek zamanlı kayan **dalgalı su** (harici
-> görsel/istek yok). Stilize **low-poly** görünüm —
+> **vinyet**. **Zemin dokusu el boyaması** (üretilen görsel; kenarlarda çapraz-geçiş ile
+> **dikişsiz** hale getirilip base64 olarak gömüldü — bkz. `3d/textures/grass.jpg`). Diğer
+> malzemeler **prosedürel el işi** — kod içinde `<canvas>` ile çizilip `THREE.CanvasTexture` +
+> `bumpMap` olarak uygulanır: kiremitli terracotta çatı, sıvalı duvar, sürülmüş toprak ve gerçek
+> zamanlı kayan **dalgalı su**. Hepsi gömülü — harici istek yok. Stilize **low-poly** görünüm —
 > gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). Vendor
 > `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
