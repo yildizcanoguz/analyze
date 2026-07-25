@@ -12,9 +12,16 @@ otomatik kaydedilir (localStorage).
 > `tools/make-sandbox.mjs` mantığı: başlangıç durumunu açar + kayıt anahtarını değiştirir).
 
 > **`3d/index.html`** — **oynanabilir gerçek zamanlı WebGL 3B çiftlik** (Three.js). Boş toprağa
-> tıkla → ek (para düşer); ürünler gerçek zamanlı 3B büyür (havuç/buğday/domates/balkabağı, farklı
-> süre & değer); olgunlaşınca altın halka belirir, tıkla → hasat et, altın uçar. Sürükle: kamerayı
-> döndür · tekerlek: yakınlaştır. Ekonomi + `localStorage` kayıt. Teknik: gerçek izometrik 3B
+> tıkla → ek; ürünler gerçek zamanlı 3B büyür (5 ürün: havuç/buğday/domates/çilek/balkabağı —
+> **seviye ile açılır**); olgunlaşınca altın halka belirir, tıkla → **topla, envantere girer**.
+> **Sipariş sistemi:** kasabalılar (Nine, Fırıncı Kemal, Küçük Ali...) belirli ürünler ister ve
+> taban fiyatın **×1.6'sını** öder — ya da envanteri tek tuşla pazarda sat (taban fiyat). Hasat
+> ve siparişler **XP** verir; **5 seviye**, her biri yeni ürün açar (HUD'da rozet + ilerleme barı).
+> **Oyun hissi:** tarla üzerinde hover vurgusu + imleç, hasatta 3B **partikül patlaması**, uçan
+> ürün ikonları, altın sayacı zıplaması, toast bildirimleri, sipariş tesliminde tezgahta altın
+> konfeti, 7 ayrı Web Audio efekti. HUD tamamı **gömülü Baloo 2** fontu, cam kartlar, **el çizimi
+> SVG ürün ikonları** ve gün/gece **saat kadranı** ile. Sürükle: kamerayı döndür · tekerlek:
+> yakınlaştır. Ekonomi + `localStorage` kayıt (v2 şema, eski kayıtla uyumlu). Teknik: gerçek izometrik 3B
 > geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES filmik tonlama,
 > raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. Sahne
 > **el işi ile zenginleştirildi**: çizgili tenteli **pazar tezgahı** + ürün sandıkları, **çitli

@@ -271,11 +271,13 @@ npc([[-13,10],[-6,8],[6,8],[13,6]],0xc94f6a,.05);
 
 // =================== FARM GAME ===================
 const CROPS={
-  carrot:{name:'Havuç',cost:5,grow:12,value:9,col:0xef8a34},
-  wheat:{name:'Buğday',cost:6,grow:10,value:13,col:0xe8b74a},
-  tomato:{name:'Domates',cost:12,grow:18,value:24,col:0xe8503a},
-  pumpkin:{name:'Balkabağı',cost:40,grow:30,value:95,col:0xef8a34},
+  carrot:{name:'Havuç',cost:5,grow:12,value:9,col:0xef8a34,lvl:1},
+  wheat:{name:'Buğday',cost:6,grow:10,value:13,col:0xe8b74a,lvl:2},
+  tomato:{name:'Domates',cost:12,grow:18,value:24,col:0xe8503a,lvl:3},
+  strawberry:{name:'Çilek',cost:20,grow:22,value:45,col:0xe23c56,lvl:4},
+  pumpkin:{name:'Balkabağı',cost:40,grow:30,value:95,col:0xef8a34,lvl:5},
 };
+const LEVELS=[0,60,200,450,900];
 const soilMat=new THREE.MeshStandardMaterial({map:T_soil,bumpMap:T_soil,bumpScale:.3,roughness:1});const soilWetMat=new THREE.MeshStandardMaterial({map:T_soil,color:0x9a8a80,bumpMap:T_soil,bumpScale:.3,roughness:.85});
 const plots=[];
 const COLS=5, ROWS=4, GAP=1.9;
@@ -305,6 +307,10 @@ function makeCrop(type){
     g.add(at(sph(0.55,green),0,0.5,0));
     g.add(at(sph(0.4,MAT(0x5aa53c,.9)),0.35,0.7,0.2));
     [[0.4,0.5,0.2],[-0.35,0.4,-0.2],[0.1,0.75,-0.35]].forEach(([a,b,d])=>{const t=sph(0.24,MAT(c.col,.6));t.position.set(a,b,d);fruit.add(t);});
+  } else if(type==='strawberry'){
+    g.add(at(sph(0.5,green),0,0.42,0));
+    g.add(at(sph(0.34,MAT(0x5aa53c,.9)),-.32,.6,.18));
+    [[.35,.42,.15],[-.2,.35,-.3],[.05,.6,.3],[-.4,.42,.05]].forEach(([a,b,d])=>{const t=sph(0.17,MAT(c.col,.55));t.scale.y=1.15;t.position.set(a,b,d);fruit.add(t);});
   } else { // pumpkin
     g.add(at(sph(0.45,green),0,0.4,0));
     const pk=sph(0.7,MAT(c.col,.75));pk.scale.set(1.25,0.85,1.25);pk.position.y=0.6;fruit.add(pk);
@@ -316,28 +322,85 @@ function makeCrop(type){
 }
 
 // ---- economy / save ----
-let coins=50;
+let coins=50, xp=0, level=1, day=1, inv={};
 const SAVE='kucuk_pazar_3d_v1';
-function save(){try{localStorage.setItem(SAVE,JSON.stringify({coins,plots:plots.map(p=>({crop:p.crop,planted:p.planted,state:p.state}))}));}catch(e){}}
-function load(){try{const o=JSON.parse(localStorage.getItem(SAVE));if(!o)return;coins=o.coins??50;if(Array.isArray(o.plots))o.plots.forEach((s,i)=>{if(s&&s.crop&&plots[i]){plots[i].crop=s.crop;plots[i].planted=s.planted;plots[i].state=s.state==='empty'?'empty':'growing';plots[i].cropObj=makeCrop(s.crop);plots[i].holder.add(plots[i].cropObj.group);}});}catch(e){}}
+function save(){try{localStorage.setItem(SAVE,JSON.stringify({v:2,coins,xp,level,day,inv,order,plots:plots.map(p=>({crop:p.crop,planted:p.planted,state:p.state}))}));}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(SAVE));if(!o)return;coins=o.coins??50;xp=o.xp||0;level=o.level||1;day=o.day||1;inv=o.inv||{};order=(o.v===2&&o.order)?o.order:null;if(Array.isArray(o.plots))o.plots.forEach((s,i)=>{if(s&&s.crop&&plots[i]&&CROPS[s.crop]){plots[i].crop=s.crop;plots[i].planted=s.planted;plots[i].state=s.state==='empty'?'empty':'growing';plots[i].cropObj=makeCrop(s.crop);plots[i].holder.add(plots[i].cropObj.group);}});}catch(e){}}
 
 let selected='carrot';
-function plant(i){const p=plots[i];if(!p||p.state!=='empty')return false;const c=CROPS[selected];if(coins<c.cost){sfx('err');flash();return false;}coins-=c.cost;p.crop=selected;p.planted=Date.now();p.state='growing';p.cropObj=makeCrop(selected);p.holder.add(p.cropObj.group);p.tile.material=soilWetMat;sfx('plant');updateHUD();save();return true;}
-function harvest(i){const p=plots[i];if(!p||p.state!=='ripe')return false;const c=CROPS[p.crop];coins+=c.value;flyCoins(p,c.value);sfx('coin');if(p.cropObj){p.holder.remove(p.cropObj.group);}p.cropObj=null;p.crop=null;p.state='empty';p.ring.visible=false;p.tile.material=soilMat;updateHUD();save();return true;}
+function plant(i){const p=plots[i];if(!p||p.state!=='empty')return false;const c=CROPS[selected];if(c.lvl>level){sfx('err');return false;}if(coins<c.cost){sfx('err');flash();return false;}coins-=c.cost;p.crop=selected;p.planted=Date.now();p.state='growing';p.cropObj=makeCrop(selected);p.holder.add(p.cropObj.group);p.tile.material=soilWetMat;sfx('plant');updateHUD();save();return true;}
+function harvest(i){const p=plots[i];if(!p||p.state!=='ripe')return false;const c=CROPS[p.crop];inv[p.crop]=(inv[p.crop]||0)+1;burst(p.x,p.y+0.9,p.z,c.col,9);flyText(p,'+1 '+ICONS[p.crop],'leaf');sfx('harvest');addXp(c.value);if(p.cropObj){p.holder.remove(p.cropObj.group);}p.cropObj=null;p.crop=null;p.state='empty';p.ring.visible=false;p.tile.material=soilMat;updateHUD();save();return true;}
 function onPlot(i){const p=plots[i];if(!p)return;if(p.state==='empty')plant(i);else if(p.state==='ripe')harvest(i);}
 
 // ---- sound ----
 let muted=false, actx=null;
 function ac(){if(muted)return null;if(!actx){try{actx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(actx.state==='suspended')actx.resume();return actx;}
 function tone(f,s,d,ty,v){const c=ac();if(!c)return;const t=c.currentTime+s;const o=c.createOscillator(),g=c.createGain();o.type=ty||'sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(v||.12,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(c.destination);o.start(t);o.stop(t+d+.02);}
-function sfx(k){if(k==='plant'){tone(196,0,.16,'sine',.12);tone(294,.03,.14,'sine',.07);}else if(k==='coin'){tone(988,0,.08,'triangle',.11);tone(1319,.06,.1,'triangle',.08);}else if(k==='err'){tone(160,0,.12,'sawtooth',.06);}}
+function sfx(k){
+ if(k==='plant'){tone(196,0,.16,'sine',.12);tone(294,.03,.14,'sine',.07);}
+ else if(k==='coin'){tone(988,0,.08,'triangle',.11);tone(1319,.06,.1,'triangle',.08);}
+ else if(k==='harvest'){tone(523,0,.09,'triangle',.1);tone(784,.05,.12,'triangle',.09);}
+ else if(k==='sell'){tone(880,0,.07,'triangle',.1);tone(1175,.05,.08,'triangle',.09);tone(1568,.1,.12,'triangle',.08);}
+ else if(k==='order'){tone(659,0,.1,'triangle',.1);tone(880,.08,.1,'triangle',.1);tone(1109,.16,.18,'triangle',.1);}
+ else if(k==='level'){tone(523,0,.12,'triangle',.11);tone(659,.09,.12,'triangle',.11);tone(784,.18,.12,'triangle',.11);tone(1047,.27,.24,'triangle',.12);}
+ else if(k==='err'){tone(160,0,.12,'sawtooth',.06);}}
 
 // ---- HUD / fx ----
 const $=id=>document.getElementById(id);
-function updateHUD(){$('coins').textContent=coins;buildSeedbar();}
-function buildSeedbar(){const el=$('seedbar');el.innerHTML='';for(const k in CROPS){const c=CROPS[k];const b=document.createElement('button');b.className='seed'+(k===selected?' on':'')+(coins<c.cost?' poor':'');b.innerHTML='<span class="sn">'+c.name+'</span><span class="sc">'+c.cost+' 🪙</span>';b.onclick=()=>{selected=k;buildSeedbar();};el.appendChild(b);}}
+const COIN='<svg viewBox="0 0 40 40" style="width:1em;height:1em;vertical-align:-.12em"><circle cx="20" cy="20" r="17" fill="#f2c14e" stroke="#c9922a" stroke-width="2.5"/><circle cx="20" cy="20" r="11.5" fill="none" stroke="#e0a83a" stroke-width="2"/><path d="M20 13l2.1 4.4 4.9.6-3.6 3.3 1 4.8-4.4-2.5-4.4 2.5 1-4.8-3.6-3.3 4.9-.6z" fill="#c9922a"/></svg>';
+const ICONS={
+ carrot:'<svg viewBox="0 0 40 40"><path d="M20 37 13.5 17.5c-.9-2.7 1.1-5.5 3.4-5.5h6.2c2.3 0 4.3 2.8 3.4 5.5z" fill="#ef8a34"/><path d="M16.2 20.5h7.6M17.6 26.5h4.8" stroke="#d06f22" stroke-width="1.7" stroke-linecap="round"/><path d="M20 12c-1.2-4-5-6-8-5.8 2 2.8 2.2 5.4 4.4 6.4zM20 12c1.2-4 5-6 8-5.8-2 2.8-2.2 5.4-4.4 6.4zM20 12c-.3-3.2-.6-6 .3-8.8.9 2.8 1.5 5.8.5 8.8z" fill="#5c9c3e"/></svg>',
+ wheat:'<svg viewBox="0 0 40 40"><path d="M20 37V10" stroke="#c99b3f" stroke-width="2.2" stroke-linecap="round"/><g fill="#e8b74a"><ellipse cx="15" cy="14" rx="3" ry="5" transform="rotate(-30 15 14)"/><ellipse cx="25" cy="14" rx="3" ry="5" transform="rotate(30 25 14)"/><ellipse cx="14.5" cy="21" rx="3" ry="5" transform="rotate(-30 14.5 21)"/><ellipse cx="25.5" cy="21" rx="3" ry="5" transform="rotate(30 25.5 21)"/><ellipse cx="20" cy="8.5" rx="3" ry="5"/></g></svg>',
+ tomato:'<svg viewBox="0 0 40 40"><circle cx="20" cy="23" r="12.5" fill="#e8503a"/><ellipse cx="15" cy="18.5" rx="3.6" ry="2.1" fill="rgba(255,255,255,.4)" transform="rotate(-24 15 18.5)"/><path d="M20 11.5c-1.6-1.8-4.6-2.2-6.8-1.2 1.8 1 2.9 2.6 4.7 2.9-2.7 1-3.8 2.8-4 4.7 2.8-1 4.7-1.9 6.1-3.7 1.4 1.8 3.3 2.7 6.1 3.7-.2-1.9-1.3-3.7-4-4.7 1.8-.3 2.9-1.9 4.7-2.9-2.2-1-5.2-.6-6.8 1.2z" fill="#4c8a2f"/></svg>',
+ strawberry:'<svg viewBox="0 0 40 40"><path d="M20 36.5C12.5 30.8 9 25 9 19.6 9 14 13.6 10 20 10s11 4 11 9.6c0 5.4-3.5 11.2-11 16.9z" fill="#e23c56"/><g fill="#ffd9a0"><circle cx="15" cy="20" r="1.05"/><circle cx="20" cy="24" r="1.05"/><circle cx="25" cy="20" r="1.05"/><circle cx="17.5" cy="27" r="1.05"/><circle cx="22.5" cy="27" r="1.05"/><circle cx="20" cy="16.5" r="1.05"/></g><path d="M20 10.5l-6.5-3.2 3.2 4.4-6.5.6 6.2 2.4zM20 10.5l6.5-3.2-3.2 4.4 6.5.6-6.2 2.4z" fill="#4c8a2f"/></svg>',
+ pumpkin:'<svg viewBox="0 0 40 40"><ellipse cx="20" cy="24" rx="13.5" ry="10.5" fill="#ef8a34"/><ellipse cx="20" cy="24" rx="5.6" ry="10.5" fill="#f6a352"/><path d="M11.5 16.5q8.5-5 17 0M11.5 31.5q8.5 5 17 0" fill="none" stroke="#d06f22" stroke-width="1.4"/><path d="M19 13.2c-.2-3 .8-5.2 2.8-6.4.7 2.1.4 4.9-.9 6.6z" fill="#6b8f3c"/></svg>',
+};
+const CUSTS=[['Nine','#e78fb3'],['Fırıncı Kemal','#e0a95d'],['Küçük Ali','#7fb4e8'],['Manav Ayşe','#8fbf72'],['Öğretmen Leyla','#b39ddb'],['Değirmenci Rıza','#c8a288']];
+let order=null, prevDayT=0;
+function unlockedCrops(){return Object.keys(CROPS).filter(k=>CROPS[k].lvl<=level);}
+function newOrder(){const pool=unlockedCrops();const n=(level>=3&&Math.random()<.55)?2:1;const picks=[];
+  while(picks.length<n){const k=pool[Math.floor(Math.random()*pool.length)];if(!picks.includes(k))picks.push(k);}
+  const items={};let total=0;for(const k of picks){const q=2+Math.floor(Math.random()*3);items[k]=q;total+=CROPS[k].value*q;}
+  const cust=CUSTS[Math.floor(Math.random()*CUSTS.length)];
+  order={cust:cust[0],col:cust[1],items,reward:Math.round(total*1.6)};renderOrder();save();}
+function canDeliver(){if(!order)return false;for(const k in order.items)if((inv[k]||0)<order.items[k])return false;return true;}
+function deliverOrder(){if(!canDeliver())return false;for(const k in order.items)inv[k]-=order.items[k];coins+=order.reward;bumpCoins();stallBurst();sfx('order');toast('Sipariş teslim! +'+order.reward+' '+COIN,'gold');addXp(Math.round(order.reward/2));order=null;renderOrder();updateHUD();save();setTimeout(()=>{if(!order)newOrder();},4000);return true;}
+function rejectOrder(){if(!order)return;order=null;renderOrder();save();setTimeout(()=>{if(!order)newOrder();},1600);}
+function renderOrder(){const el=$('ordercard');if(!el)return;
+  if(!order){el.classList.add('gone');el.innerHTML='';return;}
+  let rows='';for(const k in order.items){const c=CROPS[k],have=inv[k]||0,need=order.items[k];
+    rows+='<div class="oc-it '+(have>=need?'ok':'')+'">'+ICONS[k]+need+'× '+c.name+'<span class="have">'+Math.min(have,need)+'/'+need+'</span></div>';}
+  el.innerHTML='<div class="oc-head"><span class="oc-face" style="--c:'+order.col+'">'+order.cust[0]+'</span><div><b>'+order.cust+'</b><small>sipariş verdi</small></div><button class="oc-x" id="ocX">✕</button></div><div class="oc-items">'+rows+'</div><div class="oc-foot"><span class="oc-reward">'+order.reward+' '+COIN+'</span><button class="btn" id="ocGo"'+(canDeliver()?'':' disabled')+'>Teslim Et</button></div>';
+  el.classList.remove('gone');$('ocX').onclick=rejectOrder;$('ocGo').onclick=deliverOrder;}
+function invTotal(){let t=0;for(const k in inv)t+=(inv[k]||0)*(CROPS[k]?CROPS[k].value:0);return t;}
+function renderInv(){const el=$('invbar');if(!el)return;const keys=Object.keys(inv).filter(k=>inv[k]>0&&CROPS[k]);
+  if(!keys.length){el.classList.add('gone');el.innerHTML='';return;}
+  el.innerHTML=keys.map(k=>'<span class="inv-it">'+ICONS[k]+'×'+inv[k]+'</span>').join('')+'<button class="btn" id="sellBtn">Sat +'+invTotal()+'</button>';
+  el.classList.remove('gone');$('sellBtn').onclick=sellAll;}
+function sellAll(){const t=invTotal();if(!t)return;for(const k in inv)inv[k]=0;coins+=t;sfx('sell');bumpCoins();toast('Pazarda satıldı: +'+t+' '+COIN,'gold');updateHUD();save();}
+function addXp(n){xp+=n;while(level<5&&xp>=LEVELS[level]){level++;const u=Object.values(CROPS).find(c=>c.lvl===level);sfx('level');toast('Seviye '+level+'!'+(u?' '+u.name+' açıldı':''));}updateHUD();}
+function toast(html,cls){const w=$('toasts');if(!w)return;const t=document.createElement('div');t.className='toast glass'+(cls?' '+cls:'');t.innerHTML=html;w.appendChild(t);setTimeout(()=>t.remove(),2850);}
+function bumpCoins(){const el=$('coinsWrap');if(!el)return;el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');}
+function updClock(){const d=$('clkDot');if(!d)return;const isDay=dayT<0.54;const frac=isDay?dayT/0.54:(dayT-0.54)/0.46;const a=Math.PI*(1-frac);d.setAttribute('cx',(22+20*Math.cos(a)).toFixed(1));d.setAttribute('cy',(21-19*Math.sin(a)).toFixed(1));d.setAttribute('fill',isDay?'#ffd34d':'#dfe8ff');}
+const parts=[],partGeo=new THREE.SphereGeometry(.09,6,5);
+function burst(x,y,z,col,n){for(let i=0;i<(n||10);i++){const m=new THREE.Mesh(partGeo,new THREE.MeshBasicMaterial({color:col,transparent:true}));m.position.set(x,y,z);scene.add(m);parts.push({m,vx:(Math.random()-.5)*3.4,vy:2.2+Math.random()*2.6,vz:(Math.random()-.5)*3.4,t:0});}}
+function updParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t+=dt;p.vy-=9.5*dt;p.m.position.x+=p.vx*dt;p.m.position.y+=p.vy*dt;p.m.position.z+=p.vz*dt;p.m.material.opacity=Math.max(0,1-p.t/.85);if(p.t>.85){scene.remove(p.m);p.m.material.dispose();parts.splice(i,1);}}}
+function stallBurst(){burst(7,2.4,6.2,0xf2c14e,16);}
+function updateHUD(){const c=$('coins');if(c)c.textContent=coins;
+  const ln=$('lvlN');if(ln)ln.textContent=level;
+  const lo=LEVELS[level-1],hi=level<5?LEVELS[level]:LEVELS[4];
+  const xf=$('xpFill');if(xf)xf.style.width=(level<5?Math.min(100,100*(xp-lo)/(hi-lo)):100)+'%';
+  const xt=$('xpTxt');if(xt)xt.textContent=level<5?(xp+'/'+hi):'MAX';
+  buildSeedbar();renderInv();if(order)renderOrder();}
+function buildSeedbar(){const el=$('seedbar');if(!el)return;el.innerHTML='';
+  for(const k in CROPS){const c=CROPS[k];const locked=c.lvl>level;
+    const b=document.createElement('button');
+    b.className='seed'+(k===selected?' on':'')+(locked?' lock':(coins<c.cost?' poor':''));
+    b.innerHTML=ICONS[k]+'<span class="sn">'+c.name+'</span><span class="sc">'+c.cost+' '+COIN+'</span>'+(locked?'<span class="lk">Sv '+c.lvl+'</span>':'');
+    b.onclick=()=>{if(locked){sfx('err');toast('Bunun için Seviye '+c.lvl+' gerekli');return;}selected=k;buildSeedbar();};
+    el.appendChild(b);}}
 function proj(x,y,z){const v=new THREE.Vector3(x,y,z).project(cam);return{x:(v.x*.5+.5)*W(),y:(-v.y*.5+.5)*H()};}
-function flyCoins(p,val){const s=proj(p.x,p.y+1.4,p.z);const el=document.createElement('div');el.className='floatc';el.textContent='+'+val+' 🪙';el.style.left=s.x+'px';el.style.top=s.y+'px';$('fx').appendChild(el);setTimeout(()=>el.remove(),1100);}
+function flyText(p,html,cls){const s=proj(p.x,p.y+1.4,p.z);const el=document.createElement('div');el.className='floatc'+(cls?' '+cls:'');el.innerHTML=html;el.style.left=s.x+'px';el.style.top=s.y+'px';$('fx').appendChild(el);setTimeout(()=>el.remove(),1150);}
 function flash(){const el=$('coinsWrap');el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');}
 
 // ---- input: orbit + click ----
@@ -348,11 +411,16 @@ window.addEventListener('pointerup',e=>{if(down&&!moved)tryClick(e.clientX,e.cli
 cvs.addEventListener('wheel',e=>{e.preventDefault();dsize=Math.max(7,Math.min(20,dsize*(1+e.deltaY*0.0011)));fitCam();},{passive:false});
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
 function tryClick(px,py){const r=cvs.getBoundingClientRect();ndc.x=((px-r.left)/r.width)*2-1;ndc.y=-((py-r.top)/r.height)*2+1;ray.setFromCamera(ndc,cam);const hit=ray.intersectObjects(plotMeshes,false)[0];if(hit&&hit.object.userData.plot!=null)onPlot(hit.object.userData.plot);}
+let hovered=null;
+cvs.addEventListener('pointermove',e=>{if(down)return;const r=cvs.getBoundingClientRect();ndc.x=((e.clientX-r.left)/r.width)*2-1;ndc.y=-((e.clientY-r.top)/r.height)*2+1;ray.setFromCamera(ndc,cam);const hit=ray.intersectObjects(plotMeshes,false)[0];const p=hit?plots[hit.object.userData.plot]:null;const t=(p&&(p.state==='empty'||p.state==='ripe'))?p:null;
+  if(hovered!==t){if(hovered)hovered.tile.scale.setScalar(1);hovered=t;if(hovered)hovered.tile.scale.set(1.07,1.3,1.07);cvs.classList.toggle('point',!!hovered);}});
 
 // ---- loop ----
 let last=performance.now();
 function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1000;
-  applyDayNight(dayT+dt/DAY_SEC);
+  const _pd=dayT;applyDayNight(dayT+dt/DAY_SEC);
+  if(dayT<_pd){day++;const dEl=$('dayTxt');if(dEl)dEl.textContent='Gün '+day;toast('Gün '+day+' başladı');save();}
+  updClock();updParts(dt);
   if(blades)blades.rotation.z+=dt*0.6; T_water.offset.x+=dt*0.02; T_water.offset.y+=dt*0.01;
   for(const tr of trees){tr.g.rotation.z=Math.sin(t*1.2+tr.ph)*tr.amp;}
   for(const c of clouds){c.g.position.x+=dt*c.sp;if(c.g.position.x>28)c.g.position.x=-28;}
@@ -367,8 +435,12 @@ function segLen(pts){let L=0;for(let i=0;i<pts.length-1;i++)L+=Math.hypot(pts[i+
 function path(pts,tt){const T=segLen(pts);let d=tt*T;for(let i=0;i<pts.length-1;i++){const s=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);if(d<=s){const f=d/s;return{x:pts[i][0]+(pts[i+1][0]-pts[i][0])*f,z:pts[i][1]+(pts[i+1][1]-pts[i][1])*f};}d-=s;}return{x:pts[pts.length-1][0],z:pts[pts.length-1][1]};}
 
 $('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'🔇':'🔊';if(!muted)sfx('coin');};
-applyDayNight(dayT); load(); buildSeedbar(); updateHUD(); fitCam(); addEventListener('resize',fitCam); updateCam(); requestAnimationFrame(loop);
-window.__game={plots,plant,harvest,state:()=>({coins,plots:plots.map(p=>p.state)}),setSel:k=>{selected=k;buildSeedbar();}};
+applyDayNight(dayT); load();
+const _ci=$('coinIco'); if(_ci)_ci.innerHTML=COIN;
+const _dt=$('dayTxt'); if(_dt)_dt.textContent='Gün '+day;
+if(order)renderOrder(); else setTimeout(()=>{if(!order)newOrder();},1400);
+updateHUD(); fitCam(); addEventListener('resize',fitCam); updateCam(); requestAnimationFrame(loop);
+window.__game={plots,plant,harvest,sellAll,deliverOrder,newOrder,rejectOrder,addInv:(k,n)=>{inv[k]=(inv[k]||0)+n;updateHUD();},addXp,state:()=>({coins,xp,level,day,inv:{...inv},order:order&&JSON.parse(JSON.stringify(order)),plots:plots.map(p=>p.state)}),setSel:k=>{selected=k;buildSeedbar();}};
 window.__proj=(x,y,z)=>proj(x,y,z);
 window.__setTime=t=>{applyDayNight(t);return{dayT,night};};
 window.__ready=true;
