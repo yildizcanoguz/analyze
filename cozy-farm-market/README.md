@@ -26,13 +26,18 @@ otomatik kaydedilir (localStorage).
 > dokulu ahşap** (çit/tezgah/sandık/kapı), **kabuk dokulu gövde**, **yapraklı ağaç tacı** ve gerçek
 > zamanlı kayan **dalgalı su**. Her nesnenin altına yumuşak **temas gölgesi** (AO kartı) konur —
 > nesneler zemine oturur; gölette **köpük kenarı + nilüfer yaprakları** var. Hepsi gömülü —
-> harici istek yok. Stilize **low-poly** görünüm —
+> harici istek yok. **🌅 Gündüz/gece döngüsü** (200 sn): güneş doğudan batıya yay çizer, gökyüzü
+> gradyanı · güneş rengi & şiddeti · fog · ambiyans birlikte yumuşak geçer — şafak → sabah →
+> **altın saat** → gece. Gece **pencereler içten yanar**, pazar tezgahının **feneri** sıcak bir ışık
+> havuzu döker, **yıldızlar** açılır, pozlama düşer. Stilize **low-poly** görünüm —
 > gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). Vendor
 > `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
 ![önizleme](preview.png)
 
-![3B köy](3d/preview.jpg)
+![3B köy — altın saat](3d/preview.jpg)
+
+![3B köy — gece](3d/preview-night.jpg)
 
 ## Oynanış
 
