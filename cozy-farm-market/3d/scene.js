@@ -40,9 +40,46 @@ const GRASS_URI='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUEBAQE
 const T_grass=new THREE.TextureLoader().load(GRASS_URI);
 T_grass.colorSpace=THREE.SRGBColorSpace;T_grass.wrapS=T_grass.wrapT=THREE.RepeatWrapping;
 T_grass.repeat.set(7,14);T_grass.anisotropy=8;
-const T_soil=mkTex(256,(x,s)=>{x.fillStyle='#7c4e2d';x.fillRect(0,0,s,s);for(let i=0;i<2600;i++){x.fillStyle=['#8a5a34','#673d20','#94663b','#5c3319'][i&3];x.globalAlpha=.55;x.fillRect(Math.random()*s,Math.random()*s,rr(1.5,3.5),rr(1.5,3.5));}x.globalAlpha=1;x.strokeStyle='#5a3419';x.lineWidth=3;for(let r=0;r<6;r++){const y=(r+.5)/6*s;x.beginPath();for(let px=0;px<=s;px+=8)x.lineTo(px,y+Math.sin(px*.05+r)*2);x.stroke();}},2);
+const T_soil=mkTex(512,(x,s)=>{
+  const wrap=f=>{for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)f(a*s,b*s);};
+  x.fillStyle='#6b4426';x.fillRect(0,0,s,s);
+  const rows=5,rh=s/rows;
+  for(let r=0;r<rows;r++){const y=r*rh;const g=x.createLinearGradient(0,y,0,y+rh);
+    g.addColorStop(0,'#573116');g.addColorStop(.28,'#7a5230');g.addColorStop(.52,'#8c6139');g.addColorStop(.78,'#6d4526');g.addColorStop(1,'#4f2d14');
+    x.fillStyle=g;x.fillRect(0,y,s,rh+1);}
+  for(let i=0;i<900;i++){const px=Math.random()*s,py=Math.random()*s,rx=rr(3,9),ry=rr(2,6),rot=Math.random()*3,c=['#8c6139','#5d371c','#996b41','#4c2a13'][i&3];
+    wrap((ox,oy)=>{x.globalAlpha=.5;x.fillStyle=c;x.beginPath();x.ellipse(px+ox,py+oy,rx,ry,rot,0,7);x.fill();});}
+  x.globalAlpha=1;
+  for(let r=0;r<rows;r++){const y=(r+.55)*rh;
+    x.strokeStyle='rgba(56,30,13,.5)';x.lineWidth=4;x.beginPath();
+    for(let px=0;px<=s;px+=6)x.lineTo(px,y+Math.sin(px/s*Math.PI*8+r)*3);x.stroke();
+    x.strokeStyle='rgba(178,131,82,.34)';x.lineWidth=2;x.beginPath();
+    for(let px=0;px<=s;px+=6)x.lineTo(px,y-7+Math.sin(px/s*Math.PI*8+r)*3);x.stroke();}
+  for(let i=0;i<70;i++){const px=Math.random()*s,py=Math.random()*s,rad=rr(1.5,3);
+    wrap((ox,oy)=>{x.fillStyle='#9c9086';x.beginPath();x.arc(px+ox,py+oy,rad,0,7);x.fill();
+      x.fillStyle='rgba(60,34,16,.45)';x.beginPath();x.arc(px+ox,py+oy+rad*.6,rad*.8,0,7);x.fill();});}
+},2);
 const T_plaster=mkTex(256,(x,s)=>{x.fillStyle='#ffffff';x.fillRect(0,0,s,s);for(let i=0;i<2200;i++){x.fillStyle=Math.random()<.5?'#efe7d6':'#fffdf6';x.globalAlpha=.4;x.fillRect(Math.random()*s,Math.random()*s,rr(2,5),rr(2,5));}x.globalAlpha=1;},2);
-const T_roof=mkTex(256,(x,s)=>{x.fillStyle='#c0663f';x.fillRect(0,0,s,s);const rows=7,cols=8,rh=s/rows,cw=s/cols;for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const off=(r%2)*cw/2,px=c*cw+off,py=r*rh;x.fillStyle=['#c86a41','#b85c37','#d1734a','#ad5330'][(r+c)&3];x.beginPath();x.moveTo(px,py+rh);x.lineTo(px,py+rh*.4);x.arc(px+cw/2,py+rh*.4,cw/2,Math.PI,0);x.lineTo(px+cw,py+rh);x.closePath();x.fill();}x.strokeStyle='rgba(90,40,25,.4)';x.lineWidth=2;x.beginPath();x.moveTo(0,r*rh+rh);x.lineTo(s,r*rh+rh);x.stroke();}},3);
+const T_roof=mkTex(512,(x,s)=>{
+  x.fillStyle='#a85433';x.fillRect(0,0,s,s);
+  const rows=8,cols=8,rh=s/rows,cw=s/cols;
+  for(let r=0;r<rows;r++){
+    for(let c=-1;c<=cols;c++){
+      const off=(r%2)*cw/2,px=c*cw+off,py=r*rh;
+      const base=['#c86a41','#bb5f38','#d1734a','#b0552f'][(r+c+8)&3];
+      const g=x.createLinearGradient(0,py,0,py+rh);
+      g.addColorStop(0,'#e28f61');g.addColorStop(.34,base);g.addColorStop(1,'#8b4324');
+      x.fillStyle=g;x.beginPath();x.moveTo(px,py+rh);x.lineTo(px,py+rh*.42);
+      x.arc(px+cw/2,py+rh*.42,cw/2,Math.PI,0);x.lineTo(px+cw,py+rh);x.closePath();x.fill();
+      x.strokeStyle='rgba(255,216,184,.42)';x.lineWidth=1.6;x.beginPath();
+      x.arc(px+cw/2,py+rh*.42,cw/2-1.2,Math.PI*1.14,Math.PI*1.76);x.stroke();
+    }
+    x.fillStyle='rgba(78,32,16,.34)';x.fillRect(0,r*rh+rh-3,s,3);
+  }
+  for(let i=0;i<2600;i++){x.globalAlpha=.06;x.fillStyle=Math.random()<.5?'#ffd9b8':'#6d2f16';
+    x.fillRect(Math.random()*s,Math.random()*s,rr(2,5),rr(2,5));}
+  x.globalAlpha=1;
+},3);
 const T_water=mkTex(256,(x,s)=>{x.fillStyle='#4f9fd4';x.fillRect(0,0,s,s);for(let r=0;r<10;r++){x.strokeStyle=r%2?'rgba(150,205,235,.6)':'rgba(210,235,250,.5)';x.lineWidth=rr(2,4);const y=r/10*s;x.beginPath();for(let px=0;px<=s;px+=6)x.lineTo(px,y+Math.sin(px*.04+r*1.7)*4);x.stroke();}},2);
 const grassMat=new THREE.MeshStandardMaterial({map:T_grass,roughness:1});
 // striped awning canvas (red/cream) for the market stall
