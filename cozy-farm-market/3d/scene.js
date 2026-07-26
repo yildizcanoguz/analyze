@@ -255,6 +255,10 @@ const VTYPES={
  farmer:{shirt:0xb85c37,bib:0x4f6fb8,pants:0x4a5d8a,hat:'straw'},
  grandma:{shirt:0xb85c8a,dress:true,pants:0x6e4658,hat:'kerchief',scarf:0x8a4468},
  kid:{shirt:0x6fae52,pants:0x7a5230,hat:'hair',hair:0x5b4126,scale:.7},
+ kemal:{shirt:0xe0a95d,bib:0xf5ead2,pants:0x5b4a38,hat:'straw'},
+ ayse:{shirt:0x8fbf72,dress:true,pants:0x4a6b3a,hat:'kerchief',scarf:0x6b9a55},
+ leyla:{shirt:0xb39ddb,dress:true,pants:0x5f4a78,hat:'hair',hair:0x3a2c22},
+ riza:{shirt:0xc8a288,bib:0x7a5230,pants:0x4a4038,hat:'straw'},
  vendor:{shirt:0xcb4f42,bib:0xf5ead2,pants:0x5b4a38,hat:'straw'},
 };
 function villager(tn){const o=VTYPES[tn]||VTYPES.farmer;const g=new THREE.Group();
@@ -414,17 +418,68 @@ const ICONS={
  strawberry:'<svg viewBox="0 0 40 40"><path d="M20 36.5C12.5 30.8 9 25 9 19.6 9 14 13.6 10 20 10s11 4 11 9.6c0 5.4-3.5 11.2-11 16.9z" fill="#e23c56"/><g fill="#ffd9a0"><circle cx="15" cy="20" r="1.05"/><circle cx="20" cy="24" r="1.05"/><circle cx="25" cy="20" r="1.05"/><circle cx="17.5" cy="27" r="1.05"/><circle cx="22.5" cy="27" r="1.05"/><circle cx="20" cy="16.5" r="1.05"/></g><path d="M20 10.5l-6.5-3.2 3.2 4.4-6.5.6 6.2 2.4zM20 10.5l6.5-3.2-3.2 4.4 6.5.6-6.2 2.4z" fill="#4c8a2f"/></svg>',
  pumpkin:'<svg viewBox="0 0 40 40"><ellipse cx="20" cy="24" rx="13.5" ry="10.5" fill="#ef8a34"/><ellipse cx="20" cy="24" rx="5.6" ry="10.5" fill="#f6a352"/><path d="M11.5 16.5q8.5-5 17 0M11.5 31.5q8.5 5 17 0" fill="none" stroke="#d06f22" stroke-width="1.4"/><path d="M19 13.2c-.2-3 .8-5.2 2.8-6.4.7 2.1.4 4.9-.9 6.6z" fill="#6b8f3c"/></svg>',
 };
-const CUSTS=[['Nine','#e78fb3'],['Fırıncı Kemal','#e0a95d'],['Küçük Ali','#7fb4e8'],['Manav Ayşe','#8fbf72'],['Öğretmen Leyla','#b39ddb'],['Değirmenci Rıza','#c8a288']];
+const CUSTS=[
+ ['Nine','#e78fb3','grandma',[[-9,-9.2],[-8.5,-2.6],[-4.9,0],[-4.9,5.4],[-1,7.7],[3.5,8.3],[8.5,7.5]]],
+ ['Fırıncı Kemal','#e0a95d','kemal',[[-2,-11.2],[-4,-6],[-4.9,0],[-4.9,5.4],[-1,7.7],[3.5,8.3],[8.5,7.5]]],
+ ['Küçük Ali','#7fb4e8','kid',[[5,-10.2],[8,-4],[4.9,-0.6],[6.5,2.5],[8.5,7.5]]],
+ ['Manav Ayşe','#8fbf72','ayse',[[11,-6.6],[8,-4],[6.5,2.5],[8.5,7.5]]],
+ ['Öğretmen Leyla','#b39ddb','leyla',[[15.5,-2],[12,1.5],[9.5,4.5],[8.5,7.5]]],
+ ['Değirmenci Rıza','#c8a288','riza',[[-11.4,-4.7],[-8.5,-2.6],[-4.9,0],[-4.9,5.4],[-1,7.7],[3.5,8.3],[8.5,7.5]]]];
+// ---- müşteri NPC sistemi: evden tezgaha yürü, balonla bekle, teslimatta sevin ----
+const customers=[];
+function _round(x,a,b,w,h,r){if(x.roundRect){x.beginPath();x.roundRect(a,b,w,h,r);}else{x.beginPath();x.rect(a,b,w,h);}}
+function bubbleTex(cols){const c=document.createElement('canvas');c.width=96;c.height=72;const x=c.getContext('2d');
+  x.fillStyle='rgba(255,253,247,.96)';_round(x,6,4,84,48,14);x.fill();
+  x.strokeStyle='rgba(110,130,80,.45)';x.lineWidth=2.5;_round(x,6,4,84,48,14);x.stroke();
+  x.fillStyle='rgba(255,253,247,.96)';x.beginPath();x.moveTo(40,50);x.lineTo(48,66);x.lineTo(58,50);x.closePath();x.fill();
+  cols.forEach((col,i)=>{x.fillStyle='#'+col.toString(16).padStart(6,'0');x.beginPath();x.arc(48-(cols.length-1)*12+i*24,28,10,0,7);x.fill();
+    x.fillStyle='rgba(255,255,255,.4)';x.beginPath();x.arc(44-(cols.length-1)*12+i*24,24,3.4,0,7);x.fill();});
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+const heartTex=(function(){const c=document.createElement('canvas');c.width=96;c.height=72;const x=c.getContext('2d');
+  x.fillStyle='#ff8fb3';x.beginPath();x.moveTo(48,58);x.bezierCurveTo(18,38,22,12,48,26);x.bezierCurveTo(74,12,78,38,48,58);x.fill();
+  x.fillStyle='rgba(255,255,255,.5)';x.beginPath();x.arc(38,26,5,0,7);x.fill();
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;})();
+function spawnCustomer(o,instant){const meta=CUSTS[o.ci];const v=villager(meta[2]);
+  const cols=Object.keys(o.items).slice(0,2).map(k=>CROPS[k].col);
+  const bub=new THREE.Sprite(new THREE.SpriteMaterial({map:bubbleTex(cols),transparent:true,depthWrite:false}));
+  bub.scale.set(1.5,1.12,1);bub.position.y=2.8;v.g.add(bub);
+  const c={v,bub,route:meta[3],prog:instant?1:0,phase:instant?'wait':'come',order:o,t:0,ph:Math.random()*6.3};
+  const p0=instant?meta[3][meta[3].length-1]:meta[3][0];
+  v.g.position.set(p0[0],gh(p0[0],p0[1]),p0[1]);
+  if(instant)v.g.rotation.y=Math.atan2(7-p0[0],6.2-p0[1]);
+  scene.add(v.g);customers.push(c);return c;}
+function custFind(o){return customers.find(c=>c.order===o);}
+function sendHome(c){c.route=c.route.slice().reverse();c.prog=Math.max(0,1-c.prog);c.phase='leave';}
+function custDelivered(o){const c=custFind(o);if(!c)return;c.phase='celebrate';c.t=0;c.bub.material.map=heartTex;c.bub.material.needsUpdate=true;
+  const p=c.v.g.position;burst(p.x,p.y+2,p.z,0xff8fb3,10);}
+function custLeave(o){const c=custFind(o);if(c)sendHome(c);}
+function _setWalk(c,a,b,t){const sw=Math.sin(t*7+c.ph)*.52;
+  c.v.g.position.set(a.x,gh(a.x,a.z)+Math.abs(Math.sin(t*7+c.ph))*.035,a.z);
+  c.v.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
+  c.v.legL.rotation.x=sw;c.v.legR.rotation.x=-sw;c.v.armL.rotation.x=-sw*.75;c.v.armR.rotation.x=sw*.75;}
+function _resetLimbs(c){c.v.legL.rotation.x=0;c.v.legR.rotation.x=0;c.v.armL.rotation.x=0;c.v.armR.rotation.x=0;}
+function updateCustomers(dt,t){
+  for(let i=customers.length-1;i>=0;i--){const c=customers[i];const L=segLen(c.route);
+    if(c.phase==='come'){c.prog=Math.min(1,c.prog+dt*1.55/L);
+      _setWalk(c,path(c.route,c.prog),path(c.route,Math.min(1,c.prog+.02)),t);
+      if(c.prog>=1){c.phase='wait';const p=c.v.g.position;c.v.g.rotation.y=Math.atan2(7-p.x,6.2-p.z);_resetLimbs(c);}}
+    else if(c.phase==='wait'){const p=c.v.g.position;p.y=gh(p.x,p.z);
+      c.v.armR.rotation.x=Math.sin(t*1.6+c.ph)*.1;c.bub.position.y=2.8+Math.sin(t*2+c.ph)*.08;}
+    else if(c.phase==='celebrate'){c.t+=dt;const p=c.v.g.position;p.y=gh(p.x,p.z)+Math.abs(Math.sin(c.t*9))*.3;
+      if(c.t>1.6)sendHome(c);}
+    else if(c.phase==='leave'){c.prog=Math.min(1,c.prog+dt*1.75/L);
+      _setWalk(c,path(c.route,c.prog),path(c.route,Math.min(1,c.prog+.02)),t);
+      if(c.prog>=1){scene.remove(c.v.g);customers.splice(i,1);}}}}
 let order=null, prevDayT=0;
 function unlockedCrops(){return Object.keys(CROPS).filter(k=>CROPS[k].lvl<=level);}
 function newOrder(){const pool=unlockedCrops();const n=(level>=3&&Math.random()<.55)?2:1;const picks=[];
   while(picks.length<n){const k=pool[Math.floor(Math.random()*pool.length)];if(!picks.includes(k))picks.push(k);}
   const items={};let total=0;for(const k of picks){const q=2+Math.floor(Math.random()*3);items[k]=q;total+=CROPS[k].value*q;}
-  const cust=CUSTS[Math.floor(Math.random()*CUSTS.length)];
-  order={cust:cust[0],col:cust[1],items,reward:Math.round(total*1.6)};renderOrder();save();}
+  const ci=Math.floor(Math.random()*CUSTS.length);const cust=CUSTS[ci];
+  order={cust:cust[0],col:cust[1],ci,items,reward:Math.round(total*1.6)};spawnCustomer(order,false);renderOrder();save();}
 function canDeliver(){if(!order)return false;for(const k in order.items)if((inv[k]||0)<order.items[k])return false;return true;}
-function deliverOrder(){if(!canDeliver())return false;for(const k in order.items)inv[k]-=order.items[k];coins+=order.reward;bumpCoins();stallBurst();sfx('order');toast('Sipariş teslim! +'+order.reward+' '+COIN,'gold');addXp(Math.round(order.reward/2));order=null;renderOrder();updateHUD();save();setTimeout(()=>{if(!order)newOrder();},4000);return true;}
-function rejectOrder(){if(!order)return;order=null;renderOrder();save();setTimeout(()=>{if(!order)newOrder();},1600);}
+function deliverOrder(){if(!canDeliver())return false;for(const k in order.items)inv[k]-=order.items[k];coins+=order.reward;bumpCoins();stallBurst();custDelivered(order);sfx('order');toast('Sipariş teslim! +'+order.reward+' '+COIN,'gold');addXp(Math.round(order.reward/2));order=null;renderOrder();updateHUD();save();setTimeout(()=>{if(!order)newOrder();},4000);return true;}
+function rejectOrder(){if(!order)return;custLeave(order);order=null;renderOrder();save();setTimeout(()=>{if(!order)newOrder();},1600);}
 function renderOrder(){const el=$('ordercard');if(!el)return;
   if(!order){el.classList.add('gone');el.innerHTML='';return;}
   let rows='';for(const k in order.items){const c=CROPS[k],have=inv[k]||0,need=order.items[k];
@@ -489,6 +544,7 @@ function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1
     n.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
     if(n.legL){n.legL.rotation.x=sw;n.legR.rotation.x=-sw;n.armL.rotation.x=-sw*.75;n.armR.rotation.x=sw*.75;}}
   for(const q of idlers){q.v.armR.rotation.z=-.25+Math.sin(t*1.8+q.ph)*.14;q.v.g.rotation.y+=Math.sin(t*.7+q.ph)*.0006;}
+  updateCustomers(dt,t);
   const nowMs=Date.now();
   for(const p of plots){ if(p.state==='empty'||!p.cropObj)continue; const c=CROPS[p.crop]; const prog=(nowMs-p.planted)/(c.grow*1000); const ripe=prog>=1; p.cropObj.update(prog,ripe);
     if(ripe){ if(p.state!=='ripe'){p.state='ripe';p.ring.visible=true;} p.cropObj.group.position.y=Math.abs(Math.sin(t*3))*0.12; p.ring.scale.setScalar(1+Math.sin(t*3)*0.06); p.ring.material.opacity=1; }
@@ -502,9 +558,9 @@ $('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'🔇':'🔊';if
 applyDayNight(dayT); load();
 const _ci=$('coinIco'); if(_ci)_ci.innerHTML=COIN;
 const _dt=$('dayTxt'); if(_dt)_dt.textContent='Gün '+day;
-if(order)renderOrder(); else setTimeout(()=>{if(!order)newOrder();},1400);
+if(order){if(order.ci==null)order.ci=0;spawnCustomer(order,true);renderOrder();} else setTimeout(()=>{if(!order)newOrder();},1400);
 updateHUD(); fitCam(); addEventListener('resize',fitCam); updateCam(); requestAnimationFrame(loop);
-window.__game={plots,plant,harvest,sellAll,deliverOrder,newOrder,rejectOrder,addInv:(k,n)=>{inv[k]=(inv[k]||0)+n;updateHUD();},addXp,state:()=>({coins,xp,level,day,inv:{...inv},order:order&&JSON.parse(JSON.stringify(order)),plots:plots.map(p=>p.state)}),setSel:k=>{selected=k;buildSeedbar();}};
+window.__game={plots,plant,harvest,sellAll,deliverOrder,newOrder,rejectOrder,custs:()=>customers.map(c=>({phase:c.phase,prog:+c.prog.toFixed(2)})),custWarp:()=>{customers.forEach(c=>{c.prog=.999;});},addInv:(k,n)=>{inv[k]=(inv[k]||0)+n;updateHUD();},addXp,state:()=>({coins,xp,level,day,inv:{...inv},order:order&&JSON.parse(JSON.stringify(order)),plots:plots.map(p=>p.state)}),setSel:k=>{selected=k;buildSeedbar();}};
 window.__proj=(x,y,z)=>proj(x,y,z);
 window.__setTime=t=>{applyDayNight(t);return{dayT,night};};
 window.__ready=true;

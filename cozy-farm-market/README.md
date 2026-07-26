@@ -15,7 +15,11 @@ otomatik kaydedilir (localStorage).
 > tıkla → ek; ürünler gerçek zamanlı 3B büyür (5 ürün: havuç/buğday/domates/çilek/balkabağı —
 > **seviye ile açılır**); olgunlaşınca altın halka belirir, tıkla → **topla, envantere girer**.
 > **Sipariş sistemi:** kasabalılar (Nine, Fırıncı Kemal, Küçük Ali...) belirli ürünler ister ve
-> taban fiyatın **×1.6'sını** öder — ya da envanteri tek tuşla pazarda sat (taban fiyat). Hasat
+> taban fiyatın **×1.6'sını** öder — ya da envanteri tek tuşla pazarda sat (taban fiyat).
+> **Müşteri NPC'leri:** sipariş veren kasabalı **evinden çıkıp patikalardan tezgaha yürür** (her
+> müşterinin kendi kostümü ve rotası var), kafasında istediği ürünlerin renklerini gösteren
+> **düşünce balonuyla** bekler; teslim edince **zıplayarak sevinir**, balonu kalbe döner, kalp
+> partikülleri saçılır ve evine döner. Reddedersen sessizce geri döner. Hasat
 > ve siparişler **XP** verir; **5 seviye**, her biri yeni ürün açar (HUD'da rozet + ilerleme barı).
 > **Oyun hissi:** tarla üzerinde hover vurgusu + imleç, hasatta 3B **partikül patlaması**, uçan
 > ürün ikonları, altın sayacı zıplaması, toast bildirimleri, sipariş tesliminde tezgahta altın
