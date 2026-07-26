@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAUDE OF DUTY</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎯</text></svg>">
+<style>
+  :root {
+    --accent: #ffb44d;
+    --accent-dim: rgba(255, 180, 77, 0.55);
+    --danger: #ff4d4d;
+    --hud-bg: rgba(10, 12, 14, 0.55);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #05070a; }
+  body {
+    font-family: "Consolas", "SF Mono", "Menlo", monospace;
+    color: #e8e6e0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #hud.visible { display: block; }
+
+  #crosshair {
+    position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+  }
+  .ch-line { position: absolute; background: var(--accent); box-shadow: 0 0 4px rgba(0,0,0,0.9); }
+  #ch-t, #ch-b { width: 2px; height: 9px; left: -1px; }
+  #ch-l, #ch-r { height: 2px; width: 9px; top: -1px; }
+  #ch-dot {
+    position: absolute; width: 2px; height: 2px; left: -1px; top: -1px;
+    background: var(--accent); box-shadow: 0 0 4px rgba(0,0,0,0.9);
+  }
+
+  #hitmarker {
+    position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+    opacity: 0; transition: opacity 0.18s ease-out;
+  }
+  #hitmarker span {
+    position: absolute; width: 12px; height: 2px; background: #fff;
+    box-shadow: 0 0 3px rgba(0,0,0,0.8);
+  }
+  #hitmarker.head span { background: var(--danger); }
+  #hitmarker span:nth-child(1) { transform: translate(-14px, -9px) rotate(45deg); }
+  #hitmarker span:nth-child(2) { transform: translate(3px, -9px) rotate(-45deg); }
+  #hitmarker span:nth-child(3) { transform: translate(-14px, 7px) rotate(-45deg); }
+  #hitmarker span:nth-child(4) { transform: translate(3px, 7px) rotate(45deg); }
+  #hitmarker.show { opacity: 1; transition: none; }
+
+  #reload-label {
+    position: absolute; left: 50%; top: calc(50% + 42px); transform: translateX(-50%);
+    color: var(--accent); font-size: 13px; letter-spacing: 3px; display: none;
+  }
+
+  .hud-panel {
+    position: absolute; background: var(--hud-bg);
+    border: 1px solid rgba(255, 180, 77, 0.25);
+    padding: 10px 14px; backdrop-filter: blur(2px);
+  }
+  #panel-health { left: 24px; bottom: 24px; width: 250px; }
+  #health-bar { width: 100%; height: 10px; background: rgba(255,255,255,0.12); margin-top: 6px; }
+  #health-fill { height: 100%; width: 100%; background: var(--accent); transition: width 0.15s ease-out; }
+  #health-fill.low { background: var(--danger); }
+  #health-row { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 2px; color: #b8b4aa; }
+  #health-num { color: #fff; font-size: 14px; }
+
+  #panel-ammo { right: 24px; bottom: 24px; text-align: right; min-width: 190px; }
+  #weapon-name { font-size: 12px; letter-spacing: 3px; color: var(--accent-dim); }
+  #ammo-row { margin-top: 2px; }
+  #ammo-mag { font-size: 34px; font-weight: bold; color: #fff; }
+  #ammo-reserve { font-size: 16px; color: #b8b4aa; }
+  #weapon-slots { margin-top: 4px; font-size: 10px; letter-spacing: 2px; color: #6f6a60; }
+  #weapon-slots b { color: var(--accent); }
+
+  #panel-status { left: 24px; top: 24px; font-size: 13px; letter-spacing: 2px; line-height: 1.7; }
+  #panel-status .lbl { color: #8c8778; }
+  #panel-status .val { color: #fff; }
+  #wave-val { color: var(--accent); }
+
+  #fps-label { position: absolute; right: 24px; top: 24px; font-size: 11px; color: #6f6a60; letter-spacing: 1px; }
+
+  #killfeed {
+    position: absolute; right: 24px; top: 56px; text-align: right;
+    font-size: 12px; letter-spacing: 1px;
+  }
+  .kf-entry { margin-top: 4px; color: #d8d4ca; text-shadow: 0 0 4px #000; opacity: 1; transition: opacity 0.8s; }
+  .kf-entry b { color: var(--accent); }
+  .kf-entry.fade { opacity: 0; }
+
+  #announce {
+    position: absolute; left: 50%; top: 26%; transform: translateX(-50%);
+    text-align: center; opacity: 0; transition: opacity 0.4s;
+  }
+  #announce.show { opacity: 1; }
+  #announce-main { font-size: 42px; letter-spacing: 12px; color: var(--accent); text-shadow: 0 0 18px rgba(255,180,77,0.45), 0 2px 4px #000; }
+  #announce-sub { font-size: 14px; letter-spacing: 4px; color: #cfc9bc; margin-top: 8px; text-shadow: 0 1px 3px #000; }
+
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 42%, rgba(200, 20, 20, 0.55) 100%);
+  }
+  #lowhp {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 48%, rgba(160, 0, 0, 0.5) 100%);
+  }
+  #lowhp.pulse { animation: lowhp-pulse 1.2s ease-in-out infinite; }
+  @keyframes lowhp-pulse { 0%,100% { opacity: 0.25; } 50% { opacity: 0.7; } }
+
+  #damage-ring { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  .dmg-arrow {
+    position: absolute; left: -30px; top: -95px; width: 60px; height: 22px;
+    opacity: 0.9; transform-origin: 30px 95px;
+  }
+  .dmg-arrow::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(255,60,60,0.85), transparent);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+
+  /* ---------- Screens ---------- */
+  .screen {
+    position: fixed; inset: 0; display: none; z-index: 10;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.82) 0%, rgba(4, 6, 9, 0.96) 100%);
+  }
+  .screen.visible { display: flex; }
+  .game-title { font-size: 58px; letter-spacing: 16px; color: #f2efe6; text-shadow: 0 0 30px rgba(255,180,77,0.35); }
+  .game-title b { color: var(--accent); font-weight: inherit; }
+  .game-sub { margin-top: 10px; font-size: 12px; letter-spacing: 5px; color: #8c8778; }
+  .btn {
+    pointer-events: auto; cursor: pointer; margin-top: 38px;
+    font-family: inherit; font-size: 16px; letter-spacing: 6px;
+    color: #0a0c0e; background: var(--accent); border: none;
+    padding: 15px 52px; transition: transform 0.08s, box-shadow 0.08s;
+    box-shadow: 0 0 24px rgba(255,180,77,0.25);
+  }
+  .btn:hover { transform: scale(1.04); box-shadow: 0 0 34px rgba(255,180,77,0.5); }
+  .controls-list {
+    margin-top: 34px; font-size: 12px; letter-spacing: 2px; color: #9a9588;
+    line-height: 2; text-align: center;
+  }
+  .controls-list b { color: #e8e6e0; display: inline-block; min-width: 130px; text-align: right; margin-right: 14px; }
+  .screen .footnote { position: absolute; bottom: 22px; font-size: 10px; letter-spacing: 2px; color: #55514a; text-align: center; line-height: 1.8; }
+  #pause-hint { font-size: 14px; letter-spacing: 4px; color: #cfc9bc; margin-top: 20px; }
+  #final-stats { margin-top: 22px; font-size: 15px; letter-spacing: 3px; color: #cfc9bc; line-height: 2.1; text-align: center; }
+  #final-stats .big { font-size: 30px; color: var(--accent); }
+  #go-title { color: var(--danger); text-shadow: 0 0 30px rgba(255,60,60,0.35); }
+
+  #errlog { display: none; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div id="vignette"></div>
+    <div id="lowhp"></div>
+    <div id="damage-ring"></div>
+
+    <div id="crosshair">
+      <span class="ch-line" id="ch-t"></span>
+      <span class="ch-line" id="ch-b"></span>
+      <span class="ch-line" id="ch-l"></span>
+      <span class="ch-line" id="ch-r"></span>
+      <span id="ch-dot"></span>
+    </div>
+    <div id="hitmarker"><span></span><span></span><span></span><span></span></div>
+    <div id="reload-label">RELOADING</div>
+
+    <div class="hud-panel" id="panel-health">
+      <div id="health-row"><span>INTEGRITY</span><span id="health-num">100</span></div>
+      <div id="health-bar"><div id="health-fill"></div></div>
+    </div>
+
+    <div class="hud-panel" id="panel-ammo">
+      <div id="weapon-name">CF-5 VANDAL</div>
+      <div id="ammo-row"><span id="ammo-mag">30</span> <span id="ammo-reserve">/ 120</span></div>
+      <div id="weapon-slots"></div>
+    </div>
+
+    <div class="hud-panel" id="panel-status">
+      <div><span class="lbl">WAVE </span><span class="val" id="wave-val">1</span></div>
+      <div><span class="lbl">HOSTILES </span><span class="val" id="hostiles-val">0</span></div>
+      <div><span class="lbl">SCORE </span><span class="val" id="score-val">0</span></div>
+    </div>
+
+    <div id="fps-label">-- FPS</div>
+    <div id="killfeed"></div>
+
+    <div id="announce">
+      <div id="announce-main"></div>
+      <div id="announce-sub"></div>
+    </div>
+  </div>
+
+  <div class="screen visible" id="screen-menu">
+    <div class="game-title">CLAUDE <b>OF</b> DUTY</div>
+    <div class="game-sub">PROCEDURAL WARFARE // NO ART ASSETS WERE HARMED</div>
+    <button class="btn" id="btn-play">ENTER COMBAT</button>
+    <div class="controls-list">
+      <div><b>W A S D</b>MOVE</div>
+      <div><b>MOUSE</b>AIM &nbsp;/&nbsp; LMB FIRE &nbsp;/&nbsp; RMB AIM DOWN SIGHTS</div>
+      <div><b>SHIFT</b>SPRINT &nbsp;&nbsp;<b>SPACE</b>JUMP &nbsp;&nbsp;<b>C</b>CROUCH</div>
+      <div><b>R</b>RELOAD &nbsp;&nbsp;<b>1 / 2 / 3</b>WEAPONS &nbsp;&nbsp;<b>ESC</b>PAUSE</div>
+    </div>
+    <div class="footnote">
+      EVERY TEXTURE, MESH, ANIMATION AND SOUND IS GENERATED IN CODE AT RUNTIME.<br>
+      AN ORIGINAL HOMAGE TO MSHUMER/CLAUDE-OF-DUTY (MIT) — WRITTEN BY CLAUDE.
+    </div>
+  </div>
+
+  <div class="screen" id="screen-pause">
+    <div class="game-title" style="font-size:36px;">PAUSED</div>
+    <button class="btn" id="btn-resume">RESUME</button>
+    <div id="pause-hint">OR CLICK ANYWHERE / PRESS ESC</div>
+  </div>
+
+  <div class="screen" id="screen-gameover">
+    <div class="game-title" id="go-title" style="font-size:44px;">K.I.A.</div>
+    <div id="final-stats"></div>
+    <button class="btn" id="btn-restart">REDEPLOY</button>
+  </div>
+
+  <pre id="errlog"></pre>
+
+  <script>
+    window.__errors = [];
+    window.addEventListener("error", (e) => {
+      window.__errors.push(String(e.message || e.error));
+      document.getElementById("errlog").textContent = window.__errors.join("\n");
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      window.__errors.push("rejection: " + String(e.reason));
+      document.getElementById("errlog").textContent = window.__errors.join("\n");
+    });
+  </script>
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
