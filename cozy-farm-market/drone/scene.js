@@ -337,7 +337,7 @@ function toast(html,cls){const w=$('toasts');if(!w)return;const el=document.crea
 
 // ---- perspektif takip kamerası ----
 const pcam=new THREE.PerspectiveCamera(55,1,0.1,260);
-function fitP(){pcam.aspect=W()/H();pcam.updateProjectionMatrix();renderer.setSize(W(),H(),false);}
+function fitP(){const a=W()/H();pcam.aspect=a;pcam.fov=a<1?68:55;pcam.updateProjectionMatrix();renderer.setSize(W(),H(),false);}
 
 // ---- drone gövdesi ----
 const craft=new THREE.Group();
@@ -392,7 +392,7 @@ function updHUD(){$('coins').textContent=coins;$('delc').textContent=delivs;
 
 // ---- ses ----
 let actx=null,thrG=null;
-function audio(){if(actx)return actx;try{actx=new(window.AudioContext||window.webkitAudioContext)();
+function audio(){if(actx){if(actx.state==='suspended')actx.resume();return actx;}try{actx=new(window.AudioContext||window.webkitAudioContext)();
   const o1=actx.createOscillator(),o2=actx.createOscillator(),f=actx.createBiquadFilter();
   o1.type='sawtooth';o1.frequency.value=52;o2.type='sawtooth';o2.frequency.value=57;
   f.type='lowpass';f.frequency.value=260;thrG=actx.createGain();thrG.gain.value=0;
@@ -420,8 +420,24 @@ function tryMission(){
 }
 
 // ---- girişler ----
+function resetCraft(){pos.set(2,7,16);vel.set(0,0,0);cyaw=Math.PI;pitch=0;roll=0;}
 addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();key[e.code]=true;audio();
-  if(e.code==='KeyR'){pos.set(2,7,16);vel.set(0,0,0);cyaw=Math.PI;pitch=0;roll=0;}});
+  if(e.code==='KeyR')resetCraft();});
+$('rst').onclick=()=>{resetCraft();audio();};
+addEventListener('contextmenu',e=>{if(e.target===cvs)e.preventDefault();});
+if(matchMedia&&matchMedia('(pointer:coarse)').matches){const h=document.querySelector('.hint');if(h)h.innerHTML='Sol yarı: <b>yüksel/alçal + dön</b> · Sağ yarı: <b>eğil / uç</b> — altın halkadan kasa al, yeşil halkaya <b>yavaşça</b> bırak';}
+// ---- sanal çift joystick (pointer tabanlı: dokunmatik + fare) ----
+const stickL={a:false,id:null,cx:0,cy:0,x:0,y:0},stickR={a:false,id:null,cx:0,cy:0,x:0,y:0};
+function stickShow(st,base,knob){base.style.display='block';base.style.left=st.cx+'px';base.style.top=st.cy+'px';knob.style.transform='translate(-50%,-50%)';}
+function stickUpd(st,knob,ex,ey){const R=55;let dx=ex-st.cx,dy=ey-st.cy;const L=Math.hypot(dx,dy);if(L>R){dx*=R/L;dy*=R/L;}
+  st.x=dx/R;st.y=-dy/R;knob.style.transform='translate(calc(-50% + '+dx+'px),calc(-50% + '+dy+'px))';}
+function stickHide(st,base){st.a=false;st.id=null;st.x=0;st.y=0;base.style.display='none';}
+cvs.addEventListener('pointerdown',e=>{e.preventDefault();audio();
+  const st=e.clientX<innerWidth*.5?stickL:stickR;if(st.a)return;
+  st.a=true;st.id=e.pointerId;st.cx=e.clientX;st.cy=e.clientY;st.x=0;st.y=0;
+  stickShow(st,$(st===stickL?'stkL':'stkR'),$(st===stickL?'stkLk':'stkRk'));});
+addEventListener('pointermove',e=>{for(const st of[stickL,stickR]){if(st.a&&st.id===e.pointerId)stickUpd(st,$(st===stickL?'stkLk':'stkRk'),e.clientX,e.clientY);}});
+for(const ev of['pointerup','pointercancel'])addEventListener(ev,e=>{for(const st of[stickL,stickR]){if(st.a&&st.id===e.pointerId)stickHide(st,$(st===stickL?'stkL':'stkR'));}});
 addEventListener('keyup',e=>{key[e.code]=false;});
 $('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'🔇':'🔊';if(thrG)thrG.gain.value=0;};
 
@@ -431,12 +447,15 @@ let throttleVis=.5;
 
 function physics(dt){
   const fwd=key.KeyW||key.ArrowUp, back=key.KeyS||key.ArrowDown, lf=key.KeyA||key.ArrowLeft, rt=key.KeyD||key.ArrowRight;
-  const tp=(fwd?1:0)-(back?1:0), tr=(rt?1:0)-(lf?1:0);
+  const tp=stickR.a?stickR.y:((fwd?1:0)-(back?1:0));
+  const tr=stickR.a?stickR.x:((rt?1:0)-(lf?1:0));
   pitch+=((tp*TILT)-pitch)*Math.min(1,TEASE*dt);
   roll+=((tr*TILT)-roll)*Math.min(1,TEASE*dt);
-  cyaw+=((key.KeyQ?1:0)-(key.KeyE?1:0))*YAWR*dt;
+  const yIn=stickL.a?-stickL.x:((key.KeyQ?1:0)-(key.KeyE?1:0));
+  cyaw+=yIn*YAWR*dt;
   EU.set(pitch,cyaw,-roll);UP.set(0,1,0).applyEuler(EU);
-  const lift=(key.Space?LIFT:0)-(key.ShiftLeft||key.ShiftRight?SINK:0);
+  const liftIn=stickL.a?stickL.y:((key.Space?1:0)-(key.ShiftLeft||key.ShiftRight?1:0));
+  const lift=liftIn>0?liftIn*LIFT:liftIn*SINK;
   throttleVis=Math.max(.15,Math.min(1,(G+lift)/(G+LIFT)));
   // rotor itkisi UP yönünde, yerçekimi aşağı — eğim yatay bileşeni doğal üretir
   vel.x+=UP.x*(G+lift)*dt; vel.z+=UP.z*(G+lift)*dt; vel.y+=(UP.y*(G+lift)-G)*dt;
@@ -465,7 +484,7 @@ function physics(dt){
 
 function chaseCam(dt){
   const f=new THREE.Vector3(Math.sin(cyaw),0,Math.cos(cyaw));
-  const des=new THREE.Vector3().copy(pos).addScaledVector(f,-7.4);des.y=pos.y+3.1;
+  const pr=pcam.aspect<1?1.35:1;const des=new THREE.Vector3().copy(pos).addScaledVector(f,-7.4*pr);des.y=pos.y+3.1*pr;
   const gyc=gh(des.x,des.z);if(des.y<gyc+1.2)des.y=gyc+1.2;
   const k=1-Math.exp(-5*dt);pcam.position.lerp(des,k);
   const look=new THREE.Vector3().copy(pos).addScaledVector(f,2.2);look.y+=.6;

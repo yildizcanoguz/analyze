@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
 <title>Küçük Pazar — Drone Teslimat (3B Fizik)</title>
 </head>
 <body>
@@ -35,7 +35,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#bfe0f2;font-family:"B
 .toast{border-radius:999px;padding:7px 18px 6px;font-size:13.5px;font-weight:800;color:var(--ink);animation:tst 2.9s ease forwards;display:flex;align-items:center;gap:6px}
 .toast.gold{color:var(--gold)}
 @keyframes tst{0%{opacity:0;transform:translateY(-10px) scale(.9)}12%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
-@media (max-width:760px){.hint{font-size:10px;white-space:normal;max-width:94vw;text-align:center}}
+.stick{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid rgba(255,255,255,.72);background:rgba(255,253,247,.22);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}
+.knob{position:absolute;left:50%;top:50%;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.78);box-shadow:0 4px 12px -4px rgba(20,40,10,.5),inset 0 1px 0 #fff;transform:translate(-50%,-50%)}
+@media (max-width:760px){.hint{font-size:10.5px;white-space:normal;max-width:94vw;text-align:center;bottom:10px}
+.title{font-size:14px;padding:7px 12px 6px}.chip{font-size:11.5px;padding:5px 11px 4px}
+.coinspod{font-size:16px;padding:7px 13px 6px 10px}.delpod{font-size:13px;padding:7px 11px 6px}.mute{padding:7px 9px;font-size:13px}}
 </style>
 <canvas id="c"></canvas>
 <div id="vig"></div>
@@ -46,9 +50,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:#bfe0f2;font-family:"B
 <div class="topright">
   <div class="glass delpod">📦 <span id="delc">0</span></div>
   <div class="coinspod">🪙 <span id="coins">0</span></div>
+  <button class="glass mute" id="rst" title="Sıfırla">↺</button>
   <button class="glass mute" id="mute">🔊</button>
 </div>
 <div class="hint"><b>Boşluk</b> yüksel · <b>Shift</b> alçal · <b>WASD</b> eğil/uç · <b>Q/E</b> dön · <b>R</b> sıfırla — altın halkadan kasayı al, yeşil halkaya <b>yavaşça</b> bırak</div>
+<div id="stkL" class="stick"><div id="stkLk" class="knob"></div></div>
+<div id="stkR" class="stick"><div id="stkRk" class="knob"></div></div>
 <div id="toasts"></div>
 <script src="../3d/three.min.js"></script>
 <script src="scene.js"></script>

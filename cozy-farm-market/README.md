@@ -52,6 +52,10 @@ otomatik kaydedilir (localStorage).
 > **yeşil halkaya yavaşça bırak** (+altın); hedefi gösteren yüzen ok, throttle'a bağlı dönen
 > rotorlar + itici alevleri + yere yakınken toz, Web Audio **motor uğultusu** (throttle'la değişir).
 > Köy sahnesi (dokular, patikalar, köylüler, gündüz/gece) ana 3B oyunla ortak koddan gelir.
+> **📱 Telefonda oynanabilir:** çift **sanal joystick** (RC kumanda düzeni — sol: yükseklik + dönüş,
+> sağ: eğilme/uçuş), basılı yerde beliren yüzen çubuklar, portre modda geniş FOV + uzaklaştırılmış
+> takip kamerası, mobil için sıkılaştırılmış HUD ve dokunmatik ipucu metni. Pointer-event tabanlı —
+> masaüstünde fareyle de sürüklenebilir; ↺ düğmesiyle sıfırlama.
 
 ![önizleme](preview.png)
 
