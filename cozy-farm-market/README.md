@@ -24,9 +24,11 @@ otomatik kaydedilir (localStorage).
 > yakınlaştır. Ekonomi + `localStorage` kayıt (v2 şema, eski kayıtla uyumlu). Teknik: gerçek izometrik 3B
 > geometri, gerçek zamanlı yumuşak gölgeler (shadow map), PBR malzemeler, ACES filmik tonlama,
 > raycast tıklama, rüyet fonunda dönen değirmen + yürüyen köylüler + otlayan hayvanlar. Sahne
-> **el işi ile zenginleştirildi**: çizgili tenteli **pazar tezgahı** + ürün sandıkları, **çitli
-> mera**, çiçekli çalılar, kayalar, çiçek açan (pembe) ağaçlar ve premium bir çerçeve hissi için
-> **vinyet**. **Zemin dokusu el boyaması** (üretilen görsel; kenarlarda çapraz-geçiş ile
+> **el işi ile zenginleştirildi**: köyü birbirine bağlayan **kıvrımlı toprak patikalar** (değirmen
+> → tarla → tezgah → ahır → mera), çizgili tenteli **pazar tezgahı** + ürün sandıkları, **çitli
+> mera**, katmanlı siluetli ve 5 renk paletli ağaçlar (bazıları pembe çiçekli), şapkalı/önlüklü
+> **köylüler**, çiçekli çalılar, kayalar, çayır ton geçişleri ve premium çerçeve için **vinyet** +
+> hafif doygunluk/kontrast grade'i. **Zemin dokusu el boyaması** (üretilen görsel; kenarlarda çapraz-geçiş ile
 > **dikişsiz** hale getirilip base64 olarak gömüldü — bkz. `3d/textures/grass.jpg`). Diğer
 > malzemeler **prosedürel el işi** — kod içinde `<canvas>` ile çizilip `THREE.CanvasTexture` +
 > `bumpMap` olarak uygulanır: kiremitli terracotta çatı, sıvalı duvar, sürülmüş toprak, **kalas
