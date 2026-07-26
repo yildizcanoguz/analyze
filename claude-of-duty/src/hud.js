@@ -35,6 +35,7 @@ export class HUD {
       gameover: $("screen-gameover"),
     };
     this.finalStats = $("final-stats");
+    this.pauseHint = $("pause-hint");
 
     this.vignetteK = 0;
     this.hitT = 0;
@@ -49,6 +50,15 @@ export class HUD {
     for (const key of Object.keys(this.screens)) {
       this.screens[key].classList.toggle("visible", key === name);
     }
+    // Hide the cursor only while the player is actually in control.
+    document.body.classList.toggle("in-combat", name === null || name === undefined);
+  }
+
+  // Called when the browser refuses pointer lock, so the on-screen prompts
+  // stop telling the player to click to re-capture the mouse.
+  setLockFallback(on) {
+    if (!on) return;
+    this.pauseHint.textContent = "PRESS ESC OR CLICK TO RESUME";
   }
 
   setHealth(h, max) {

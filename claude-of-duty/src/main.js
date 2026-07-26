@@ -158,14 +158,20 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "Space") input.jump = false;
 });
 
+// Pointer lock is unavailable in some embedded/sandboxed contexts. When that
+// happens the game stays playable: raw mouse deltas still steer, and Escape
+// takes over the pause duty the browser would normally handle.
+let lockActive = false;
+let lockUsable = typeof renderer.domElement.requestPointerLock === "function";
+
+const lookEnabled = () => G.state === "playing" && (lockActive || !lockUsable);
+
 window.addEventListener("mousemove", (e) => {
-  if (G.state === "playing" && document.pointerLockElement === renderer.domElement) {
-    G.player.onMouseMove(e.movementX, e.movementY);
-  }
+  if (lookEnabled()) G.player.onMouseMove(e.movementX || 0, e.movementY || 0);
 });
 
 window.addEventListener("mousedown", (e) => {
-  if (G.state !== "playing" || document.pointerLockElement !== renderer.domElement) return;
+  if (!lookEnabled()) return;
   if (e.button === 0) G.weapons.triggerDown();
   else if (e.button === 2) G.weapons.setADS(true);
 });
@@ -178,32 +184,60 @@ window.addEventListener("mouseup", (e) => {
 window.addEventListener("contextmenu", (e) => e.preventDefault());
 
 window.addEventListener("wheel", (e) => {
-  if (G.state === "playing" && document.pointerLockElement === renderer.domElement) {
-    G.weapons.cycle(e.deltaY > 0 ? 1 : -1);
-  }
-});
+  if (lookEnabled()) G.weapons.cycle(e.deltaY > 0 ? 1 : -1);
+}, { passive: true });
 
 // ---------- Pointer lock / pause ----------
+function markLockUnusable() {
+  if (!lockUsable) return;
+  lockUsable = false;
+  G.hud.setLockFallback(true);
+}
+
 function requestLock() {
-  const p = renderer.domElement.requestPointerLock();
-  // Some browsers return a promise; a rejection (e.g. headless) must not kill the game.
-  if (p && p.catch) p.catch(() => {});
+  if (!lockUsable) {
+    // No lock to acquire — resuming is just leaving the pause screen.
+    if (G.state === "paused") {
+      G.state = "playing";
+      G.hud.showScreen(null);
+    }
+    return;
+  }
+  try {
+    const p = renderer.domElement.requestPointerLock();
+    if (p && p.catch) p.catch(markLockUnusable);
+  } catch {
+    markLockUnusable();
+  }
 }
 
 document.addEventListener("pointerlockchange", () => {
-  const locked = document.pointerLockElement === renderer.domElement;
-  if (!locked && G.state === "playing") {
-    G.state = "paused";
-    clearInput();
-    G.weapons.triggerUp();
-    G.weapons.setADS(false);
-    G.hud.showScreen("pause");
-  } else if (locked && G.state === "paused") {
+  lockActive = document.pointerLockElement === renderer.domElement;
+  if (!lockActive && G.state === "playing") {
+    pauseGame();
+  } else if (lockActive && G.state === "paused") {
     G.state = "playing";
     G.hud.showScreen(null);
   }
 });
-document.addEventListener("pointerlockerror", () => { /* keep running unlocked */ });
+document.addEventListener("pointerlockerror", markLockUnusable);
+
+function pauseGame() {
+  if (G.state !== "playing") return;
+  G.state = "paused";
+  clearInput();
+  G.weapons.triggerUp();
+  G.weapons.setADS(false);
+  G.hud.showScreen("pause");
+}
+
+// Without pointer lock the browser never sends us an implicit unlock, so
+// Escape has to drive the pause screen directly.
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "Escape" || lockUsable) return;
+  if (G.state === "playing") pauseGame();
+  else if (G.state === "paused") requestLock();
+});
 
 // ---------- Screens ----------
 function startCombat() {
@@ -301,6 +335,7 @@ tick();
 
 // Debug / test hook (used by the automated smoke test).
 window.__game = G;
+G.lockState = () => ({ lockActive, lockUsable });
 if (new URLSearchParams(location.search).has("autotest")) {
   document.getElementById("btn-play").click();
 }

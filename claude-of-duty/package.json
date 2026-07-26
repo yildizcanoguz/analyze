@@ -1,0 +1,15 @@
+{
+  "name": "claude-of-duty",
+  "version": "1.0.0",
+  "description": "A browser FPS whose textures, meshes, animations and sounds are all generated at runtime.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "build": "node tools/build-standalone.mjs --fragment"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

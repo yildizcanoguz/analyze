@@ -16,9 +16,22 @@ Serve the folder with any static file server and open it:
 
 ```bash
 cd claude-of-duty
-python3 -m http.server 8000
+npm start          # python3 -m http.server 8000
 # then open http://localhost:8000
 ```
+
+A server is needed only because browsers refuse to load ES modules over
+`file://`. To get a version you can double-click instead, build the
+single-file bundle — Three.js and all eleven modules inlined into one
+self-contained HTML document with no network access of any kind:
+
+```bash
+npm install
+npm run build      # -> dist/claude-of-duty.html (~594 KB)
+```
+
+`--fragment` additionally emits `dist/claude-of-duty.page.html`, the same
+page without the document wrapper, for embedding.
 
 ## Gameplay
 
@@ -35,6 +48,11 @@ Each wave is larger, tougher and more accurate than the last.
 | `R` | Reload |
 | `1 / 2 / 3` or wheel | Switch weapon |
 | `Esc` | Pause |
+
+The mouse is captured with pointer lock. Some embedded contexts (a sandboxed
+iframe, for example) refuse that request; the game detects this and keeps
+playing off raw mouse deltas instead, with `Esc` driving the pause screen
+that the browser would otherwise handle.
 
 **Arsenal:** CF-5 Vandal (auto rifle) · P-9 Scribe (semi-auto pistol) ·
 M77 Breacher (pump shotgun). Damage falls off with range, spread grows
