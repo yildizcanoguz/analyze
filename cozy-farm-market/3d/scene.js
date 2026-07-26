@@ -250,14 +250,51 @@ function sheep(x,z){const g=new THREE.Group();const bo=sph(.8,MAT(0xfbf7ee,.95))
 const clouds=[];
 function cloud(x,y,z,s){const g=new THREE.Group();const m=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,emissive:0xbfd0e0,emissiveIntensity:.14});[[0,0,0,1.6],[1.4,-.2,0,1.1],[-1.3,-.1,.3,1.15],[.3,.4,.2,1]].forEach(([a,b,c,r])=>{const q=sph(r*s,m);q.position.set(a*s,b*s,c*s);q.castShadow=false;g.add(q);});g.scale.y=.55;g.position.set(x,y,z);scene.add(g);clouds.push({g,sp:.3+Math.random()*.35});}
 const npcs=[];
-function npc(pts,col,spd){const g=new THREE.Group();
-  const body=cyl(.3,.46,1.05,MAT(col,.85));body.position.y=.9;g.add(body);
-  g.add(at(cyl(.315,.42,.34,MAT(0xfaf3e2,.9)),0,.6,0));
-  for(const sx of[-1,1]){const a=sph(.11,MAT(col,.85));a.position.set(sx*.38,1.08,.03);g.add(a);}
-  g.add(at(sph(.32,MAT(0xf0c9a0,.8)),0,1.72,0));
-  g.add(at(cyl(.36,.4,.09,MAT(0x9a6b3a,.85)),0,1.9,0));
-  g.add(at(cyl(.17,.25,.22,MAT(0x9a6b3a,.85)),0,2.02,0));
-  scene.add(g);npcs.push({g,pts,t:Math.random(),spd:spd||.06});}
+const SKIN=MAT(0xf0c9a0,.72), HANDM=MAT(0xf0c9a0,.72);
+const VTYPES={
+ farmer:{shirt:0xb85c37,bib:0x4f6fb8,pants:0x4a5d8a,hat:'straw'},
+ grandma:{shirt:0xb85c8a,dress:true,pants:0x6e4658,hat:'kerchief',scarf:0x8a4468},
+ kid:{shirt:0x6fae52,pants:0x7a5230,hat:'hair',hair:0x5b4126,scale:.7},
+ vendor:{shirt:0xcb4f42,bib:0xf5ead2,pants:0x5b4a38,hat:'straw'},
+};
+function villager(tn){const o=VTYPES[tn]||VTYPES.farmer;const g=new THREE.Group();
+  const cloth=MAT(o.shirt,.85);
+  // bacaklar (kalçadan salınan pivotlar)
+  const legL=new THREE.Group(),legR=new THREE.Group();
+  for(const q of [[legL,-1],[legR,1]]){const lg=q[0],sx=q[1];
+    const l=cyl(.085,.105,.5,MAT(o.pants,.9));l.position.y=-.25;lg.add(l);
+    const ft=sph(.105,MAT(0x6b4a2f,.9));ft.scale.set(1,.55,1.4);ft.position.set(0,-.5,.06);ft.castShadow=false;lg.add(ft);
+    lg.position.set(sx*.13,.6,0);g.add(lg);}
+  // gövde
+  if(o.dress){const d=cone(.37,.85,cloth,16);d.position.y=.92;g.add(d);
+    const w=cyl(.24,.28,.3,cloth);w.position.y=1.28;g.add(w);}
+  else{const t=sph(.3,cloth);t.scale.set(1,1.12,.85);t.position.y=1.0;g.add(t);
+    if(o.bib){const bib=box(.27,.28,.05,MAT(o.bib,.85));bib.position.set(0,1.11,.215);bib.castShadow=false;g.add(bib);
+      const wb=cyl(.305,.315,.13,MAT(o.bib,.85));wb.position.y=.8;g.add(wb);}}
+  // kollar (omuz pivotlu)
+  const armL=new THREE.Group(),armR=new THREE.Group();
+  for(const q of [[armL,-1],[armR,1]]){const ar=q[0],sx=q[1];
+    const a=cyl(.062,.078,.42,cloth);a.position.y=-.19;a.rotation.z=sx*-.3;ar.add(a);
+    const h=sph(.082,HANDM);h.position.set(sx*.1,-.41,0);h.castShadow=false;ar.add(h);
+    ar.position.set(sx*.29,1.31,0);g.add(ar);}
+  // kafa + yüz
+  const head=sph(.34,SKIN);head.position.y=1.66;g.add(head);
+  for(const sx of[-1,1]){const e=sph(.045,MAT(0x33291f,.5));e.position.set(sx*.12,1.7,.3);e.castShadow=false;g.add(e);
+    const bl=sph(.05,MAT(0xf2a58e,.8));bl.scale.set(1,.6,.5);bl.position.set(sx*.2,1.6,.25);bl.castShadow=false;g.add(bl);}
+  // saç / şapka
+  if(o.hat==='straw'){const br=cyl(.45,.5,.06,MAT(0xd9b36a,.85));br.position.y=1.9;g.add(br);
+    const cr=cyl(.22,.3,.22,MAT(0xcfa75c,.85));cr.position.y=2.02;g.add(cr);}
+  else if(o.hat==='kerchief'){const k=sph(.37,MAT(o.scarf,.85));k.scale.set(1,.82,1);k.position.set(0,1.74,-.04);g.add(k);
+    const kn=sph(.09,MAT(o.scarf,.85));kn.position.set(0,1.5,-.32);kn.castShadow=false;g.add(kn);}
+  else{const hr=sph(.355,MAT(o.hair||0x5b4126,.9));hr.scale.set(1,.8,1);hr.position.set(0,1.73,-.045);g.add(hr);
+    const fr=sph(.13,MAT(o.hair||0x5b4126,.9));fr.scale.set(1.6,.5,.8);fr.position.set(0,1.9,.22);fr.castShadow=false;g.add(fr);}
+  if(o.scale)g.scale.setScalar(o.scale);
+  return {g,legL,legR,armL,armR,sc:o.scale||1};
+}
+const idlers=[];
+function npc(pts,tn,spd){const v=villager(tn);scene.add(v.g);
+  npcs.push({g:v.g,legL:v.legL,legR:v.legR,armL:v.armL,armR:v.armR,pts,t:Math.random(),spd:spd||.05,ph:Math.random()*6.3});}
+function idleVillager(tn,x,z,ry){const v=villager(tn);v.g.position.set(x,gh(x,z),z);v.g.rotation.y=ry||0;scene.add(v.g);idlers.push({v,ph:Math.random()*6.3});return v;}
 
 // layout: farm in center-front, village behind/edges
 const T_dirt=mkTex(256,(x,s)=>{x.fillStyle='#c2a06b';x.fillRect(0,0,s,s);for(let i=0;i<1500;i++){x.fillStyle=['#b5934f','#cfae7a','#a8854f','#d8bc8a'][i&3];x.globalAlpha=.5;x.fillRect(Math.random()*s,Math.random()*s,rr(1.5,4),rr(1.5,4));}x.globalAlpha=1;},1);
@@ -286,9 +323,10 @@ cloud(-20,25,-9,2.0);cloud(12,27,9,1.7);cloud(-2,24,-16,1.45);
   lanternMat=new THREE.MeshStandardMaterial({color:0xffe9b0,emissive:0xffc766,emissiveIntensity:0,roughness:.5});
   const lamp=sph(.2,lanternMat);lamp.position.set(x-.42,y0+2.12,z);lamp.castShadow=false;scene.add(lamp);
   lanternLight=new THREE.PointLight(0xffc36b,0,10,2);lanternLight.position.set(x-.42,y0+2.1,z);scene.add(lanternLight);})();
-npc([[-9,15],[-6,4],[-6,-6],[-9,-10]],0x5b7fd4,.05);
-npc([[9,15],[6,4],[9,-8],[11,-6]],0x6fae52,.045);
-npc([[-13,10],[-6,8],[6,8],[13,6]],0xc94f6a,.05);
+npc([[-11.4,-4.7],[-8.5,-2.6],[-4.9,0],[4.9,-0.6],[8,-4],[10,-7.1],[8,-4],[4.9,-0.6],[-4.9,0],[-8.5,-2.6],[-11.4,-4.7]],'farmer',.055);
+npc([[-10.2,9.4],[-8.5,6.2],[-4.9,5.4],[-1,7.7],[3.5,8.3],[7,7.6],[3.5,8.3],[-1,7.7],[-4.9,5.4],[-8.5,6.2],[-10.2,9.4]],'grandma',.042);
+npc([[8,6],[9.5,9.6],[13,11],[16.5,9.6],[18,6],[16.5,2.4],[13,1],[9.5,2.4],[8,6]],'kid',.065);
+idleVillager('vendor',7.53,5.23,-0.5);
 
 // =================== FARM GAME ===================
 const CROPS={
@@ -445,7 +483,12 @@ function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1
   if(blades)blades.rotation.z+=dt*0.6; T_water.offset.x+=dt*0.02; T_water.offset.y+=dt*0.01;
   for(const tr of trees){tr.g.rotation.z=Math.sin(t*1.2+tr.ph)*tr.amp;}
   for(const c of clouds){c.g.position.x+=dt*c.sp;if(c.g.position.x>34)c.g.position.x=-34;}
-  for(const n of npcs){n.t+=dt*n.spd/segLen(n.pts);if(n.t>=1)n.t-=1;const a=path(n.pts,n.t),b=path(n.pts,(n.t+.01)%1);n.g.position.set(a.x,gh(a.x,a.z)+Math.abs(Math.sin(t*8))*.06,a.z);n.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);}
+  for(const n of npcs){n.t+=dt*n.spd/segLen(n.pts);if(n.t>=1)n.t-=1;const a=path(n.pts,n.t),b=path(n.pts,(n.t+.01)%1);
+    const ph=t*7+n.ph,sw=Math.sin(ph)*.52;
+    n.g.position.set(a.x,gh(a.x,a.z)+Math.abs(Math.sin(ph))*.035,a.z);
+    n.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
+    if(n.legL){n.legL.rotation.x=sw;n.legR.rotation.x=-sw;n.armL.rotation.x=-sw*.75;n.armR.rotation.x=sw*.75;}}
+  for(const q of idlers){q.v.armR.rotation.z=-.25+Math.sin(t*1.8+q.ph)*.14;q.v.g.rotation.y+=Math.sin(t*.7+q.ph)*.0006;}
   const nowMs=Date.now();
   for(const p of plots){ if(p.state==='empty'||!p.cropObj)continue; const c=CROPS[p.crop]; const prog=(nowMs-p.planted)/(c.grow*1000); const ripe=prog>=1; p.cropObj.update(prog,ripe);
     if(ripe){ if(p.state!=='ripe'){p.state='ripe';p.ring.visible=true;} p.cropObj.group.position.y=Math.abs(Math.sin(t*3))*0.12; p.ring.scale.setScalar(1+Math.sin(t*3)*0.06); p.ring.material.opacity=1; }
