@@ -332,8 +332,6 @@ idleVillager('vendor',7.53,5.23,-0.5);
 
 // ================= DRONE TESLIMAT (fizik) =================
 const $=id=>document.getElementById(id);
-const COIN='<svg viewBox="0 0 40 40" style="width:1em;height:1em;vertical-align:-.12em"><circle cx="20" cy="20" r="17" fill="#f2c14e" stroke="#c9922a" stroke-width="2.5"/><circle cx="20" cy="20" r="11.5" fill="none" stroke="#e0a83a" stroke-width="2"/><path d="M20 13l2.1 4.4 4.9.6-3.6 3.3 1 4.8-4.4-2.5-4.4 2.5 1-4.8-3.6-3.3 4.9-.6z" fill="#c9922a"/></svg>';
-function toast(html,cls){const w=$('toasts');if(!w)return;const el=document.createElement('div');el.className='toast glass'+(cls?' '+cls:'');el.innerHTML=html;w.appendChild(el);setTimeout(()=>el.remove(),2900);}
 
 // ---- perspektif takip kamerası ----
 const pcam=new THREE.PerspectiveCamera(55,1,0.1,260);
@@ -362,17 +360,9 @@ for(const [px,pz] of [[-.85,-.85],[.85,-.85],[-.85,.85],[.85,.85]]){
   const fl=new THREE.Sprite(new THREE.SpriteMaterial({map:flameTex,color:0xbfe4ff,transparent:true,opacity:.0,depthWrite:false,blending:THREE.AdditiveBlending}));
   fl.position.set(px,-.28,pz);fl.scale.set(.5,.9,1);craft.add(fl);flames.push(fl);
 }
-const carryCrate=crate(0,-1.05,0,0xef7a2f);carryCrate.visible=false;craft.add(carryCrate);
 scene.add(craft);
 const craftShadow=(function(){const m=new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.4),aoMat.clone());m.material.opacity=.55;m.rotation.x=-Math.PI/2;m.renderOrder=2;scene.add(m);return m;})();
 
-// ---- hedef oku + halkalar ----
-function ring(col){const r=new THREE.Mesh(new THREE.TorusGeometry(1.7,.12,10,36),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}));r.rotation.x=-Math.PI/2;scene.add(r);return r;}
-const pickRing=ring(0xf2c14e), dropRing=ring(0x6cd06c);
-const beacon=(function(){const g=new THREE.Group();const c=cone(.2,.42,new THREE.MeshBasicMaterial({color:0xf2c14e,transparent:true,opacity:.92}));c.rotation.x=Math.PI;c.position.y=0;c.castShadow=false;g.add(c);scene.add(g);return g;})();
-const PICKUP={x:8.6,z:7.8,name:'Pazar tezgahı'};
-const TARGETS=[{x:-9,z:-9.2,name:"Nine'nin evi"},{x:-2,z:-11.2,name:'Kemal ustanın evi'},{x:5,z:-10.2,name:'Ayşe teyzenin evi'},{x:11,z:-6.6,name:'Ahır'},{x:-13,z:-3.6,name:'Değirmen'},{x:-10.6,z:11.6,name:'Mera kapısı'}];
-let tgt=null,carrying=false;
 
 // ---- fizik durumu ----
 const pos=new THREE.Vector3(2,7,16), vel=new THREE.Vector3();
@@ -383,12 +373,6 @@ const OBST=[{x:-13,z:-6,r:2.3,h:7},{x:-9,z:-11,r:2.6,h:4.2},{x:-2,z:-13,r:2.6,h:
  [-19,-3,1.05],[-16.5,-.8,.78],[-13,16,1.0],[-15.5,14,.72],[-18,11,.58],[1.5,18,1.1],[5.5,17.8,.68],[-6,16.5,.85],[23,12.5,.95],[22,2.5,.68],[18.5,-6,.85],[-8,-15.5,.9],[-12.5,-13.5,.68],[2,-16.5,.8]
 ].map(o=>Array.isArray(o)?{x:o[0],z:o[1],r:o[2]*1.35,h:o[2]*4.2}:o);
 
-let coins=0,delivs=0;
-const SAVE='kucuk_pazar_drone_v1';
-function save(){try{localStorage.setItem(SAVE,JSON.stringify({coins,delivs}));}catch(e){}}
-function load(){try{const o=JSON.parse(localStorage.getItem(SAVE));if(o){coins=o.coins||0;delivs=o.delivs||0;}}catch(e){}}
-function updHUD(){$('coins').textContent=coins;$('delc').textContent=delivs;
-  $('targetChip').innerHTML=carrying?('Hedef: <b>'+tgt.name+'</b>'):('Kasa al: <b>'+PICKUP.name+'</b>');}
 
 // ---- ses ----
 let actx=null,thrG=null;
@@ -399,7 +383,7 @@ function audio(){if(actx){if(actx.state==='suspended')actx.resume();return actx;
   o1.connect(f);o2.connect(f);f.connect(thrG);thrG.connect(actx.destination);o1.start();o2.start();}catch(e){}return actx;}
 let muted=false;
 function tone(fq,st,d,ty,v){if(muted)return;const c=audio();if(!c)return;const t0=c.currentTime+st;const o=c.createOscillator(),g=c.createGain();o.type=ty||'triangle';o.frequency.value=fq;g.gain.setValueAtTime(.0001,t0);g.gain.linearRampToValueAtTime(v||.1,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g).connect(c.destination);o.start(t0);o.stop(t0+d+.02);}
-function sfx(k){if(k==='pick'){tone(659,0,.1);tone(880,.08,.14);}else if(k==='drop'){tone(659,0,.1);tone(880,.08,.1);tone(1109,.16,.2);}else if(k==='bump'){tone(110,0,.12,'sawtooth',.08);}}
+function sfx(k){if(k==='bump'){tone(110,0,.12,'sawtooth',.08);}}
 
 // ---- partiküller (toz + altın) ----
 const parts=[],pGeo=new THREE.SphereGeometry(.08,6,5);
@@ -407,17 +391,6 @@ function puff(x,y,z,col,n,spread,up0){for(let i=0;i<n;i++){const m=new THREE.Mes
   const a=Math.random()*6.3;parts.push({m,vx:Math.cos(a)*(spread||2)*(.4+Math.random()*.6),vy:(up0||1)*(.5+Math.random()),vz:Math.sin(a)*(spread||2)*(.4+Math.random()*.6),t:0,g:up0?9:1.5});}}
 function updParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t+=dt;p.vy-=p.g*dt;p.m.position.x+=p.vx*dt;p.m.position.y+=p.vy*dt;p.m.position.z+=p.vz*dt;p.m.material.opacity=Math.max(0,.85-p.t);if(p.t>.9){scene.remove(p.m);p.m.material.dispose();parts.splice(i,1);}}}
 
-// ---- görev ----
-function newTarget(){tgt=TARGETS[Math.floor(Math.random()*TARGETS.length)];
-  dropRing.position.set(tgt.x,gh(tgt.x,tgt.z)+.12,tgt.z);updHUD();}
-pickRing.position.set(PICKUP.x,gh(PICKUP.x,PICKUP.z)+.12,PICKUP.z);
-function tryMission(){
-  const alt=pos.y-gh(pos.x,pos.z), sp=vel.length();
-  if(!carrying){const d=Math.hypot(pos.x-PICKUP.x,pos.z-PICKUP.z);
-    if(d<2.1&&alt<3&&sp<4.5){carrying=true;carryCrate.visible=true;newTarget();sfx('pick');puff(pos.x,pos.y-1,pos.z,0xf2c14e,10,1.5,2);toast('Kasa alındı — <b>'+tgt.name+'</b> hedefine uç!');updHUD();}}
-  else{const d=Math.hypot(pos.x-tgt.x,pos.z-tgt.z);
-    if(d<2.2&&alt<3.2&&sp<4.5){carrying=false;carryCrate.visible=false;const r=18+Math.floor(Math.random()*8);coins+=r;delivs++;sfx('drop');puff(tgt.x,gh(tgt.x,tgt.z)+1.2,tgt.z,0xf2c14e,16,2,2.4);toast('Teslimat! +'+r+' '+COIN,'gold');save();updHUD();}}
-}
 
 // ---- girişler ----
 function resetCraft(){pos.set(2,7,16);vel.set(0,0,0);cyaw=Math.PI;pitch=0;roll=0;}
@@ -425,7 +398,7 @@ addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','Ar
   if(e.code==='KeyR')resetCraft();});
 $('rst').onclick=()=>{resetCraft();audio();};
 addEventListener('contextmenu',e=>{if(e.target===cvs)e.preventDefault();});
-if(matchMedia&&matchMedia('(pointer:coarse)').matches){const h=document.querySelector('.hint');if(h)h.innerHTML='Sol yarı: <b>yüksel/alçal + dön</b> · Sağ yarı: <b>eğil / uç</b> — altın halkadan kasa al, yeşil halkaya <b>yavaşça</b> bırak';}
+if(matchMedia&&matchMedia('(pointer:coarse)').matches){const h=document.querySelector('.hint');if(h)h.innerHTML='Sol yarı: <b>yüksel/alçal + dön</b> · Sağ yarı: <b>eğil / uç</b> — köyün üstünde özgürce uç';}
 // ---- sanal çift joystick (pointer tabanlı: dokunmatik + fare) ----
 const stickL={a:false,id:null,cx:0,cy:0,x:0,y:0},stickR={a:false,id:null,cx:0,cy:0,x:0,y:0};
 function stickShow(st,base,knob){base.style.display='block';base.style.left=st.cx+'px';base.style.top=st.cy+'px';knob.style.transform='translate(-50%,-50%)';}
@@ -504,7 +477,7 @@ function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1
     n.g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
     if(n.legL){n.legL.rotation.x=sw;n.legR.rotation.x=-sw;n.armL.rotation.x=-sw*.75;n.armR.rotation.x=sw*.75;}}
   for(const q of idlers){q.v.armR.rotation.z=-.25+Math.sin(t*1.8+q.ph)*.14;}
-  physics(dt);chaseCam(dt);updParts(dt);tryMission();
+  physics(dt);chaseCam(dt);updParts(dt);
   // rotor + alev + toz + motor sesi
   for(const r of rotors)r.rotation.y+=dt*(18+throttleVis*46);
   for(const fl of flames){fl.material.opacity=.12+throttleVis*.5+Math.random()*.08;fl.scale.set(.4+throttleVis*.3,.7+throttleVis*.7,1);}
@@ -513,20 +486,13 @@ function loop(now){const dt=Math.min((now-last)/1000,.05);last=now;const t=now/1
   craftShadow.position.set(pos.x,gh(pos.x,pos.z)+.05,pos.z);
   const shs=Math.max(.4,1.6-alt*.08);craftShadow.scale.setScalar(shs);craftShadow.material.opacity=Math.max(.08,.5-alt*.03);
   if(thrG&&actx)thrG.gain.setTargetAtTime(muted?0:.028+throttleVis*.05,actx.currentTime,.08);
-  // halkalar + işaret
-  const pu=1+Math.sin(t*3)*.08;pickRing.scale.setScalar(carrying?0:pu);pickRing.visible=!carrying;
-  dropRing.visible=carrying;dropRing.scale.setScalar(pu);dropRing.rotation.z+=dt*.5;
-  const obj=carrying?tgt:PICKUP;beacon.position.set(pos.x,pos.y+1.9+Math.sin(t*2.5)*.15,pos.z);
-  beacon.rotation.y=Math.atan2(obj.x-pos.x,obj.z-pos.z);beacon.rotation.x=Math.PI*.08;
-  beacon.children[0].material.color.set(carrying?0x6cd06c:0xf2c14e);
-  pcam.updateProjectionMatrix?0:0;
   renderer.render(scene,pcam);requestAnimationFrame(loop);
 }
 function segLen(pts){let L=0;for(let i=0;i<pts.length-1;i++)L+=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);return L;}
 function path(pts,tt){const T=segLen(pts);let d=tt*T;for(let i=0;i<pts.length-1;i++){const s=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);if(d<=s){const f=d/s;return{x:pts[i][0]+(pts[i+1][0]-pts[i][0])*f,z:pts[i][1]+(pts[i+1][1]-pts[i][1])*f};}d-=s;}return{x:pts[pts.length-1][0],z:pts[pts.length-1][1]};}
 
-applyDayNight(0.3);load();updHUD();fitP();addEventListener('resize',fitP);
-window.__drone={state:()=>({pos:[pos.x,pos.y,pos.z],vel:[vel.x,vel.y,vel.z],carrying,coins,delivs,throttle:throttleVis}),
+applyDayNight(0.3);fitP();addEventListener('resize',fitP);
+window.__drone={state:()=>({pos:[pos.x,pos.y,pos.z],vel:[vel.x,vel.y,vel.z],throttle:throttleVis}),
   key:(c,d)=>{key[c]=d;},teleport:(x,y,z)=>{pos.set(x,y,z);vel.set(0,0,0);},setVel:(x,y,z)=>vel.set(x,y,z)};
 window.__proj=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(pcam);return{x:(v.x*.5+.5)*W(),y:(-v.y*.5+.5)*H()};};
 window.__setTime=t=>{applyDayNight(t);return{dayT,night};};

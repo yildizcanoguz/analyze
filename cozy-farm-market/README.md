@@ -42,14 +42,13 @@ otomatik kaydedilir (localStorage).
 > gerçek 3B, ama el işi Pixar/AAA asset kalitesi değil (o bir 3B sanat ekibi işidir). Vendor
 > `three.min.js` (r160 UMD, npm'den) + `scene.js`. Çevrimdışı / CSP-güvenli.
 
-> **`drone/index.html`** — 🚁 **Drone Teslimat: gerçekçi fizikli iticili (thruster) uçuş** — aynı 3B
-> köyün üstünde, perspektif **takip kameralı** bir teslimat drone'u uçur. Fizik: yerçekimi (9.8),
+> **`drone/index.html`** — 🚁 **Drone Serbest Uçuş: gerçekçi fizikli iticili (thruster) uçuş** — aynı
+> 3B köyün üstünde, perspektif **takip kameralı** bir drone'u özgürce uçur (görev yok). Fizik: yerçekimi (9.8),
 > rotor itkisi drone'un **up vektörü** boyunca (eğilince yatay bileşen doğal oluşur), ayrı
 > yatay/dikey sürüklenme, hover-yardımı, zemin yastığı etkisi, **sekmeli zemin çarpışması**
 > (hızlı inişte seker, yavaşta konar), binalar/ağaçlar için yumuşak silindir çarpışmaları ve
 > dünya sınırları. Kontroller: **Boşluk** yüksel · **Shift** alçal · **WASD** eğil/uç · **Q/E** dön ·
-> **R** sıfırla. Görev döngüsü: pazar tezgahındaki **altın halkadan kasa al** → hedef evdeki
-> **yeşil halkaya yavaşça bırak** (+altın); hedefi gösteren yüzen ok, throttle'a bağlı dönen
+> **R** sıfırla. Görsel/his: throttle'a bağlı dönen
 > rotorlar + itici alevleri + yere yakınken toz, Web Audio **motor uğultusu** (throttle'la değişir).
 > Köy sahnesi (dokular, patikalar, köylüler, gündüz/gece) ana 3B oyunla ortak koddan gelir.
 > **📱 Telefonda oynanabilir:** çift **sanal joystick** (RC kumanda düzeni — sol: yükseklik + dönüş,
