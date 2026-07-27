@@ -94,7 +94,7 @@ const smoothstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
-// Tileable 2D value noise with integer period `p`.
+// Tileable 2D value noise with integer period 'p'.
 function vnoise2(x, y, p, seed) {
   const xi = Math.floor(x), yi = Math.floor(y);
   const xf = x - xi, yf = y - yi;
@@ -404,7 +404,7 @@ float skyAltitude(vec3 p, float camAlt){
 // (H measured relative to the camera altitude).
 // Solves a*t^2 + b*t - H = 0 in the numerically stable form 2H/(b+sqrt(D)).
 // The textbook (-b+sqrt(D))/2a form catastrophically cancels near the zenith,
-// where `a` collapses to ~1e-10 in fp32.
+// where 'a' collapses to ~1e-10 in fp32.
 float skyShellT(vec3 d, float H){
   float a = (1.0 - d.y * d.y) / (2.0 * SKY_RG);
   float b = d.y;
@@ -498,7 +498,7 @@ float noise3(vec3 x){
              mix(mix(n001,n101,f.x), mix(n011,n111,f.x), f.y), f.z);
 }
 
-// Screen-space footprint of a sample on a slab at distance `t`, expressed as
+// Screen-space footprint of a sample on a slab at distance 't', expressed as
 // a mip level. Hardware derivatives are unusable here: the dome is a mesh, so
 // d(uv)/d(pixel) jumps at every triangle edge and the mip level snaps with it.
 float slabLod(float t, float uvScale, float texSize, float dy){
