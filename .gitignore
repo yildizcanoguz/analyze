@@ -1,0 +1,3 @@
+node_modules/
+game/shots/*.png
+!game/shots/.gitkeep
