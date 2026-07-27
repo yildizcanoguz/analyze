@@ -473,7 +473,10 @@ void main(){
   float k = uHeightScale * 0.25 / max(t.x, 1e-6);
   vec3 n = normalize(vec3(-gx * k, -gy * k, 1.0));
 
-  // Cheap cone/horizon AO: golden-angle spiral, occlusion from neighbours above us.
+  // Cheap cone/horizon AO: golden-angle spiral of taps, each contributing the
+  // saturating tangent of the elevation angle to the neighbouring height. Scaled
+  // by the real height range so a deep material (gravel) occludes and a shallow
+  // one (brushed steel) does not.
   float hc = H(uv);
   float occ = 0.0;
   const int TAPS = 12;
@@ -483,13 +486,44 @@ void main(){
     float r = (fi + 0.7) / float(TAPS);
     vec2 d = vec2(cos(a), sin(a)) * r * uAORadius;
     float hs = H(uv + d);
-    occ += max(0.0, hs - hc) / max(r, 0.08);
+    float slope = max(0.0, hs - hc) * uHeightScale / max(r * uAORadius, 1e-4);
+    occ += slope / (1.0 + slope);
   }
-  occ = occ / float(TAPS);
-  float ao = 1.0 - clamp(occ * uAOStrength, 0.0, 1.0);
-  ao = mix(ao, ao * ao, 0.35);
+  float ao = 1.0 - clamp(occ / float(TAPS) * uAOStrength, 0.0, 0.90);
 
   oNA = vec4(n * 0.5 + 0.5, ao);
+}
+`;
+
+// Height -> curvature. r = convexity (ridges/edges), g = concavity (cavities),
+// b = a signed 0.5-centred copy. Drives edge-wear and crevice-dirt masks.
+const FRAG_CURVATURE = /* glsl */`
+uniform sampler2D uHeight;
+uniform vec2 uTexel;
+uniform float uScale;
+layout(location = 0) out vec4 oCurv;
+float H(vec2 uv){ return texture(uHeight, uv).a; }
+void main(){
+  vec2 uv = vUv, t = uTexel;
+  float hc = H(uv);
+  float lap = (H(uv - vec2(t.x, 0.0)) + H(uv + vec2(t.x, 0.0))
+             + H(uv - vec2(0.0, t.y)) + H(uv + vec2(0.0, t.y))) - 4.0 * hc;
+  float c = lap * uScale;
+  oCurv = vec4(clamp(-c, 0.0, 1.0), clamp(c, 0.0, 1.0), clamp(-c * 0.5 + 0.5, 0.0, 1.0), 1.0);
+}
+`;
+
+// Linear -> sRGB re-encode, used before CPU readback of an sRGB target.
+const FRAG_ENCODE_SRGB = /* glsl */`
+uniform sampler2D uSrc;
+layout(location = 0) out vec4 oCol;
+vec3 encSRGB(vec3 c){
+  return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0/2.4)) - 0.055,
+             step(vec3(0.0031308), c));
+}
+void main(){
+  vec4 s = texture(uSrc, vUv);
+  oCol = vec4(encSRGB(s.rgb), s.a);
 }
 `;
 
@@ -576,7 +610,6 @@ export class TexGen {
       t.minFilter = mips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
       t.magFilter = THREE.LinearFilter;
       t.anisotropy = mips ? this.anisotropy : 1;
-      t.needsUpdate = true;
     }
     this._targets.push(rt);
     return rt;
@@ -610,6 +643,39 @@ export class TexGen {
       uAOStrength: o.aoStrength ?? 1.6,
     }, rt);
     return rt;
+  }
+
+  /**
+   * Height (in .a of `heightTex`) -> curvature.
+   * @returns {THREE.WebGLRenderTarget} r = convex, g = concave, b = signed
+   */
+  curvature(heightTex, width, height, o = {}) {
+    const rt = o.target || this.createTarget(width, height, { mips: o.mips ?? false });
+    this.pass(FRAG_CURVATURE, {
+      uHeight: heightTex,
+      uTexel: new THREE.Vector2(1 / width, 1 / height),
+      uScale: o.scale ?? 24,
+    }, rt);
+    return rt;
+  }
+
+  /**
+   * Read an sRGB-encoded copy of an sRGB render target back to the CPU.
+   * glReadPixels on an sRGB attachment linearises the values, so a plain readback
+   * would come back linear; this re-encodes on the GPU first, giving bytes that
+   * can go straight into a DataTexture tagged SRGBColorSpace.
+   */
+  readbackSRGB(target, index = 0) {
+    const { width, height } = target;
+    const tmp = new THREE.WebGLRenderTarget(width, height, {
+      format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
+      depthBuffer: false, stencilBuffer: false, generateMipmaps: false,
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    });
+    this.pass(FRAG_ENCODE_SRGB, { uSrc: target.textures[index] }, tmp);
+    const buf = this.readback(tmp, 0);
+    tmp.dispose();
+    return buf;
   }
 
   /** Read an 8-bit RGBA target back to the CPU (rarely needed — prefer GPU passes). */

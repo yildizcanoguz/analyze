@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OVERSTRIKE — sky / atmosphere harness</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#05070a;
+    font-family:"Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif; color:#e6e8ea; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #hud { position:absolute; left:12px; top:10px; font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:#b9c2c9; text-shadow:0 1px 3px #000; line-height:1.7; }
+  #hud b { color:#e0c58e; font-weight:600; }
+  #err { position:absolute; inset:0; padding:24px; background:#160404; color:#ff9a86;
+    font:12px/1.5 ui-monospace,monospace; white-space:pre-wrap; overflow:auto; display:none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three.module.js",
+    "three/webgpu": "../vendor/three.webgpu.js",
+    "three/tsl": "../vendor/three.tsl.js",
+    "three/addons/": "../vendor/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud"></div>
+<pre id="err"></pre>
+<script type="module">
+const errEl = document.getElementById('err');
+const fail = (m) => { errEl.style.display='block'; errEl.textContent += m + '\n'; window.__crashed = true; };
+addEventListener('error', e => fail(`[error] ${e.message}\n${e.error?.stack||''}`));
+addEventListener('unhandledrejection', e => fail(`[reject] ${e.reason?.message||e.reason}\n${e.reason?.stack||''}`));
+
+import * as THREE from 'three';
+import Sky from '../src/world/sky.js';
+
+const P = new URLSearchParams(location.search);
+const QUALITY = P.get('quality') || 'high';
+const PRESET  = P.get('preset')  || 'midmorning';
+const SHOT    = P.get('shot')    || 'street';   // street | up | interior | shafts | horizon
+const EXPO    = parseFloat(P.get('exposure') || '1.0');
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance',
+  stencil:false, alpha:false, depth:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = EXPO;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.info.autoReset = false;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.06, 600);
+camera.rotation.order = 'YXZ';
+
+const ctx = {
+  THREE, renderer, scene, camera, canvas,
+  viewScene: new THREE.Scene(),
+  viewCamera: new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.004, 12),
+  settings: { quality: QUALITY, fov: 90 },
+  systems: new Map(),
+  events: { emit(){}, on(){ return ()=>{}; }, off(){} },
+  rng: (seed=1) => { let s = seed>>>0 || 1; return () => { s^=s<<13; s>>>=0; s^=s>>17; s^=s<<5; s>>>=0; return s/4294967296; }; },
+  dt: 0, time: 0, frame: 0, state: 'playing',
+};
+window.__game = ctx;
+
+// ---------------------------------------------------------------- blockout
+// Everything is deliberately plain: this harness exists to judge the SKY,
+// so the geometry is neutral grey with correct human scale (ARTDIRECTION.md:
+// storey 3.2 m, door 0.9 x 2.1 m, street 12 m, sidewalk 2.2 m / 0.14 m curb).
+const matGround = new THREE.MeshStandardMaterial({ color:0x55524d, roughness:0.94, metalness:0.0 });
+const matWall   = new THREE.MeshStandardMaterial({ color:0x6d675f, roughness:0.88, metalness:0.0 });
+const matDark   = new THREE.MeshStandardMaterial({ color:0x4a4741, roughness:0.9,  metalness:0.0 });
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), matGround);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+function box(w,h,d,x,y,z,mat=matWall,ry=0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); m.rotation.y = ry;
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m); return m;
+}
+
+// --- a wall with window openings, built from segments -----------------------
+// 14 m long, 6.4 m tall (two storeys), three 1.1 x 1.5 m windows at 1.1 m sill
+// on the ground floor and a 0.9 x 2.1 m doorway.
+function openingWall(cx, cz, ry) {
+  const g = new THREE.Group();
+  g.position.set(cx, 0, cz);
+  g.rotation.y = ry;
+  scene.add(g);
+  const T = 0.35, L = 14, H = 6.4;
+  const seg = (w,h,d,x,y,z,mat=matWall) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true;
+    g.add(m); return m;
+  };
+  // openings: [centreX, sill, width, height]
+  const holes = [[-4.6, 1.10, 1.10, 1.50], [-1.4, 1.10, 1.10, 1.50],
+                 [ 1.8, 1.10, 1.10, 1.50], [ 5.0, 0.00, 0.90, 2.10]];
+  // solid piers between the holes
+  let x = -L/2;
+  for (const [hx, sill, hw, hh] of holes) {
+    const left = hx - hw/2;
+    if (left > x) seg(left - x, H, T, (x + left)/2, H/2, 0);
+    if (sill > 0.001) seg(hw, sill, T, hx, sill/2, 0);
+    const topY = sill + hh;
+    seg(hw, H - topY, T, hx, (H + topY)/2, 0);
+    x = hx + hw/2;
+  }
+  if (x < L/2) seg(L/2 - x, H, T, (x + L/2)/2, H/2, 0);
+  // upper-floor slab + a parapet so the roofline reads
+  seg(L, 0.28, 2.6, 0, 3.34, -1.3 - T/2, matDark);
+  return g;
+}
+
+// street: two façades facing each other, 12 m apart
+openingWall(0, -6.0, 0);
+openingWall(2.5, 6.0, Math.PI);
+
+// sidewalks + curb
+box(40, 0.14, 2.2, 0, 0.07, -4.6, matDark);
+box(40, 0.14, 2.2, 0, 0.07,  4.6, matDark);
+
+// blockout boxes / crates / a jersey barrier-ish slab, asymmetrically placed
+box(1.2, 1.2, 1.2,  -6.4, 0.60,  1.1, matDark, 0.31);
+box(0.9, 0.9, 0.9,  -5.2, 0.45,  1.9, matWall, -0.7);
+box(0.9, 0.9, 0.9,  -5.4, 1.35,  1.6, matWall, 0.22);
+box(2.0, 0.81, 0.6,  1.9, 0.40, -1.6, matDark, 0.09);
+box(2.0, 0.81, 0.6,  4.1, 0.40, -1.2, matDark, -0.05);
+box(1.6, 2.6, 1.6,   9.5, 1.30,  2.2, matWall, 0.42);
+box(3.2, 0.5, 2.2, -12.0, 0.25, -1.0, matDark, 0.15);
+// far silhouette blocks so the aerial perspective has something to work on
+for (let i = 0; i < 14; i++) {
+  const a = (i / 14) * Math.PI * 2 + 0.4;
+  const r = 60 + (i % 5) * 26;
+  box(9 + (i%3)*5, 7 + (i%4)*4.5, 9 + (i%2)*6,
+      Math.cos(a)*r, 3.5 + (i%4)*2.2, Math.sin(a)*r, matDark, a*0.3);
+}
+// a tall block to cast a long raking shadow down the street
+box(4.5, 11, 5.0, -22, 5.5, -9, matWall, 0.2);
+
+// --------------------------------------------------------------------- boot
+const sky = new Sky(ctx);
+ctx.sky = sky;
+ctx.systems.set('sky', sky);
+await sky.init();
+if (PRESET !== 'midmorning') sky.setPreset(PRESET);
+
+// camera framings — eye height 1.68 m everywhere (ARTDIRECTION.md)
+const SUNXZ = null;
+const CAMS = {
+  street:   { p:[-13.0, 1.68, 0.4],  t:[22, 2.6, 0.0] },   // down the street, into the sun
+  away:     { p:[ 13.0, 1.68, 0.4],  t:[-22, 3.4, 0.0] },  // anti-sun, sky behind roofs
+  up:       { p:[  0.0, 1.68, 0.0],  t:[6, 9.5, -3] },
+  horizon:  { p:[  0.0, 1.68, 30.0], t:[0, 2.2, -120] },
+  interior: { p:[  3.0, 1.55, -12.4],t:[3.4, 1.5, 2.0] },
+  shafts:   { p:[  4.6, 1.68, -9.0], t:[-2.0, 1.2, -6.4] },
+  sky:      { p:[  0.0, 1.68, 20.0], t:[8, 26, -30] },
+};
+function applyCam(name) {
+  const c = CAMS[name] || CAMS.street;
+  camera.position.set(c.p[0], c.p[1], c.p[2]);
+  camera.lookAt(c.t[0], c.t[1], c.t[2]);
+}
+applyCam(SHOT);
+ctx.setShot = applyCam;
+
+// interior box for the 'interior' framing: a roofed room behind the north wall
+{
+  const room = new THREE.Group();
+  room.position.set(3.0, 0, -9.7);
+  scene.add(room);
+  const add = (w,h,d,x,y,z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), matDark);
+    m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true; room.add(m);
+  };
+  add(9.6, 0.3, 8.2, 0, 3.35, 0);      // ceiling
+  add(0.3, 3.2, 8.2, -4.5, 1.6, 0);    // side walls
+  add(0.3, 3.2, 8.2,  4.5, 1.6, 0);
+  add(9.6, 3.2, 0.3, 0, 1.6, -4.0);    // back wall
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.1, 8.2), matGround);
+  floor.position.set(0, 0.05, 0); floor.receiveShadow = true; room.add(floor);
+}
+
+const hud = document.getElementById('hud');
+const clock = new THREE.Clock();
+let frames = 0;
+
+function resize(){
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  sky.resize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize);
+resize();
+
+function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  ctx.dt = dt; ctx.time += dt; ctx.frame++;
+  sky.update(dt, ctx.time);
+  sky.lateUpdate(dt, ctx.time);
+  renderer.info.reset();
+  renderer.render(scene, camera);
+  if (++frames === 2) window.__ready = true;
+  if (frames % 20 === 0) {
+    const i = renderer.info;
+    hud.innerHTML = `<b>${PRESET}</b> · ${SHOT} · ${QUALITY}<br>` +
+      `sun ${sky.elevationDeg.toFixed(1)}° / ${sky.azimuthDeg.toFixed(1)}°<br>` +
+      `draws ${i.render.calls} · tris ${i.render.triangles}<br>` +
+      `progs ${i.programs?.length} · tex ${i.memory.textures}`;
+  }
+}
+loop();
+</script>
+</body>
+</html>

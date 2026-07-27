@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OVERSTRIKE — material showcase</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0a0c0e;
+    font-family: "Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif; color:#e6e8ea; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #labels { position:absolute; inset:0; pointer-events:none; }
+  .lab { position:absolute; transform:translate(-50%,0); font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:#f2f4f6; text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 10px rgba(0,0,0,.8);
+    white-space:nowrap; }
+  .lab i { display:block; font-style:normal; font-size:9px; letter-spacing:.10em; color:#e0c58e; opacity:.9; }
+  #hud { position:absolute; left:12px; top:10px; font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:#aab4bb; text-shadow:0 1px 3px #000; }
+  #err { position:absolute; inset:0; padding:24px; background:#160404; color:#ff9a86;
+    font:12px/1.5 ui-monospace,monospace; white-space:pre-wrap; overflow:auto; display:none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three.module.js",
+    "three/webgpu": "../vendor/three.webgpu.js",
+    "three/tsl": "../vendor/three.tsl.js",
+    "three/addons/": "../vendor/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="labels"></div>
+<div id="hud"></div>
+<pre id="err"></pre>
+<script type="module">
+const errEl = document.getElementById('err');
+const fail = (m) => { errEl.style.display='block'; errEl.textContent += m + '\n'; window.__crashed = true; };
+addEventListener('error', e => fail(`[error] ${e.message}\n${e.error?.stack||''}`));
+addEventListener('unhandledrejection', e => fail(`[reject] ${e.reason?.message||e.reason}\n${e.reason?.stack||''}`));
+
+import * as THREE from 'three';
+import Materials from '../src/world/materials.js';
+
+const P = new URLSearchParams(location.search);
+const MODE = P.get('mode') || 'grid';
+const QUALITY = P.get('quality') || 'high';
+const ONLY = P.get('m') || 'concrete_wall';
+const PAGE = parseInt(P.get('page') || '0', 10);
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.05, 500);
+camera.rotation.order = 'YXZ';
+
+const ctx = {
+  THREE, renderer, scene, camera,
+  viewScene: new THREE.Scene(),
+  settings: { quality: QUALITY },
+  frame: 0, time: 0, dt: 0,
+};
+window.__game = ctx;
+
+const materials = new Materials(ctx);
+ctx.materials = materials;
+await materials.init();
+
+const SUN = materials.sun;
+function lin(hex, m=1){ const c = new THREE.Color(hex).convertSRGBToLinear();
+  return new THREE.Vector3(c.r*m, c.g*m, c.b*m); }
+
+// ---------------------------------------------------------------- sky dome
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: {
+    uSunDir:  { value: SUN.direction.clone() },
+    uSun:     { value: lin('#fff2d8', 1.0) },
+    uZenith:  { value: lin('#6f9ad0', 1.85) },
+    uHorizon: { value: lin('#dcd9cc', 1.95) },
+    uGround:  { value: lin('#7a7062', 0.55) },
+  },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `varying vec3 vDir;
+    uniform vec3 uSunDir,uSun,uZenith,uHorizon,uGround;
+    void main(){
+      vec3 d = normalize(vDir); float h = d.y;
+      vec3 sky = mix(uHorizon, uZenith, pow(clamp(h,0.0,1.0), 0.42));
+      sky = mix(sky, uHorizon*1.06, smoothstep(0.16,0.0,abs(h))*0.55);
+      vec3 col = (h < 0.0) ? mix(uHorizon*0.72, uGround, clamp(-h*2.6,0.0,1.0)) : sky;
+      float ca = max(dot(d,uSunDir),0.0);
+      col += uSun*pow(ca,1400.0)*40.0 + uSun*pow(ca,30.0)*0.40 + uSun*pow(ca,5.0)*0.10;
+      gl_FragColor = vec4(col,1.0);
+    }`,
+});
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(240, 40, 24), skyMat));
+scene.environment = materials.env;
+
+// ---------------------------------------------------------------- lighting
+const sun = new THREE.DirectionalLight(SUN.color.getHex(), SUN.intensity);
+sun.position.copy(SUN.direction).multiplyScalar(80);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -18; sun.shadow.camera.right = 18;
+sun.shadow.camera.top = 18;  sun.shadow.camera.bottom = -18;
+sun.shadow.camera.near = 1;  sun.shadow.camera.far = 180;
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.02;
+const bounce = new THREE.HemisphereLight(0x101418, 0xc9a882, 0.30);
+if (MODE !== 'env') { scene.add(sun); scene.add(bounce); }
+
+// yaw that makes a +Z-facing plane look at the camera position (camera near origin ring)
+const camYaw = (cx, cz) => Math.atan2(cx, cz);
+
+const labels = document.getElementById('labels');
+const tracked = [];
+function addLabel(name, sub, pos) {
+  const el = document.createElement('div');
+  el.className = 'lab';
+  el.innerHTML = `${name.replace(/_/g,' ')}<i>${sub}</i>`;
+  labels.appendChild(el);
+  tracked.push({ el, pos });
+}
+
+const NAMES = materials.names;
+const sphereGeo = new THREE.SphereGeometry(0.42, 72, 48);
+const panelGeo = new THREE.PlaneGeometry(1.7, 1.15);
+
+// ---------------------------------------------------------------- modes
+if (MODE === 'grid') {
+  const PER_PAGE = 14;
+  const list = NAMES.slice(PAGE * PER_PAGE, PAGE * PER_PAGE + PER_PAGE);
+  const COLS = 5, CX = 2.35, CZ = 2.45;
+  const rows = Math.ceil(list.length / COLS);
+
+  const CAM = new THREE.Vector3(4.6, 3.35, -8.0);
+  const yaw = camYaw(CAM.x, CAM.z);
+
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120),
+    materials.get('concrete_floor', { size: [120, 120] }));
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  list.forEach((name, i) => {
+    const cx = (i % COLS - (COLS-1)/2) * CX;
+    const cz = (Math.floor(i / COLS) - (rows-1)/2) * CZ;
+    const g = new THREE.Group();
+    g.position.set(cx, 0, cz);
+    g.rotation.y = yaw;
+    scene.add(g);
+
+    const panel = new THREE.Mesh(panelGeo, materials.get(name, { size: [1.7, 1.15] }));
+    panel.position.set(0, 0.575, -0.55);
+    panel.castShadow = true; panel.receiveShadow = true;
+    g.add(panel);
+
+    const sph = new THREE.Mesh(sphereGeo, materials.get(name, { size: [1.4, 1.4] }));
+    sph.position.set(0, 0.44, 0.32);
+    sph.castShadow = true; sph.receiveShadow = true;
+    g.add(sph);
+
+    const d = materials.info(name);
+    addLabel(name, `${d.surface} · pen ${d.penetration} · ${d.tileMeters.toFixed(1)}m tile`,
+      new THREE.Vector3(cx, 1.32, cz));
+  });
+
+  camera.position.copy(CAM);
+  camera.lookAt(0, 0.55, 0.1);
+} else if (MODE === 'closeup') {
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60),
+    materials.get('asphalt', { size: [60, 60] }));
+  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+  const yaw = camYaw(0.9, -1.6);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.4), materials.get(ONLY, { size: [3.2, 2.4] }));
+  wall.position.set(0, 1.25, 0); wall.rotation.y = yaw;
+  wall.receiveShadow = true; wall.castShadow = true; scene.add(wall);
+
+  const s = new THREE.Mesh(new THREE.SphereGeometry(0.30, 96, 64), materials.get(ONLY, { size:[1.0,1.0] }));
+  s.position.set(0.55, 0.85, -1.0); s.castShadow = true; s.receiveShadow = true; scene.add(s);
+
+  camera.position.set(0.62, 1.30, -1.12);
+  camera.lookAt(0.05, 1.20, -0.05);
+  addLabel(ONLY, 'close-up ≈0.6 m — detail normal should still bite', new THREE.Vector3(0, 2.7, 0));
+} else if (MODE === 'grazing') {
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(16, 80), materials.get(ONLY, { size: [16, 80] }));
+  strip.rotation.x = -Math.PI/2; strip.receiveShadow = true; scene.add(strip);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(80, 4.2),
+    materials.get('concrete_wall', { size: [80, 4.2] }));
+  wall.position.set(-8, 2.1, 0); wall.rotation.y = Math.PI/2;
+  wall.receiveShadow = true; wall.castShadow = true; scene.add(wall);
+  const wall2 = new THREE.Mesh(new THREE.PlaneGeometry(80, 4.2),
+    materials.get('brick', { size: [80, 4.2] }));
+  wall2.position.set(8, 2.1, 0); wall2.rotation.y = -Math.PI/2;
+  wall2.receiveShadow = true; wall2.castShadow = true; scene.add(wall2);
+  for (let i = 0; i < 10; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.81, 2.0),
+      materials.get('metal_painted', { size: [2.0, 0.81] }));
+    b.position.set(-3.2 + (i % 3) * 3.1, 0.405, -30 + i * 6.0);
+    b.rotation.y = 0.06 * i;
+    b.castShadow = true; b.receiveShadow = true; scene.add(b);
+  }
+  camera.position.set(0, 1.68, 30);
+  camera.lookAt(0, 1.5, -20);
+  addLabel(ONLY, 'grazing angle + distance (mip / aniso check)', new THREE.Vector3(0, 3.6, 10));
+} else if (MODE === 'albedo') {
+  // unlit albedo readout + sRGB reference swatches (top row) for pipeline validation
+  const refs = ['#9a938a', '#3a3a3c', '#6b4a38', '#5d6a6b', '#c6ad86', '#6e7146', '#2b2d2b'];
+  refs.forEach((hex, i) => {
+    const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex) });
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.5), m);
+    q.position.set((i - (refs.length-1)/2) * 1.1, 4.6, 0);
+    scene.add(q);
+    addLabel(hex, 'reference', new THREE.Vector3((i - (refs.length-1)/2) * 1.1, 5.05, 0));
+  });
+  const COLS = 7;
+  NAMES.forEach((name, i) => {
+    const t = materials.texture(name);
+    const m = new THREE.MeshBasicMaterial({ map: t.map, side: THREE.DoubleSide });
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), m);
+    q.position.set((i % COLS - (COLS-1)/2) * 1.1, 3.4 - Math.floor(i / COLS) * 1.15, 0);
+    scene.add(q);
+  });
+  camera.position.set(0, 2.1, 7.4);
+  camera.lookAt(0, 2.1, 0);
+} else { // env — grey/white spheres under environment light only
+  const vals = [0.18, 0.35, 0.55, 0.8];
+  vals.forEach((v, i) => {
+    const c = new THREE.Color().setRGB(v, v, v, THREE.SRGBColorSpace);
+    for (let r = 0; r < 4; r++) {
+      const m = new THREE.MeshStandardMaterial({ color: c, roughness: [0.15,0.4,0.7,1.0][r], metalness: 0 });
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.42, 64, 40), m);
+      s.position.set((i - 1.5) * 1.1, 1.2 + (1.5 - r) * 1.1, 0);
+      scene.add(s);
+    }
+    addLabel(`sRGB ${v}`, '', new THREE.Vector3((i - 1.5) * 1.1, 4.6, 0));
+  });
+  scene.add(new THREE.DirectionalLight(SUN.color.getHex(), SUN.intensity).translateOnAxis(SUN.direction, 60));
+  camera.position.set(0, 2.6, 6.4);
+  camera.lookAt(0, 2.6, 0);
+}
+
+document.getElementById('hud').textContent =
+  `${MODE} · ${QUALITY} · ${NAMES.length} materials · base ${materials.baseSize}px · gen ${materials.genMs}ms`;
+
+// ---------------------------------------------------------------- loop
+const v = new THREE.Vector3();
+function layout() {
+  for (const t of tracked) {
+    v.copy(t.pos).project(camera);
+    t.el.style.left = `${(v.x * 0.5 + 0.5) * innerWidth}px`;
+    t.el.style.top = `${(-v.y * 0.5 + 0.5) * innerHeight}px`;
+    t.el.style.display = (v.z > 1) ? 'none' : 'block';
+  }
+}
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+let n = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  ctx.frame++; ctx.dt = 1/60; ctx.time += ctx.dt;
+  materials.update(ctx.dt);
+  renderer.render(scene, camera);
+  layout();
+  if (++n === 2) window.__ready = true;
+}
+loop();
+</script>
+</body>
+</html>

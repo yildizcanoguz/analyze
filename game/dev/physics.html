@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>OVERSTRIKE — physics test bench</title>
+<style>
+  html,body{margin:0;height:100%;background:#06080a;color:#e8eaed;overflow:hidden;
+    font-family:"Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif;}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #panel{position:absolute;top:0;left:0;padding:14px 18px;font-size:12.5px;line-height:1.55;
+    background:linear-gradient(180deg,rgba(6,8,10,.86),rgba(6,8,10,.6));max-width:520px;
+    letter-spacing:.02em;text-shadow:0 1px 2px #000}
+  #panel h1{font-size:12px;letter-spacing:.34em;margin:0 0 10px;color:#d8ab4a;font-weight:700}
+  .row{display:flex;gap:10px}
+  .ok{color:#7fbf8f}.bad{color:#e07a5f}.k{color:#8b96a3;min-width:230px;display:inline-block}
+  .v{color:#e8eaed}
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three.module.js", "three/addons/": "../vendor/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="panel"><h1>PHYSICS BENCH</h1><div id="out">running…</div></div>
+<script type="module">
+import * as THREE from 'three';
+import Physics from '../src/core/physics.js';
+
+// ---------------------------------------------------------------- boilerplate
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.info.autoReset = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb3c8);
+scene.fog = new THREE.Fog(0xa8bacd, 40, 140);
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 400);
+
+const params = new URLSearchParams(location.search);
+const quality = params.get('quality') || 'high';
+
+const listeners = new Map();
+const ctx = {
+  THREE, renderer, scene, camera, canvas,
+  events: {
+    on(n, f) { (listeners.get(n) || listeners.set(n, new Set()).get(n)).add(f); return () => this.off(n, f); },
+    off(n, f) { listeners.get(n)?.delete(f); },
+    emit(n, p) { for (const f of [...(listeners.get(n) || [])]) f(p); },
+  },
+  settings: { quality },
+  frame: 0, time: 0, dt: 0,
+  systems: new Map(),
+};
+
+// ---------------------------------------------------------------- lighting
+const sunDir = new THREE.Vector3(
+  Math.cos(22 * Math.PI / 180) * Math.sin(118 * Math.PI / 180),
+  Math.sin(22 * Math.PI / 180),
+  Math.cos(22 * Math.PI / 180) * Math.cos(118 * Math.PI / 180));
+const sun = new THREE.DirectionalLight(0xfff2d8, 3.4);
+sun.position.copy(sunDir).multiplyScalar(60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
+sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+sun.shadow.camera.far = 160;
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x7fa3d1, 0xc9a882, 1.1));
+
+// ---------------------------------------------------------------- test level
+function mat(color, surface, rough = 0.9) {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0.03 });
+  m.userData.surface = surface;
+  m.userData.penetration = surface === 'metal' ? 0.15 : surface === 'wood' ? 0.7 : 0.3;
+  return m;
+}
+const MATS = {
+  concrete: mat(0x9a938a, 'concrete'),
+  asphalt: mat(0x545558, 'concrete', 0.75),
+  metal: mat(0x5d6a6b, 'metal', 0.55),
+  wood: mat(0x7a5f42, 'wood'),
+  brick: mat(0x8c6a52, 'brick'),
+  sand: mat(0xc6ad86, 'sand'),
+};
+
+const level = new THREE.Group();
+level.name = 'testLevel';
+function box(w, h, d, x, y, z, material, rotY = 0, rotX = 0, rotZ = 0) {
+  const g = new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Mesh(g, material);
+  m.position.set(x, y, z);
+  m.rotation.set(rotX, rotY, rotZ);
+  m.castShadow = true; m.receiveShadow = true;
+  level.add(m);
+  return m;
+}
+
+// ground (a real box so the underside exists too)
+box(80, 1, 80, 0, -0.5, 0, MATS.asphalt);
+
+// ramps of varying slope: 10 20 30 40 45 50 60 degrees, 4 m of run each
+const RAMP_ANGLES = [10, 20, 30, 40, 45, 50, 60];
+const ramps = [];
+RAMP_ANGLES.forEach((deg, i) => {
+  const a = deg * Math.PI / 180;
+  const run = 4.5, thick = 0.3;
+  const len = run / Math.cos(a);
+  const x = -21 + i * 5.2;
+  const m = box(3.4, thick, len, x, Math.tan(a) * run * 0.5, -6, MATS.concrete, 0, a);
+  ramps.push({ deg, mesh: m, x, topY: Math.tan(a) * run, topZ: -6 - run * 0.5 });
+});
+
+// stairs: 14 steps, 0.17 rise / 0.30 run (standard)
+for (let i = 0; i < 14; i++) {
+  box(3.0, 0.17, 0.30, 12, 0.085 + i * 0.17, 4 + i * 0.30, MATS.concrete);
+}
+box(3.0, 0.4, 3.0, 12, 0.17 * 14 - 0.2, 4 + 14 * 0.30 + 1.5, MATS.concrete);
+
+// narrow corridor (0.9 m clear, like a doorway run)
+for (const s of [-1, 1]) {
+  box(0.25, 3.0, 10, 3.5 + s * 0.575, 1.5, 12, MATS.brick);
+}
+box(3.0, 0.25, 10, 3.5, 3.1, 12, MATS.concrete);
+
+// thin walls (40 mm) — tunnelling targets
+box(6, 3, 0.04, -8, 1.5, 10, MATS.metal);
+box(6, 3, 0.04, -8, 1.5, 14, MATS.metal);
+box(0.04, 3, 6, -14, 1.5, 12, MATS.metal);
+
+// steps of different heights for the step-up limit
+box(2, 0.35, 2, -2, 0.175, -14, MATS.wood);   // climbable (<= 0.4)
+box(2, 0.70, 2, 2, 0.35, -14, MATS.wood);     // not climbable
+box(2, 0.20, 2, -6, 0.10, -14, MATS.wood);    // curb
+
+// pillar behind the entity dummy, for the occlusion test
+box(1.4, 2.6, 0.25, -2, 1.3, 9, MATS.brick);
+
+// a low ceiling to test head collision
+box(5, 0.3, 5, 20, 1.85, -4, MATS.concrete);
+box(0.3, 2.0, 5, 22.4, 1.0, -4, MATS.concrete);
+
+// crate pile / drop pad
+box(10, 0.3, 10, 22, 0.15, 12, MATS.sand);
+
+scene.add(level);
+
+// ---------------------------------------------------------------- physics
+const physics = new Physics(ctx);
+ctx.physics = physics;
+const tBuild0 = performance.now();
+physics.addStatic(level);
+const buildMs = performance.now() - tBuild0;
+await physics.init();
+
+const R = 0.34, HH = 0.9;          // player capsule per ARTDIRECTION
+const results = [];
+const add = (name, pass, detail) => results.push({ name, pass, detail });
+
+// -------------------------------------------------- 1. raycast throughput
+function rayThroughput(n) {
+  const o = new THREE.Vector3(), d = new THREE.Vector3();
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  // warm up
+  for (let i = 0; i < 2000; i++) {
+    o.set((rnd() - .5) * 50, 2 + rnd() * 6, (rnd() - .5) * 50);
+    d.set(rnd() - .5, rnd() - .5, rnd() - .5).normalize();
+    physics.raycast(o, d, 100);
+  }
+  let hits = 0;
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) {
+    o.set((rnd() - .5) * 50, 2 + rnd() * 6, (rnd() - .5) * 50);
+    d.set(rnd() - .5, rnd() - .5, rnd() - .5).normalize();
+    if (physics.raycast(o, d, 100)) hits++;
+  }
+  const ms = performance.now() - t0;
+  return { rate: Math.round(n / (ms / 1000)), us: (ms * 1000 / n), hits, n };
+}
+const RAY = rayThroughput(200000);
+
+function moveThroughput(n) {
+  const p = new THREE.Vector3(12, 0.02, 2.0);
+  const d = new THREE.Vector3(0, -0.02, 0.05);
+  for (let i = 0; i < 300; i++) physics.capsuleMove(p, HH, R, d);
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) physics.capsuleMove(p, HH, R, d);
+  const ms = performance.now() - t0;
+  return { rate: Math.round(n / (ms / 1000)), us: ms * 1000 / n };
+}
+const MOVE = moveThroughput(4000);
+add('capsuleMove cost', MOVE.us < 200,
+  `${MOVE.us.toFixed(1)} µs per move (${MOVE.rate.toLocaleString()}/s) — full sweep + step-up + ground probe`);
+add('raycast throughput', RAY.rate > 200000,
+  `${RAY.rate.toLocaleString()} rays/s · ${RAY.us.toFixed(2)} µs/ray · ${RAY.hits}/${RAY.n} hit`);
+
+// ray sanity: straight down onto the ground must report the asphalt surface
+{
+  const h = physics.raycast(new THREE.Vector3(0, 5, 0), new THREE.Vector3(0, -1, 0), 20);
+  add('raycast surface + normal', !!h && Math.abs(h.point.y) < 1e-3 && h.normal.y > 0.99 && h.surface === 'concrete',
+    h ? `y=${h.point.y.toFixed(4)} n.y=${h.normal.y.toFixed(3)} surface=${h.surface} pen=${h.penetration}` : 'MISS');
+}
+
+// -------------------------------------------------- 2. walk simulation
+const DT = 1 / 60;
+function simulate(start, steer, seconds, opts = {}) {
+  const pos = start.clone();
+  const vel = new THREE.Vector3();
+  const speed = opts.speed != null ? opts.speed : 5.0;
+  let worstPen = 0, grounded = false, minY = Infinity, maxY = -Infinity, peakY = -Infinity;
+  const trail = [];
+  const steps = Math.round(seconds / DT);
+  let lastNormal = new THREE.Vector3(0, 1, 0), lastSurface = null, stepped = false;
+  for (let i = 0; i < steps; i++) {
+    const dir = steer(i * DT, pos, grounded);
+    vel.x = dir.x * speed; vel.z = dir.z * speed;
+    vel.y = grounded && dir.y <= 0 ? 0 : vel.y - 18 * DT;
+    if (dir.y > 0) vel.y = dir.y;
+    const delta = vel.clone().multiplyScalar(DT);
+    const res = physics.capsuleMove(pos, HH, R, delta, opts.moveOpts);
+    if (res.grounded && vel.y < 0) vel.y = 0;
+    if (res.ceiling && vel.y > 0) vel.y = 0;
+    pos.copy(res.pos);
+    grounded = res.grounded;
+    lastNormal = res.normal; lastSurface = res.hitSurface;
+    if (res.stepped) stepped = true;
+    const pen = physics.penetrationDepth(pos, HH, R);
+    if (pen > worstPen) worstPen = pen;
+    peakY = Math.max(peakY, pos.y);
+    if (i > steps * 0.5) { minY = Math.min(minY, pos.y); maxY = Math.max(maxY, pos.y); }
+    if (i % 4 === 0) trail.push(pos.clone());
+  }
+  return { pos, worstPen, grounded, minY, maxY, peakY, trail, normal: lastNormal, surface: lastSurface, stepped };
+}
+
+// walk across every ramp, up and back down
+let rampReport = [];
+let rampWorst = 0;
+for (const ramp of ramps) {
+  const start = new THREE.Vector3(ramp.x, 0.02, -0.5);
+  const r = simulate(start, () => ({ x: 0, y: 0, z: -1 }), 1.3);
+  rampWorst = Math.max(rampWorst, r.worstPen);
+  const climbed = r.peakY > 0.4;
+  rampReport.push(`${ramp.deg}°:${climbed ? '↑' : '×'}${r.peakY.toFixed(2)}`);
+}
+add('ramps: walkable ≤46°, blocked >46°',
+  rampWorst < 0.01 &&
+  rampReport[0].includes('↑') && rampReport[3].includes('↑') && rampReport[4].includes('↑') &&
+  rampReport[5].includes('×') && rampReport[6].includes('×'),
+  rampReport.join('  ') + `  worstPen=${(rampWorst * 1000).toFixed(2)}mm`);
+
+// slope jitter: stand still on the 30° ramp
+{
+  const ramp = ramps[2];
+  // stand still, then strafe along the contour line — y must stay rock steady
+  const still = simulate(new THREE.Vector3(ramp.x, 1.0, -6), () => ({ x: 0, y: 0, z: 0 }), 2.0);
+  const across = simulate(new THREE.Vector3(ramp.x - 1.2, 1.0, -6), (t) => ({ x: 1, y: 0, z: 0 }), 1.2,
+    { speed: 2 });
+  const jitter = (across.maxY - across.minY) * 1000;
+  const drift = (still.maxY - still.minY) * 1000;
+  add('no jitter on a 30° slope (standing + strafing)',
+    jitter < 1.5 && drift < 0.05 && still.grounded && across.grounded,
+    `standing Δy=${drift.toFixed(5)} mm · strafing Δy=${jitter.toFixed(4)} mm · n.y=${still.normal.y.toFixed(4)} · surface=${still.surface}`);
+}
+
+// stairs
+{
+  const r = simulate(new THREE.Vector3(12, 0.02, 2.0), () => ({ x: 0, y: 0, z: 1 }), 2.8, { speed: 3 });
+  add('stairs: climbs 14 × 0.17 m without jumping', r.peakY > 2.2 && r.worstPen < 0.01 && r.grounded,
+    `peak y=${r.peakY.toFixed(3)} (top = 2.38) z=${r.pos.z.toFixed(2)} stepped=${r.stepped} worstPen=${(r.worstPen * 1000).toFixed(2)}mm`);
+  // and back down, no launching off the edges
+  const d = simulate(new THREE.Vector3(12, 2.5, 8.6), () => ({ x: 0, y: 0, z: -1 }), 3.0);
+  add('stairs: descends glued to the ground', d.pos.y < 0.05 && d.grounded,
+    `y=${d.pos.y.toFixed(3)} z=${d.pos.z.toFixed(2)} grounded=${d.grounded}`);
+}
+
+// step-up limits
+{
+  const a = simulate(new THREE.Vector3(-2, 0.02, -11), () => ({ x: 0, y: 0, z: -1 }), 1.8, { speed: 2 });
+  const b = simulate(new THREE.Vector3(2, 0.02, -11), () => ({ x: 0, y: 0, z: -1 }), 1.8, { speed: 2 });
+  const c = simulate(new THREE.Vector3(-6, 0.02, -11), () => ({ x: 0, y: 0, z: -1 }), 1.8, { speed: 2 });
+  add('step-up: 0.20 m and 0.35 m yes / 0.70 m no',
+    a.peakY > 0.34 && c.peakY > 0.19 && b.peakY < 0.06,
+    `0.20m → ${c.peakY.toFixed(3)} · 0.35m → ${a.peakY.toFixed(3)} (stepped=${a.stepped}) · 0.70m → ${b.peakY.toFixed(3)}`);
+}
+
+// narrow corridor (0.9 m) with a 0.68 m wide capsule
+{
+  const r = simulate(new THREE.Vector3(3.5, 0.02, 6.0), (t) => ({
+    x: Math.sin(t * 9) * 0.9, y: 0, z: 1,
+  }), 3.4);
+  add('corridor: 0.68 m capsule through 0.9 m gap, wall-hugging',
+    r.pos.z > 15 && r.worstPen < 0.01,
+    `z=${r.pos.z.toFixed(2)} x=${r.pos.x.toFixed(3)} worstPen=${(r.worstPen * 1000).toFixed(2)}mm`);
+}
+
+// ceiling
+{
+  const r = simulate(new THREE.Vector3(20, 0.02, -1), () => ({ x: 0, y: 0, z: -1 }), 2.0);
+  const head = r.pos.y + 1.8;
+  add('ceiling: head stops below a 1.85 m soffit', head < 1.87 && r.worstPen < 0.01,
+    `head=${head.toFixed(3)} m · z=${r.pos.z.toFixed(2)} · worstPen=${(r.worstPen * 1000).toFixed(2)}mm`);
+}
+
+// -------------------------------------------------- 3. tunnelling at speed
+{
+  const speeds = [30, 60, 120];
+  const out = [];
+  let ok = true;
+  for (const sp of speeds) {
+    const pos = new THREE.Vector3(-8, 0.05, 6);
+    for (let i = 0; i < 40; i++) {
+      const res = physics.capsuleMove(pos, HH, R, new THREE.Vector3(0, -0.02, sp * DT));
+      pos.copy(res.pos);
+      if (pos.z > 9.75) break;    // would mean it crossed the 40 mm wall
+    }
+    const crossed = pos.z > 9.7;
+    if (crossed) ok = false;
+    out.push(`${sp}m/s→z=${pos.z.toFixed(2)}`);
+  }
+  // and horizontally into the 40 mm wall on the X axis
+  const pos = new THREE.Vector3(-11, 0.05, 12);
+  for (let i = 0; i < 40; i++) {
+    const res = physics.capsuleMove(pos, HH, R, new THREE.Vector3(-60 * DT, -0.02, 0));
+    pos.copy(res.pos);
+  }
+  if (pos.x < -13.71) ok = false;
+  out.push(`60m/s(X)→x=${pos.x.toFixed(2)}`);
+  add('no tunnelling through 40 mm walls at 30/60/120 m/s', ok, out.join('  '));
+}
+
+// -------------------------------------------------- 4. rigid bodies
+const debrisMat = new THREE.MeshStandardMaterial({ color: 0x6b4a38, roughness: 0.85 });
+const bodyMeshes = new THREE.Group();
+scene.add(bodyMeshes);
+let seed = 99;
+const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+const dropped = [];
+for (let i = 0; i < 40; i++) {
+  const s = 0.14 + rnd() * 0.16;
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(s * 2, s * 2, s * 2), debrisMat);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  bodyMeshes.add(mesh);
+  const q = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3));
+  dropped.push(physics.addBody({
+    shape: 'box',
+    halfExtents: { x: s, y: s, z: s },
+    mass: 6 * s,
+    position: { x: 22 + (rnd() - .5) * 2.2, y: 1.2 + i * 0.28, z: 12 + (rnd() - .5) * 2.2 },
+    quaternion: q,
+    velocity: { x: (rnd() - .5) * 1.5, y: 0, z: (rnd() - .5) * 1.5 },
+    angularVelocity: { x: (rnd() - .5) * 6, y: (rnd() - .5) * 6, z: (rnd() - .5) * 6 },
+    restitution: 0.2, friction: 0.7,
+    object3D: mesh,
+  }));
+}
+// a few shells + a ball for variety
+for (let i = 0; i < 12; i++) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8),
+    new THREE.MeshStandardMaterial({ color: 0x8c7a3f, roughness: 0.4, metalness: 0.6 }));
+  mesh.castShadow = true;
+  bodyMeshes.add(mesh);
+  physics.addBody({
+    shape: 'sphere', radius: 0.09, mass: 0.4,
+    position: { x: 19 + (rnd() - .5) * 1.5, y: 3 + i * 0.4, z: 10 + (rnd() - .5) * 1.5 },
+    velocity: { x: (rnd() - .5) * 3, y: 0, z: (rnd() - .5) * 3 },
+    restitution: 0.45, friction: 0.4,
+    object3D: mesh,
+  });
+}
+
+// ragdoll chain
+const ragMeshes = [];
+const ragParts = [];
+{
+  const spec = [
+    { name: 'pelvis', y: 1.5, r: 0.13, h: 0.30, m: 12 },
+    { name: 'chest', y: 1.85, r: 0.15, h: 0.36, m: 16, parent: 'pelvis', limit: 0.6 },
+    { name: 'head', y: 2.2, r: 0.11, h: 0.24, m: 5, parent: 'chest', limit: 0.7 },
+    { name: 'legL', y: 1.1, r: 0.10, h: 0.42, m: 9, parent: 'pelvis', limit: 1.1 },
+    { name: 'legR', y: 1.1, r: 0.10, h: 0.42, m: 9, parent: 'pelvis', limit: 1.1 },
+    { name: 'armL', y: 1.8, r: 0.08, h: 0.36, m: 5, parent: 'chest', limit: 1.4 },
+    { name: 'armR', y: 1.8, r: 0.08, h: 0.36, m: 5, parent: 'chest', limit: 1.4 },
+  ];
+  const parts = spec.map((s, i) => {
+    const mesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(s.r, Math.max(0.01, s.h - s.r * 2), 4, 8),
+      new THREE.MeshStandardMaterial({ color: 0x6e7146, roughness: 0.8 }));
+    mesh.castShadow = true;
+    bodyMeshes.add(mesh);
+    ragMeshes.push(mesh);
+    const dx = s.name.endsWith('L') ? -0.16 : s.name.endsWith('R') ? 0.16 : 0;
+    return {
+      name: s.name, radius: s.r, height: s.h, mass: s.m, parent: s.parent, limit: s.limit,
+      position: new THREE.Vector3(-19 + dx, s.y, 12), object3D: mesh,
+    };
+  });
+  ragParts.push(...physics.ragdoll(parts, { velocity: { x: 1.5, y: 1.0, z: 0 }, persistent: true }));
+}
+
+// settle the simulation deterministically
+const SETTLE = 8.0;
+const t0body = performance.now();
+for (let i = 0; i < Math.round(SETTLE * 120); i++) physics.stepFixed(1 / 120);
+const bodyMs = performance.now() - t0body;
+physics._syncBodyTransforms(1);
+
+{
+  let awake = 0, sunk = 0, maxV = 0, maxW = 0, worst = 0, retired = 0;
+  for (const b of dropped) {
+    if (!b.alive) { retired++; continue; }   // trimmed by the quality body budget
+    if (!b.sleeping) awake++;
+    maxV = Math.max(maxV, b.velocity.length());
+    maxW = Math.max(maxW, b.angularVelocity.length());
+    // a resting box's centre must clear the floor beneath it by its smallest half-extent
+    const below = physics.raycast(b.position, new THREE.Vector3(0, -1, 0), 5);
+    const clear = Math.min(b.halfExtents.x, b.halfExtents.y, b.halfExtents.z);
+    if (below && below.distance < clear * 0.92) { sunk++; worst = Math.max(worst, clear - below.distance); }
+  }
+  add('40 boxes settle & sleep on a pad (8 s sim)', awake === 0 && sunk === 0,
+    `awake=${awake}/${40 - retired} (budget retired ${retired}) · penetrating=${sunk} (worst ${(worst * 1000).toFixed(1)} mm) · |v|max=${maxV.toFixed(4)} |w|max=${maxW.toFixed(4)} · sim ${bodyMs.toFixed(0)} ms / ${Math.round(SETTLE * 120)} steps`);
+}
+{
+  const y = ragParts.map((b) => b.position.y);
+  const spread = Math.max(...y) - Math.min(...y);
+  const grounded = Math.min(...y) > 0.03 && Math.min(...y) < 0.9;
+  const dist = ragParts[0].position.distanceTo(ragParts[1].position);
+  add('ragdoll: chain holds together and lies on the floor',
+    grounded && spread < 1.2 && dist < 0.6,
+    `pelvis-chest=${dist.toFixed(3)} m · y range ${Math.min(...y).toFixed(2)}–${Math.max(...y).toFixed(2)}`);
+}
+
+// determinism: identical inputs → identical output
+{
+  const runOnce = () => {
+    const p = new THREE.Vector3(-21, 0.4, -0.5);
+    let g = false;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 150; i++) {
+      v.set(Math.sin(i * 0.07) * 4, g ? -1 : v.y - 18 * DT, -4);
+      const r = physics.capsuleMove(p, HH, R, v.clone().multiplyScalar(DT));
+      p.copy(r.pos); g = r.grounded;
+      if (g) v.y = 0;
+    }
+    return p;
+  };
+  const a = runOnce(), b = runOnce();
+  add('capsuleMove is deterministic', a.distanceTo(b) === 0,
+    `Δ=${a.distanceTo(b).toExponential(2)} m · end=(${a.x.toFixed(3)}, ${a.y.toFixed(3)}, ${a.z.toFixed(3)})`);
+}
+
+// -------------------------------------------------- 5. entities
+{
+  const rig = new THREE.Group();
+  rig.position.set(-2, 0, 6);
+  const headBone = new THREE.Object3D(); headBone.position.set(0, 1.62, 0);
+  const chestBone = new THREE.Object3D(); chestBone.position.set(0, 1.25, 0);
+  const legBone = new THREE.Object3D(); legBone.position.set(0, 0.45, 0);
+  rig.add(headBone, chestBone, legBone);
+  scene.add(rig);
+  rig.updateMatrixWorld(true);
+  const ent = {
+    id: 'dummy', object3D: rig, team: 1, health: 100, alive: true,
+    hitboxes: [
+      { name: 'head', bone: headBone, radius: 0.115, height: 0.24, mult: 4 },
+      { name: 'chest', bone: chestBone, radius: 0.21, height: 0.62, mult: 1 },
+      { name: 'leg_l', bone: legBone, radius: 0.13, height: 0.9, mult: 0.75 },
+    ],
+  };
+  physics.registerEntity(ent);
+  physics.syncEntities(true);
+
+  const shoot = (y) => physics.raycast(new THREE.Vector3(-2, y, 0), new THREE.Vector3(0, 0, 1), 20);
+  const h1 = shoot(1.62), h2 = shoot(1.25), h3 = shoot(0.45);
+  const near = physics.overlapSphere(new THREE.Vector3(-2, 1, 6), 2);
+  const far = physics.overlapSphere(new THREE.Vector3(30, 1, 6), 2);
+  add('entity hitboxes: head / chest / leg + overlapSphere',
+    h1 && h1.part === 'head' && h1.mult === 4 && h2 && h2.part === 'chest' &&
+    h3 && h3.part === 'leg_l' && h1.entity === ent && h1.surface === 'flesh' &&
+    near.length === 1 && far.length === 0,
+    `${h1 ? h1.part + '(x' + h1.mult + ')' : 'miss'} / ${h2 ? h2.part : 'miss'} / ${h3 ? h3.part : 'miss'} · overlap near=${near.length} far=${far.length}`);
+
+  // a wall must occlude the entity
+  const occluded = physics.raycast(new THREE.Vector3(-2, 1.62, 20), new THREE.Vector3(0, 0, -1), 30);
+  add('static geometry occludes entity hits',
+    !!occluded && occluded.entity === null && occluded.surface === 'brick',
+    occluded ? `hit ${occluded.surface} at ${occluded.distance.toFixed(2)} m` : 'miss');
+}
+
+// sphereCast
+{
+  const sc = physics.sphereCast(new THREE.Vector3(0, 4, 0), new THREE.Vector3(0, -1, 0), 0.3, 20);
+  add('sphereCast stops a 0.3 m sphere on the deck',
+    !!sc && Math.abs(sc.distance - 3.7) < 0.02 && sc.normal.y > 0.99,
+    sc ? `d=${sc.distance.toFixed(4)} (expect 3.70) n.y=${sc.normal.y.toFixed(3)} surface=${sc.surface}` : 'MISS');
+}
+
+// add/remove statics
+{
+  const before = physics.raycast(new THREE.Vector3(-8, 1.5, 6), new THREE.Vector3(0, 0, 1), 20);
+  const tmp = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 0.3), MATS.wood);
+  m.position.set(-8, 1.5, 8); tmp.add(m); scene.add(tmp);
+  physics.addStatic(tmp);
+  const during = physics.raycast(new THREE.Vector3(-8, 1.5, 6), new THREE.Vector3(0, 0, 1), 20);
+  physics.removeStatic(tmp);
+  scene.remove(tmp);
+  const after = physics.raycast(new THREE.Vector3(-8, 1.5, 6), new THREE.Vector3(0, 0, 1), 20);
+  add('incremental addStatic / removeStatic',
+    during && during.surface === 'wood' && after && after.surface === 'metal' &&
+    before && before.surface === 'metal',
+    `before=${before?.surface}@${before?.distance.toFixed(2)} during=${during?.surface}@${during?.distance.toFixed(2)} after=${after?.surface}@${after?.distance.toFixed(2)}`);
+}
+
+// -------------------------------------------------- 6. big-BVH stress
+{
+  // A displaced 128x128 grid = 32,768 triangles, parked well away from the bench.
+  const N = 128, SZ = 60, OFF = 90;
+  const geo = new THREE.PlaneGeometry(SZ, SZ, N, N);
+  geo.rotateX(-Math.PI / 2);
+  const pa = geo.attributes.position;
+  let sd = 7;
+  const rr = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+  for (let i = 0; i < pa.count; i++) {
+    const x = pa.getX(i), z = pa.getZ(i);
+    pa.setY(i, Math.sin(x * 0.35) * 0.9 + Math.cos(z * 0.27) * 0.7 + rr() * 0.35);
+  }
+  geo.computeVertexNormals();
+  const field = new THREE.Group();
+  const fm = new THREE.Mesh(geo, MATS.gravelish || MATS.sand);
+  fm.position.set(0, 0, OFF);
+  field.add(fm);
+  scene.add(field);
+
+  const t0 = performance.now();
+  physics.addStatic(field);
+  const ms = performance.now() - t0;
+  const chunk = physics.chunks[physics.chunks.length - 1];
+
+  // rays fired straight down at the field, plus random directions inside it
+  const o = new THREE.Vector3(), d = new THREE.Vector3();
+  let sd2 = 4242;
+  const r2 = () => { sd2 = (sd2 * 1664525 + 1013904223) >>> 0; return sd2 / 4294967296; };
+  for (let i = 0; i < 3000; i++) {
+    o.set((r2() - .5) * SZ, 8, OFF + (r2() - .5) * SZ);
+    physics.raycast(o, d.set(0, -1, 0), 30);
+  }
+  const NR = 120000;
+  let hits = 0;
+  const t1 = performance.now();
+  for (let i = 0; i < NR; i++) {
+    o.set((r2() - .5) * SZ, 6 + r2() * 4, OFF + (r2() - .5) * SZ);
+    d.set(r2() - .5, -r2(), r2() - .5).normalize();
+    if (physics.raycast(o, d, 60)) hits++;
+  }
+  const rms = performance.now() - t1;
+  const rate = Math.round(NR / (rms / 1000));
+
+  // walk a capsule over the displaced terrain — must never penetrate
+  const p = new THREE.Vector3(-20, 6, OFF - 20);
+  let g = false, vy = 0, worst = 0, grounds = 0;
+  for (let i = 0; i < 260; i++) {
+    vy = g ? 0 : vy - 18 * DT;
+    const res = physics.capsuleMove(p, HH, R, new THREE.Vector3(0.06, vy * DT, 0.06));
+    p.copy(res.pos); g = res.grounded; if (g) { vy = 0; grounds++; }
+    worst = Math.max(worst, physics.penetrationDepth(p, HH, R));
+  }
+
+  const before = physics.chunks.length;
+  physics.removeStatic(field);
+  scene.remove(field);
+  const gone = physics.raycast(new THREE.Vector3(0, 8, OFF), new THREE.Vector3(0, -1, 0), 30);
+
+  add('32,768-triangle BVH: build, query and remove',
+    chunk.tris === N * N * 2 && ms < 1500 && rate > 100000 && worst < 0.01 &&
+    grounds > 200 && physics.chunks.length === before - 1 && !gone,
+    `${chunk.tris.toLocaleString()} tris · build ${ms.toFixed(1)} ms · ` +
+    `${rate.toLocaleString()} rays/s (${(rms * 1000 / NR).toFixed(2)} µs, ${hits}/${NR} hit) · ` +
+    `walk worstPen=${(worst * 1000).toFixed(2)} mm, grounded ${grounds}/260 · removed cleanly=${!gone}`);
+}
+
+// -------------------------------------------------- 7. filters + events
+{
+  const from = new THREE.Vector3(3.5, 1.0, 12), dir = new THREE.Vector3(1, 0, 0);
+  const plain = physics.raycast(from, dir, 8);
+  const ignored = physics.raycast(from, dir, 8, { ignore: plain.object });
+  const noEnt = physics.raycast(new THREE.Vector3(-2, 1.62, 0), new THREE.Vector3(0, 0, 1), 20,
+    { entities: false });
+  add('raycast opts: ignore + entities:false',
+    plain && plain.surface === 'brick' && ignored === null &&
+    noEnt && noEnt.entity === null,
+    `plain=${plain?.surface}@${plain?.distance.toFixed(2)} ignored=${ignored === null ? 'none' : ignored.surface} ` +
+    `entities:false → ${noEnt?.surface}`);
+
+  const probe = physics.addBody({
+    shape: 'sphere', radius: 0.12, mass: 1,
+    position: { x: 22, y: 1.2, z: 12 }, sleep: false,
+  });
+  for (let i = 0; i < 200; i++) physics.stepFixed(1 / 120);
+  const restY = probe.position.y;
+  ctx.events.emit('explosion', { point: new THREE.Vector3(22, 0.1, 12), radius: 8, damage: 140 });
+  const v = probe.velocity.length();
+  for (let i = 0; i < 30; i++) physics.stepFixed(1 / 120);
+  add('explosion event throws nearby bodies',
+    v > 2 && probe.position.y > restY + 0.05 && !probe.sleeping,
+    `rest y=${restY.toFixed(3)} → impulse |v|=${v.toFixed(2)} m/s → y=${probe.position.y.toFixed(3)}`);
+  probe.remove();
+}
+
+// -------------------------------------------------- report
+const totalTris = physics.chunks.reduce((s, c) => s + c.tris, 0);
+const passed = results.filter((r) => r.pass).length;
+document.getElementById('out').innerHTML =
+  results.map((r) => `<div><span class="${r.pass ? 'ok' : 'bad'}">${r.pass ? '✔' : '✘'}</span> ` +
+    `<span class="k">${r.name}</span><br><span class="v" style="opacity:.72;padding-left:22px">${r.detail}</span></div>`).join('') +
+  `<div style="margin-top:10px;color:#8b96a3">${passed}/${results.length} passed · ` +
+  `${totalTris.toLocaleString()} tris in ${physics.chunks.length} chunk(s) · BVH build ${buildMs.toFixed(1)} ms · quality=${quality}</div>`;
+
+window.__results = { results, passed, total: results.length, ray: RAY, move: MOVE, tris: totalTris, buildMs };
+console.log(`[physics bench] ${passed}/${results.length} passed`);
+for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}  —  ${r.detail}`);
+
+// -------------------------------------------------- live view
+physics.debugDraw(params.get('debug') !== '0');
+
+// a capsule mesh that walks a patrol route so the screenshot shows motion
+const playerMesh = new THREE.Mesh(
+  new THREE.CapsuleGeometry(R, (HH - R) * 2, 6, 14),
+  new THREE.MeshStandardMaterial({ color: 0x3f7a72, roughness: 0.6 }));
+playerMesh.castShadow = true;
+scene.add(playerMesh);
+const playerPos = new THREE.Vector3(12, 0.02, 2.0);
+let playerVel = new THREE.Vector3();
+let playerGrounded = false;
+
+const CAMS = {
+  over:   { p: [-2, 30, 46], t: [1, 0, 0], fov: 55 },
+  ramps:  { p: [-22, 7, 10], t: [-8, 1.4, -6], fov: 60 },
+  stairs: { p: [19, 4.2, 14], t: [12, 1.4, 7], fov: 55 },
+  debris: { p: [15, 3.6, 19], t: [21, 0.6, 12], fov: 52 },
+  rag:    { p: [-14, 2.2, 15], t: [-19, 0.5, 12], fov: 50 },
+};
+const CAM = CAMS[params.get('cam')] || CAMS.over;
+camera.fov = CAM.fov;
+camera.position.set(...CAM.p);
+camera.lookAt(...CAM.t);
+camera.updateProjectionMatrix();
+if (params.get('panel') === '0') document.getElementById('panel').style.display = 'none';
+
+ctx.camera = camera;
+window.__game = ctx;
+
+let last = performance.now();
+function frame() {
+  requestAnimationFrame(frame);
+  const now = performance.now();
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  ctx.dt = dt; ctx.time += dt; ctx.frame++;
+
+  // patrol: up the stairs, then loop back
+  const dirZ = playerPos.z < 9 && playerPos.y < 2.3 ? 1 : -1;
+  playerVel.x = 0;
+  playerVel.z = dirZ * 2.6;
+  playerVel.y = playerGrounded ? -1 : playerVel.y - 18 * dt;
+  const res = physics.capsuleMove(playerPos, HH, R, playerVel.clone().multiplyScalar(dt));
+  playerPos.copy(res.pos);
+  playerGrounded = res.grounded;
+  if (playerGrounded) playerVel.y = 0;
+  if (playerPos.z < 1) playerPos.set(12, 0.2, 2.0);
+  playerMesh.position.set(playerPos.x, playerPos.y + HH, playerPos.z);
+
+  physics.update(dt);
+  physics.lateUpdate();
+
+  renderer.info.reset();
+  renderer.render(scene, camera);
+}
+frame();
+window.__ready = true;
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>

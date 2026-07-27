@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OVERSTRIKE — fx bench</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0a0c0e;
+    font-family: "Bahnschrift","DIN Alternate","Segoe UI",system-ui,sans-serif; color:#e6e8ea; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #hud { position:absolute; left:12px; top:10px; font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:#aab4bb; text-shadow:0 1px 3px #000; line-height:1.7; }
+  #hud b { color:#e0c58e; font-weight:600; }
+  #err { position:absolute; inset:0; padding:24px; background:#160404; color:#ff9a86;
+    font:12px/1.5 ui-monospace,monospace; white-space:pre-wrap; overflow:auto; display:none; }
+  .lab { position:absolute; transform:translate(-50%,0); font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:#f2f4f6; text-shadow:0 1px 3px rgba(0,0,0,.95); }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three.module.js",
+    "three/webgpu": "../vendor/three.webgpu.js",
+    "three/tsl": "../vendor/three.tsl.js",
+    "three/addons/": "../vendor/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="hud"></div>
+<div id="labels"></div>
+<pre id="err"></pre>
+<script type="module">
+const errEl = document.getElementById('err');
+const fail = (m) => { errEl.style.display='block'; errEl.textContent += m + '\n'; window.__crashed = true; };
+addEventListener('error', e => fail(`[error] ${e.message}\n${e.error?.stack||''}`));
+addEventListener('unhandledrejection', e => fail(`[reject] ${e.reason?.message||e.reason}\n${e.reason?.stack||''}`));
+
+import * as THREE from 'three';
+import Materials from '../src/world/materials.js';
+import Physics from '../src/core/physics.js';
+import FX from '../src/fx/fx.js';
+import EventBus from '../src/core/events.js';
+
+const P = new URLSearchParams(location.search);
+const QUALITY = P.get('quality') || 'high';
+const MODE = P.get('mode') || 'cycle';
+const CAM = P.get('cam') || 'default';
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.info.autoReset = false;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(58, innerWidth/innerHeight, 0.06, 400);
+camera.rotation.order = 'YXZ';
+
+const ctx = {
+  THREE, renderer, scene, camera, canvas,
+  viewScene: new THREE.Scene(),
+  viewCamera: new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.004, 12),
+  events: new EventBus(),
+  settings: { quality: QUALITY },
+  systems: new Map(),
+  rng: (seed = 1337) => { let s = seed>>>0; return () => { s^=s<<13; s>>>=0; s^=s>>17; s^=s<<5; s>>>=0; return s/4294967296; }; },
+  frame: 0, time: 0, dt: 0, state: 'playing',
+};
+window.__game = ctx;
+
+const materials = new Materials(ctx); ctx.materials = materials;
+await materials.init();
+
+const SUN = materials.sun;
+const lin = (hex, m=1) => { const c = new THREE.Color(hex).convertSRGBToLinear();
+  return new THREE.Vector3(c.r*m, c.g*m, c.b*m); };
+
+// ------------------------------------------------------------------ sky
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: {
+    uSunDir:{value:SUN.direction.clone()}, uSun:{value:lin('#fff2d8',1.0)},
+    uZenith:{value:lin('#6f9ad0',1.85)}, uHorizon:{value:lin('#dcd9cc',1.95)},
+    uGround:{value:lin('#7a7062',0.55)},
+  },
+  vertexShader:`varying vec3 vDir; void main(){ vDir=position;
+    gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+  fragmentShader:`varying vec3 vDir; uniform vec3 uSunDir,uSun,uZenith,uHorizon,uGround;
+    void main(){ vec3 d=normalize(vDir); float h=d.y;
+      vec3 sky=mix(uHorizon,uZenith,pow(clamp(h,0.0,1.0),0.42));
+      sky=mix(sky,uHorizon*1.06,smoothstep(0.16,0.0,abs(h))*0.55);
+      vec3 col=(h<0.0)?mix(uHorizon*0.72,uGround,clamp(-h*2.6,0.0,1.0)):sky;
+      float ca=max(dot(d,uSunDir),0.0);
+      col += uSun*pow(ca,1400.0)*40.0 + uSun*pow(ca,30.0)*0.40 + uSun*pow(ca,5.0)*0.10;
+      gl_FragColor=vec4(col,1.0);} `,
+});
+const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(200, 40, 24), skyMat);
+skyMesh.name = 'sky'; skyMesh.userData.collision = false;
+scene.add(skyMesh);
+scene.environment = materials.env;
+scene.fog = new THREE.FogExp2(0xb8bcbe, 0.006);
+
+const sun = new THREE.DirectionalLight(SUN.color.getHex(), SUN.intensity);
+sun.position.copy(SUN.direction).multiplyScalar(60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-16; sun.shadow.camera.right=16;
+sun.shadow.camera.top=16; sun.shadow.camera.bottom=-16;
+sun.shadow.camera.near=1; sun.shadow.camera.far=140;
+sun.shadow.bias=-0.0005; sun.shadow.normalBias=0.02;
+scene.add(sun); scene.add(sun.target);
+scene.add(new THREE.HemisphereLight(0x7fa3d1, 0x6b5c46, 0.45));
+
+// ------------------------------------------------------------------ set
+const world = new THREE.Group();
+world.name = 'testset';
+// Rotate the whole set so the panel wall (local +Z) faces the art-direction sun
+// (azimuth 118 deg) and gets the long raking key it is supposed to have.
+// 0.85 rad off dead-on so the key rakes across the wall instead of flattening it
+world.rotation.y = Math.atan2(SUN.direction.x, SUN.direction.z) - 0.85;
+world.updateMatrixWorld(true);
+scene.add(world);
+
+// local -> world helpers so every driver can be authored in the set's own frame
+const _lw = new THREE.Vector3();
+const L = (x, y, z) => world.localToWorld(_lw.set(x, y, z)).clone();
+const LD = (x, y, z) => new THREE.Vector3(x, y, z).applyQuaternion(world.quaternion).normalize();
+
+function slab(mat, w, h, d, x, y, z, ry = 0) {
+  const g = new THREE.BoxGeometry(w, h, d, 1, 1, 1);
+  const m = new THREE.Mesh(g, materials.get(mat));
+  m.position.set(x, y, z); m.rotation.y = ry;
+  m.castShadow = true; m.receiveShadow = true;
+  world.add(m);
+  return m;
+}
+
+// ground
+const ground = new THREE.Mesh(new THREE.BoxGeometry(60, 0.6, 60),
+  materials.get('concrete_floor', { repeat: [16,16] }));
+ground.position.y = -0.3; ground.receiveShadow = true; ground.castShadow = false;
+world.add(ground);
+
+// back wall
+slab('concrete_wall', 16, 4.2, 0.5, 0, 2.1, -4.2);
+// return wall (catches blood spray)
+slab('plaster_wall', 6, 3.4, 0.4, -7.6, 1.7, -1.0, Math.PI/2);
+
+// material test panels along the back wall
+const PANELS = [
+  ['metal',   'metal_painted', -4.6],
+  ['wood',    'wood_plank',    -2.3],
+  ['concrete','concrete_wall',  0.0],
+  ['glass',   'glass',          2.3],
+  ['brick',   'brick',          4.6],
+];
+const labelEls = [];
+for (const [surf, mat, x] of PANELS) {
+  const m = slab(mat, 1.9, 2.2, 0.16, x, 1.5, -3.85);
+  m.userData.testSurface = surf;
+  const el = document.createElement('div');
+  el.className = 'lab'; el.textContent = surf;
+  document.getElementById('labels').appendChild(el);
+  labelEls.push([el, new THREE.Vector3(x, 2.80, -3.85)]);
+}
+
+// dirt patch + crate + barrels for volume
+const dirt = new THREE.Mesh(new THREE.BoxGeometry(5, 0.12, 4), materials.get('dirt', { repeat: [4,3] }));
+dirt.position.set(4.0, 0.06, 0.6); dirt.receiveShadow = true; world.add(dirt);
+dirt.userData.testSurface = 'dirt';
+
+const crate = slab('wood_crate', 0.9, 0.9, 0.9, -3.4, 0.45, -1.2, 0.3);
+const crate2 = slab('wood_crate', 0.9, 0.9, 0.9, -3.0, 1.35, -1.35, -0.15);
+const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.88, 18),
+  materials.get('metal_rusted'));
+barrel.position.set(2.6, 0.44, -0.4); barrel.castShadow = barrel.receiveShadow = true;
+world.add(barrel);
+
+// a low kerb so decals have to wrap a corner
+const kerb = slab('concrete_floor', 6, 0.16, 0.5, -1.0, 0.08, 1.6);
+
+const physics = new Physics(ctx); ctx.physics = physics;
+physics.addStatic(world);
+await physics.init();
+
+// stub audio so shell landings are exercised without a synth
+let audioCalls = 0;
+ctx.audio = { play(){audioCalls++;}, play3d(){audioCalls++;}, stop(){} };
+
+const fx = new FX(ctx); ctx.fx = fx;
+await fx.init();
+
+// ------------------------------------------------------------------ atlas dump
+if (P.has('atlas')) {
+  const which = P.get('atlas') === 'decal' ? fx.dAtlas : fx.pAtlas;
+  const w = which.cols * which.size, h = which.rows * which.size;
+  const c2 = document.createElement('canvas');
+  c2.width = w; c2.height = h;
+  c2.style.cssText = `position:absolute;left:0;top:0;width:100%;height:auto;
+    image-rendering:pixelated;background:#111;z-index:9`;
+  const g2 = c2.getContext('2d');
+  const src = which.texture.image.data;
+  const id = g2.createImageData(w, h);
+  const chan = P.get('chan') || 'rgb';
+  for (let i = 0; i < w * h; i++) {
+    const r = src[i*4], g = src[i*4+1], b = src[i*4+2], a = src[i*4+3];
+    if (chan === 'rgb')      { id.data[i*4]=r; id.data[i*4+1]=g; id.data[i*4+2]=b; }
+    else if (chan === 'a')   { id.data[i*4]=a; id.data[i*4+1]=a; id.data[i*4+2]=a; }
+    else if (chan === 'r')   { id.data[i*4]=r; id.data[i*4+1]=r; id.data[i*4+2]=r; }
+    else if (chan === 'g')   { id.data[i*4]=g; id.data[i*4+1]=g; id.data[i*4+2]=g; }
+    else if (chan === 'b')   { id.data[i*4]=b; id.data[i*4+1]=b; id.data[i*4+2]=b; }
+    else { // premultiplied preview over a mid grey
+      const k = a/255;
+      id.data[i*4]   = r*k + 34*(1-k);
+      id.data[i*4+1] = g*k + 34*(1-k);
+      id.data[i*4+2] = b*k + 34*(1-k);
+    }
+    id.data[i*4+3] = 255;
+  }
+  g2.putImageData(id, 0, 0);
+  document.body.appendChild(c2);
+}
+
+// ------------------------------------------------------------------ camera
+const CAMS = {
+  default:  [[0.3, 1.68, 3.6], [0.0, 1.30, -3.0]],
+  impacts:  [[0.0, 1.62, 2.6], [0.0, 1.48, -3.8]],
+  metal:    [[-4.2, 1.55, -1.9], [-4.6, 1.52, -3.8]],
+  glassc:   [[2.3, 1.55, -1.9], [2.3, 1.52, -3.8]],
+  muzzle:   [[0.66, 1.58, 1.15], [-0.3, 1.44, -3.9]],
+  wide:     [[7.0, 3.4, 7.4], [0.0, 1.1, -2.0]],
+  ground:   [[3.0, 1.30, 3.6], [1.2, 0.30, -1.0]],
+  blood:    [[-3.0, 1.62, 0.4], [-6.4, 1.50, -1.0]],
+};
+function setCam(name) {
+  const c = CAMS[name] || CAMS.default;
+  const p = L(c[0][0], c[0][1], c[0][2]);
+  const t = L(c[1][0], c[1][1], c[1][2]);
+  camera.position.copy(p);
+  camera.lookAt(t);
+}
+setCam(CAM);
+window.__cam = setCam;
+
+// ------------------------------------------------------------------ drivers
+const rnd = ctx.rng(99);
+const V = L;                 // effect points are authored in set-local space
+const D = LD;                // ...and so are directions
+
+function panelHit(i, jitter = true) {
+  const [surf, , x] = PANELS[i % PANELS.length];
+  const px = x + (jitter ? (rnd()-0.5)*1.2 : 0);
+  const py = 1.5 + (jitter ? (rnd()-0.5)*1.3 : 0);
+  return { surf, point: V(px, py, -3.75), normal: D(0,0,1),
+           incoming: D((px-0.4)*-0.10, (py-1.6)*-0.10, -1) };
+}
+
+const DRIVERS = {
+  impacts() {
+    for (let i = 0; i < PANELS.length; i++) {
+      const h = panelHit(i, true);
+      fx.impact(h.point, h.normal, h.surf, { incoming: h.incoming });
+    }
+    fx.impact(V(4 + (rnd()-0.5)*3, 0.13, 0.6 + (rnd()-0.5)*2.4), D(0,1,0), 'dirt',
+      { incoming: D(0.3,-1,0.2) });
+  },
+  metal()    { const h = panelHit(0); fx.impact(h.point, h.normal, 'metal',    { incoming: h.incoming }); },
+  wood()     { const h = panelHit(1); fx.impact(h.point, h.normal, 'wood',     { incoming: h.incoming }); },
+  concrete() { const h = panelHit(2); fx.impact(h.point, h.normal, 'concrete', { incoming: h.incoming }); },
+  glass()    { const h = panelHit(3); fx.impact(h.point, h.normal, 'glass',    { incoming: h.incoming }); },
+  brick()    { const h = panelHit(4); fx.impact(h.point, h.normal, 'brick',    { incoming: h.incoming }); },
+  metalburst() {
+    for (let i = 0; i < 3; i++) {
+      const h = panelHit(0);
+      fx.impact(h.point, h.normal, 'metal', { incoming: h.incoming });
+    }
+  },
+  dirt() {
+    fx.impact(V(4 + (rnd()-0.5)*3, 0.13, 0.6 + (rnd()-0.5)*2), D(0,1,0), 'dirt',
+      { incoming: D(0.25,-1,0.15) });
+  },
+  water() {
+    fx.impact(V(-1 + (rnd()-0.5)*2, 0.02, 2.0), D(0,1,0), 'water',
+      { incoming: D(0.2,-1,0.1) });
+  },
+  muzzle() {
+    const p = V(0.30, 1.50, 0.30);
+    const dir = D(-0.10, -0.01, -1);
+    fx.muzzleFlash({ position: p, direction: dir }, { scale: 1 });
+    const to = V(-0.10, 1.47, -3.72);
+    fx.tracer(p, to, { speed: 420 });
+    fx.shell(V(0.42, 1.53, 0.44), D(0.9, 0.45, 0.25), { kind:'rifle' });
+    fx.screenShake(0.09, 0.16);
+    pending.push([0.011, () => fx.impact(to, D(0,0,1), 'concrete', { incoming: dir })]);
+  },
+  explosion()  { fx.explosion(V(1.2, 0.55, -1.0), { radius: 4.5 }); },
+  explosionbig() { fx.explosion(V(1.2, 0.7, -1.0), { radius: 7 }); },
+  blood() {
+    fx.blood(V(-5.6, 1.55, -1.0), D(1,0,0.2), { incoming: D(-0.94,-0.1,-0.32) });
+  },
+  tracer() {
+    fx.tracer(V(5.0, 2.1, 6.5), V(-3.0, 1.2, -3.7), { speed: 260 });
+  },
+  smoke()  { fx.smoke(V(-2.0, 0.4, 0.8), { count: 10, size: 0.7, life: 5, opacity: 0.5 }); },
+  shells() { for (let i = 0; i < 3; i++) fx.shell(V(0.35, 1.5, 0.4), D(0.9, 0.5, 0.2), { kind:'rifle' }); },
+  decals() {
+    for (let i = 0; i < PANELS.length; i++) {
+      const h = panelHit(i, true);
+      fx.decal(h.point, h.normal, h.surf);
+    }
+  },
+  decalwall() {
+    // dense scarring so budget + wrap behaviour is visible
+    for (let i = 0; i < 6; i++) {
+      const h = panelHit(i, true);
+      fx.impact(h.point, h.normal, h.surf, { incoming: h.incoming });
+    }
+  },
+};
+
+// sim-time delayed callbacks (setTimeout would run while the clock is frozen)
+const pending = [];
+
+const CYCLE = ['muzzle','impacts','metal','muzzle','glass','muzzle','wood',
+               'blood','muzzle','dirt','tracer','muzzle','explosion','smoke','water'];
+
+let cycleIdx = 0, cycleT = 0;
+
+window.__fire = (name) => { (DRIVERS[name] || DRIVERS.impacts)(); };
+window.__fx = fx;
+window.__reset = () => { fx.clear(); };
+
+// freeze support: fire an effect and stop the clock N seconds later so the
+// screenshot lands on an exact moment of a 40 ms flash.
+let frozen = false, freezeAt = -1;
+window.__shot = (name, delay = 0.02, cam) => {
+  fx.clear();
+  pending.length = 0;
+  if (cam) setCam(cam);
+  frozen = false; window.__frozenReady = false;
+  (DRIVERS[name] || DRIVERS.impacts)();
+  freezeAt = simTime + delay;
+  return true;
+};
+window.__unfreeze = () => { frozen = false; freezeAt = -1; };
+
+// ------------------------------------------------------------------ loop
+const hud = document.getElementById('hud');
+const clock = new THREE.Clock();
+let simTime = 0;
+let hudT = 0;
+
+function tick() {
+  requestAnimationFrame(tick);
+  let dt = Math.min(clock.getDelta(), 0.05);
+  if (frozen) {
+    dt = 0;
+  } else if (freezeAt >= 0 && simTime + dt >= freezeAt) {
+    dt = Math.max(0, freezeAt - simTime);   // land exactly on the requested moment
+    frozen = true; freezeAt = -1;
+  }
+  simTime += dt;
+  ctx.dt = dt; ctx.time = simTime; ctx.frame++;
+
+  if (!frozen) {
+    physics.update?.(dt, simTime);
+    for (let i = pending.length - 1; i >= 0; i--) {
+      pending[i][0] -= dt;
+      if (pending[i][0] <= 0) { pending[i][1](); pending.splice(i, 1); }
+    }
+    if (MODE === 'cycle') {
+      cycleT -= dt;
+      if (cycleT <= 0) { cycleT = 0.55; DRIVERS[CYCLE[cycleIdx++ % CYCLE.length]](); }
+    } else if (MODE === 'burst') {
+      cycleT -= dt;
+      if (cycleT <= 0) { cycleT = 0.09; DRIVERS.muzzle(); }
+    } else if (MODE !== 'manual') {
+      cycleT -= dt;
+      if (cycleT <= 0) { cycleT = 0.75; (DRIVERS[MODE] || DRIVERS.impacts)(); }
+    }
+  }
+
+  fx.update(dt, simTime);
+  fx.lateUpdate(dt, simTime);
+
+  // shake preview so the published offsets are visibly exercised
+  camera.updateMatrixWorld();
+
+  renderer.info.reset();
+  renderer.render(scene, camera);
+
+  for (const [el, v] of labelEls) {
+    const p = v.clone().applyMatrix4(world.matrixWorld).project(camera);
+    el.style.left = `${(p.x*0.5+0.5)*innerWidth}px`;
+    el.style.top = `${(-p.y*0.5+0.5)*innerHeight}px`;
+    el.style.display = p.z < 1 ? '' : 'none';
+  }
+
+  hudT -= dt;
+  if (hudT <= 0) {
+    hudT = 0.25;
+    const i = renderer.info;
+    hud.innerHTML =
+      `mode <b>${MODE}</b> · quality <b>${QUALITY}</b>${frozen ? ' · <b>FROZEN</b>' : ''}<br>` +
+      `particles <b>${fx.stats.particles}</b>/${fx.tier.particles} · ` +
+      `decals <b>${fx.stats.decals}</b>/${fx.tier.decals} · shells <b>${fx.stats.shells}</b><br>` +
+      `draws <b>${i.render.calls}</b> · tris <b>${i.render.triangles}</b> · ` +
+      `progs <b>${i.programs?.length ?? 0}</b> · tex <b>${i.memory.textures}</b><br>` +
+      `shake <b>${fx.shakeAmount.toFixed(2)}</b> · audio ev <b>${audioCalls}</b>`;
+  }
+  if (ctx.frame === 2) window.__ready = true;
+  if (frozen) window.__frozenReady = true;
+}
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  fx.resize();
+});
+tick();
+</script>
+</body>
+</html>

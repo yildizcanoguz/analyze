@@ -21,6 +21,27 @@
 //
 // Everything is deterministic: bodies advance on a fixed internal timestep and are
 // interpolated for rendering.
+//
+// CONTRACT API
+//   raycast(origin, dir, maxDist, opts?)  opts: { entities:true, statics:true,
+//        ignore:Object3D|[]|Set|fn, ignoreEntity, cull:false, includeDead:false }
+//   sphereCast(origin, dir, radius, maxDist, opts?)
+//   capsuleMove(pos, halfHeight, radius, delta, opts?)  opts: { stepHeight:0.4,
+//        slopeLimit:46 (degrees), snap:true, snapDistance, allowClimb:false }
+//   addStatic(o) / removeStatic(o) / addBody(opts) / overlapSphere(pos, r)
+//   registerEntity(e) / unregisterEntity(e) / debugDraw(on)
+//
+// EXTENSIONS (safe to use, not in the contract)
+//   refreshStatic(o)            re-bake a static that moved (doors, destructibles)
+//   overlapBodies(pos, r)       dynamic bodies in a sphere
+//   penetrationDepth(pos,hh,r)  how deep a capsule is inside geometry (0 = clear)
+//   capsuleFits(pos,hh,r)       crouch/stand clearance test
+//   addConstraint / removeConstraint / ragdoll(parts, opts)
+//   setGravity(x,y,z) · stepFixed(h) · syncEntities(force) · stats · debugState()
+//   Bodies expose: applyImpulse(v, point?), applyForce(f, dt), wake(), remove(),
+//   position, quaternion, velocity, angularVelocity, sleeping, groundSurface.
+//   Physics listens for the `explosion` event and throws nearby bodies itself.
+//   Tag geometry with `mesh.userData.collision = false` to exclude it.
 
 import * as THREE from 'three';
 
@@ -647,14 +668,17 @@ class Chunk {
 // ---------------------------------------------------------------------------
 
 const QUALITY = {
-  low:    { hz: 60,  maxBodies: 48,  solverIters: 3, leaf: 12, bvhDepth: 5 },
-  medium: { hz: 90,  maxBodies: 96,  solverIters: 4, leaf: 10, bvhDepth: 6 },
+  low:    { hz: 90,  maxBodies: 48,  solverIters: 3, leaf: 12, bvhDepth: 5 },
+  medium: { hz: 120, maxBodies: 96,  solverIters: 4, leaf: 10, bvhDepth: 6 },
   high:   { hz: 120, maxBodies: 192, solverIters: 6, leaf: 8,  bvhDepth: 7 },
   ultra:  { hz: 120, maxBodies: 320, solverIters: 8, leaf: 8,  bvhDepth: 8 },
 };
 
+// nx/ny/nz = contact normal (drives sliding), fnx/fny/fnz = oriented FACE normal of
+// the triangle (drives walkability — a capsule resting on the lip of a step must
+// still count as standing on the step's floor).
 const HIT = {
-  t: 0, nx: 0, ny: 0, nz: 0, px: 0, py: 0, pz: 0,
+  t: 0, nx: 0, ny: 0, nz: 0, fnx: 0, fny: 0, fnz: 0, px: 0, py: 0, pz: 0,
   chunk: null, tri: -1, surface: DEFAULT_SURFACE, penetration: DEFAULT_PENETRATION,
 };
 const NRM = { x: 0, y: 1, z: 0 };
@@ -688,8 +712,12 @@ export default class Physics {
     this._bodyId = 1;
 
     this._cand = new IdxList(2048);
+    this._bodyContacts = [];
     this._chunkCand = [];
     this._debug = null;
+    this._preferUp = false;
+    this._autoScans = 0;
+    this._scanTick = 0;
     this._debugCapsules = [];
     this.stats = { rays: 0, sweeps: 0, bodies: 0, tris: 0, chunks: 0, buildMs: 0 };
 
@@ -766,7 +794,10 @@ export default class Physics {
         candidates.push(child);
       }
     }
-    for (const c of candidates) this.addStatic(c);
+    for (const c of candidates) {
+      if (this._chunkByRoot.has(c)) continue;
+      this.addStatic(c);
+    }
   }
 
   _buildTop() {
@@ -999,22 +1030,33 @@ export default class Physics {
       const list = this._cand; list.clear();
       this._chunkThickRay(chunk, cx, cy, cz, dx, dy, dz, len * best, ex, ey, ez, list);
       const P = chunk.pos, N = chunk.nrm, arr = list.a;
+      // A capsule landing on the lip of a step touches the step's top face and its
+      // front face at the very same instant. For ground queries we must keep the
+      // most upward-facing of those, otherwise "am I standing on it" is a coin toss.
+      const tie = this._preferUp ? 2e-4 : 0;
       for (let k = 0; k < list.n; k++) {
         const ti = arr[k], p = ti * 9, n3 = ti * 3;
-        const t = sweepTri(cx, cy, cz, hs, r, mx, my, mz, best,
+        const t = sweepTri(cx, cy, cz, hs, r, mx, my, mz, best + tie,
           P[p], P[p + 1], P[p + 2], P[p + 3], P[p + 4], P[p + 5], P[p + 6], P[p + 7], P[p + 8],
           N[n3], N[n3 + 1], N[n3 + 2]);
         if (t < 0) continue;
         // CP holds the closest feature at time t
+        let fx = N[n3], fy = N[n3 + 1], fz = N[n3 + 2];
+        if (fx * (CP.sx - CP.tx) + fy * (CP.sy - CP.ty) + fz * (CP.sz - CP.tz) < 0) {
+          fx = -fx; fy = -fy; fz = -fz;
+        }
+        if (found && tie && t > best - tie && fy <= HIT.fny) continue;
         contactNormal(chunk, ti);
-        best = t; found = true;
+        if (t < best) best = t;
+        found = true;
         HIT.t = t; HIT.nx = NRM.x; HIT.ny = NRM.y; HIT.nz = NRM.z;
+        HIT.fnx = fx; HIT.fny = fy; HIT.fnz = fz;
         HIT.px = CP.tx; HIT.py = CP.ty; HIT.pz = CP.tz;
         HIT.chunk = chunk; HIT.tri = ti;
         const g = chunk.groups[chunk.grp[ti]];
         HIT.surface = g ? g.surface : DEFAULT_SURFACE;
         HIT.penetration = g ? g.penetration : DEFAULT_PENETRATION;
-        if (best <= 0) return 0;
+        if (best <= 0 && !tie) return 0;
       }
     }
     return found ? best : -1;
@@ -1246,7 +1288,7 @@ export default class Physics {
   // Push a capsule out of anything it overlaps. Writes DP.{x,y,z,pushed} and the
   // deepest upward-facing contact in DP.g*.
   _depenetrate(cx, cy, cz, hs, r, iters = 4) {
-    DP.x = cx; DP.y = cy; DP.z = cz; DP.pushed = 0;
+    DP.x = cx; DP.y = cy; DP.z = cz; DP.pushed = 0; DP.deep = 0;
     DP.gy = -2; DP.gTri = -1; DP.gChunk = null;
     if (!this.chunks.length) return DP;
     const target = r + SKIN;
@@ -1267,6 +1309,7 @@ export default class Physics {
             P[p], P[p + 1], P[p + 2], P[p + 3], P[p + 4], P[p + 5], P[p + 6], P[p + 7], P[p + 8],
             N[n3], N[n3 + 1], N[n3 + 2]);
           const d = Math.sqrt(CP.d2);
+          if (it === 0 && r - d > DP.deep) DP.deep = r - d;
           const pen = target - d;
           if (pen <= 1e-5) continue;
           contactNormal(chunk, ti);
@@ -1297,18 +1340,27 @@ export default class Physics {
         const t = this._sweepCapsule(SL.x, SL.y, SL.z, hs, r, mx, my, mz, 1);
         if (t < 0) { SL.x += mx; SL.y += my; SL.z += mz; break; }
         const nx = HIT.nx, ny = HIT.ny, nz = HIT.nz;
-        const back = SKIN / len;
-        const adv = t - back > 0 ? t - back : 0;
-        SL.x += mx * adv; SL.y += my * adv; SL.z += mz * adv;
+        // Sliding decisions use the CONTACT normal: brushing the convex lip of a
+        // step is a wall contact even though the triangle it belongs to is floor.
+        // (Ground *probes* use the face normal instead — see _probeDown.)
+        const walkable = ny >= slopeCos;
+        // Advance to the touch point, then back off along the CONTACT NORMAL.
+        // Backing off along the motion instead leaves a grazing contact barely
+        // separated, and the de-penetration pass then nudges the capsule along the
+        // normal every frame — which is how a capsule slowly climbs a wall edge.
+        SL.x += mx * t + nx * SKIN;
+        SL.y += my * t + ny * SKIN;
+        SL.z += mz * t + nz * SKIN;
+        const adv = t;
         SL.hits++;
         SL.surface = HIT.surface;
         if (ny < -0.4) SL.ceiling = true;
-        if (ny < slopeCos) SL.blocked = true;
+        if (!walkable) SL.blocked = true;
         let rx = mx * (1 - adv), ry = my * (1 - adv), rz = mz * (1 - adv);
         const dp = rx * nx + ry * ny + rz * nz;
         rx -= nx * dp; ry -= ny * dp; rz -= nz * dp;
         // never let a too-steep face act as a ramp
-        if (!allowClimb && ny < slopeCos && ny > -0.1 && dy <= 1e-4 && ry > 0) ry = 0;
+        if (!allowClimb && !walkable && ny > -0.1 && dy <= 1e-4 && ry > 0) ry = 0;
         mx = rx; my = ry; mz = rz;
       }
     }
@@ -1317,7 +1369,9 @@ export default class Physics {
 
   // Sweep straight down; returns { hit, t, ny, ... } via HIT. Returns distance or -1.
   _probeDown(cx, cy, cz, hs, r, dist) {
+    this._preferUp = true;
     const t = this._sweepCapsule(cx, cy, cz, hs, r, 0, -dist, 0, 1);
+    this._preferUp = false;
     return t < 0 ? -1 : t * dist;
   }
 
@@ -1340,9 +1394,11 @@ export default class Physics {
 
     // was the capsule standing on walkable ground before the move?
     let startGround = false;
+    let startGroundY = -BIG;
     if (this.chunks.length) {
       const d = this._probeDown(sx, sy, sz, hs, r, SKIN * 2 + 0.06);
-      startGround = d >= 0 && HIT.ny >= slopeCos;
+      startGround = d >= 0 && HIT.fny >= slopeCos;
+      if (startGround) startGroundY = HIT.py;
     }
 
     // 2. collide & slide
@@ -1359,15 +1415,23 @@ export default class Physics {
       const tUp = this._sweepCapsule(sx, sy, sz, hs, r, 0, stepH, 0, 1);
       const up = tUp < 0 ? stepH : Math.max(0, tUp * stepH - SKIN);
       if (up > 0.02) {
-        this._collideSlide(sx, sy + up, sz, hs, r, dx, 0, dz, slopeCos, true);
+        // allowClimb stays false: with it on, the raised capsule can ride up the
+        // convex top edge of a too-tall obstacle and scale it 0.4 m per frame.
+        this._collideSlide(sx, sy + up, sz, hs, r, dx, 0, dz, slopeCos, false);
         const ux = SL.x, uy = SL.y, uz = SL.z;
         const upProg = (ux - sx) * (ux - sx) + (uz - sz) * (uz - sz);
         if (upProg > baseProg + 1e-4) {
           const drop = up + 0.03;
+          this._preferUp = true;
           const tDn = this._sweepCapsule(ux, uy, uz, hs, r, 0, -drop, 0, 1);
-          if (tDn >= 0 && HIT.ny >= slopeCos) {
+          this._preferUp = false;
+          // The rise is measured surface-to-surface: you may step onto ground at
+          // most stepHeight above the ground you are standing on. Measuring against
+          // the capsule instead lets it scale any wall 0.4 m per frame by leaning
+          // on the lip and stepping again from there.
+          if (tDn >= 0 && HIT.fny >= slopeCos && HIT.py <= startGroundY + stepH + 1e-3) {
             const fy = uy - Math.max(0, tDn * drop - SKIN);
-            if (fy >= sy - 1e-3) {
+            if (fy >= sy - 1e-3 && fy <= sy + stepH + 1e-3) {
               px = ux; py = fy; pz = uz;
               stepped = true; blocked = false;
               lastSurface = HIT.surface;
@@ -1381,11 +1445,13 @@ export default class Physics {
     let grounded = false;
     if (this.chunks.length) {
       const d = this._probeDown(px, py, pz, hs, r, SKIN * 2 + 0.06);
-      grounded = d >= 0 && HIT.ny >= slopeCos;
+      grounded = d >= 0 && HIT.fny >= slopeCos;
       if (!grounded && startGround && dy <= 1e-3 && o.snap !== false) {
         const snap = o.snapDistance != null ? o.snapDistance : Math.max(stepH, 0.3);
+        this._preferUp = true;
         const t2 = this._sweepCapsule(px, py, pz, hs, r, 0, -snap, 0, 1);
-        if (t2 >= 0 && HIT.ny >= slopeCos) {
+        this._preferUp = false;
+        if (t2 >= 0 && HIT.fny >= slopeCos) {
           py -= Math.max(0, t2 * snap - SKIN);
           grounded = true;
           lastSurface = HIT.surface;
@@ -1401,15 +1467,15 @@ export default class Physics {
     let gnx = 0, gny = 1, gnz = 0, gSurface = null, gObject = null;
     if (this.chunks.length) {
       const d = this._probeDown(px, py, pz, hs, r, SKIN * 2 + 0.06);
-      if (d >= 0 && HIT.ny >= slopeCos) {
+      if (d >= 0 && HIT.fny >= slopeCos) {
         grounded = true;
-        gnx = HIT.nx; gny = HIT.ny; gnz = HIT.nz;
+        gnx = HIT.fnx; gny = HIT.fny; gnz = HIT.fnz;
         gSurface = HIT.surface;
         const g = HIT.chunk && HIT.chunk.groups[HIT.chunk.grp[HIT.tri]];
         gObject = g ? g.mesh : (HIT.chunk ? HIT.chunk.root : null);
-      } else if (d >= 0 && HIT.ny > 0.02) {
+      } else if (d >= 0 && HIT.fny > 0.02) {
         // touching a too-steep face: report the slope so the controller can slide
-        gnx = HIT.nx; gny = HIT.ny; gnz = HIT.nz;
+        gnx = HIT.fnx; gny = HIT.fny; gnz = HIT.fnz;
         grounded = false;
       } else {
         grounded = false;
@@ -1461,7 +1527,11 @@ export default class Physics {
       const h = Math.max(0, height * 0.5 - radius);
       pts = new Float32Array([0, -h, 0, 0, h, 0]); ptR = radius;
     } else {
-      const m = 0.02;
+      // A box is modelled as eight inset spheres (a rounded box). The inset must be
+      // large enough that a corner never travels more than its own radius per
+      // substep, otherwise a corner can end up deep inside solid geometry where the
+      // nearest-triangle test can no longer see it.
+      const m = Math.min(0.09, Math.max(0.02, Math.min(he.x, he.y, he.z) * 0.45));
       const ex = Math.max(1e-3, he.x - m), ey = Math.max(1e-3, he.y - m), ez = Math.max(1e-3, he.z - m);
       pts = new Float32Array(24);
       let i = 0;
@@ -1604,8 +1674,7 @@ export default class Physics {
     const speed = body.velocity.length();
     let sub = 1;
     if (body.ccd) {
-      const reach = Math.max(0.02, body.shape === 'box' ? body._ptR + 0.02 : body.radius);
-      sub = Math.min(6, Math.max(1, Math.ceil((speed * h) / (reach * 0.8))));
+      sub = Math.min(8, Math.max(1, Math.ceil((speed * h) / (body._ptR * 0.7))));
     }
     const hs = h / sub;
     for (let s = 0; s < sub; s++) {
@@ -1618,21 +1687,27 @@ export default class Physics {
         _qd.setFromAxisAngle(_va.set(w.x / wl, w.y / wl, w.z / wl), wl * hs);
         body.quaternion.premultiply(_qd).normalize();
       }
-      this._resolveBody(body, hs);
+      this._resolveBody(body);
+      this._restingDamp(body, hs);
     }
   }
 
-  _resolveBody(body, h) {
+  _resolveBody(body) {
+    body.contacts = 0;
     if (!this.chunks.length) return;
     const P = body.position, q = body.quaternion, R = body._ptR;
     const npts = body._pts.length / 3;
-    body.contacts = 0;
     const margin = R + 0.03;
+    const C = this._bodyContacts;
+    let n = 0;
+
+    // ---- gather: one (deepest) contact per sample point --------------------
     for (let i = 0; i < npts; i++) {
       _va.set(body._pts[i * 3], body._pts[i * 3 + 1], body._pts[i * 3 + 2]).applyQuaternion(q);
       const wx = P.x + _va.x, wy = P.y + _va.y, wz = P.z + _va.z;
       const chunks = this._topBox(wx - margin, wy - margin, wz - margin,
         wx + margin, wy + margin, wz + margin, this._chunkCand);
+      let bd = -1, bnx = 0, bny = 0, bnz = 0, bChunk = null, bTri = -1;
       for (let ci = 0; ci < chunks.length; ci++) {
         const chunk = chunks[ci];
         const list = this._cand; list.clear();
@@ -1641,67 +1716,116 @@ export default class Physics {
         const TP = chunk.pos, arr = list.a;
         for (let k = 0; k < list.n; k++) {
           const ti = arr[k], p = ti * 9;
-          // recompute the world point (position may have shifted during this loop)
-          _vb.set(body._pts[i * 3], body._pts[i * 3 + 1], body._pts[i * 3 + 2]).applyQuaternion(q);
-          const px = P.x + _vb.x, py = P.y + _vb.y, pz = P.z + _vb.z;
-          closestPtPointTri(px, py, pz,
-            TP[p], TP[p + 1], TP[p + 2], TP[p + 3], TP[p + 4], TP[p + 5], TP[p + 6], TP[p + 7], TP[p + 8]);
-          let nx = px - PT.x, ny = py - PT.y, nz = pz - PT.z;
-          let d = Math.sqrt(nx * nx + ny * ny + nz * nz);
-          if (d >= R) continue;
-          if (d < 1e-6) {
-            nx = chunk.nrm[ti * 3]; ny = chunk.nrm[ti * 3 + 1]; nz = chunk.nrm[ti * 3 + 2];
-            d = 0;
-          } else { nx /= d; ny /= d; nz /= d; }
-          const depth = R - d;
-          body.contacts++;
-
-          if (body.invMass > 0) {
-            P.x += nx * depth * 0.75; P.y += ny * depth * 0.75; P.z += nz * depth * 0.75;
+          closestPtPointTri(wx, wy, wz,
+            TP[p], TP[p + 1], TP[p + 2], TP[p + 3], TP[p + 4], TP[p + 5],
+            TP[p + 6], TP[p + 7], TP[p + 8]);
+          let nx = wx - PT.x, ny = wy - PT.y, nz = wz - PT.z;
+          const d = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          const fx = chunk.nrm[ti * 3], fy = chunk.nrm[ti * 3 + 1], fz = chunk.nrm[ti * 3 + 2];
+          const sd = nx * fx + ny * fy + nz * fz;
+          let depth;
+          if (d < 1e-6 || sd < 0) {
+            nx = fx; ny = fy; nz = fz;      // on or behind the face
+            depth = R - sd;
+            if (depth > R + 0.6) continue;  // hopelessly deep — leave it alone
+          } else {
+            if (d >= R) continue;
+            nx /= d; ny /= d; nz /= d;
+            depth = R - d;
           }
-          // relative velocity at the contact
-          const rx = px - P.x, ry = py - P.y, rz = pz - P.z;
-          const w = body.angularVelocity;
-          const vx = body.velocity.x + (w.y * rz - w.z * ry);
-          const vy = body.velocity.y + (w.z * rx - w.x * rz);
-          const vz = body.velocity.z + (w.x * ry - w.y * rx);
-          const vn = vx * nx + vy * ny + vz * nz;
-          if (vn >= 0) continue;
-
-          const denom = body.invMass + this._angularTerm(body, rx, ry, rz, nx, ny, nz);
-          if (denom <= 1e-9) continue;
-          const e = -vn < 0.9 ? 0 : body.restitution;   // kill micro-bounce
-          let jn = -(1 + e) * vn / denom;
-          if (jn < 0) jn = 0;
-          this._applyImpulseAt(body, nx * jn, ny * jn, nz * jn, rx, ry, rz);
-
-          // friction
-          const tvx = vx - nx * vn, tvy = vy - ny * vn, tvz = vz - nz * vn;
-          const tl = Math.sqrt(tvx * tvx + tvy * tvy + tvz * tvz);
-          if (tl > 1e-5) {
-            const tx = -tvx / tl, ty = -tvy / tl, tz = -tvz / tl;
-            const td = body.invMass + this._angularTerm(body, rx, ry, rz, tx, ty, tz);
-            let jt = tl / Math.max(td, 1e-9);
-            const maxF = body.friction * jn;
-            if (jt > maxF) jt = maxF;
-            this._applyImpulseAt(body, tx * jt, ty * jt, tz * jt, rx, ry, rz);
-          }
-
-          const g = chunk.groups[chunk.grp[ti]];
-          body.groundSurface = g ? g.surface : DEFAULT_SURFACE;
-          if (body.onCollide && jn > 0.08 && body._hitCd <= 0) {
-            body._hitCd = 0.05;
-            body.onCollide({
-              body, point: new THREE.Vector3(px, py, pz),
-              normal: new THREE.Vector3(nx, ny, nz),
-              impulse: jn, speed: -vn,
-              surface: body.groundSurface,
-              object: g ? g.mesh : chunk.root,
-            });
-          }
+          if (depth > bd) { bd = depth; bnx = nx; bny = ny; bnz = nz; bChunk = chunk; bTri = ti; }
         }
       }
+      if (bd < 0) continue;
+      const c = C[n] || (C[n] = {});
+      c.x = wx; c.y = wy; c.z = wz;
+      c.nx = bnx; c.ny = bny; c.nz = bnz; c.depth = bd; c.chunk = bChunk; c.tri = bTri;
+      n++;
     }
+    body.contacts = n;
+    if (!n || body.invMass === 0) return;
+
+    // ---- positional: averaged, so a flat rest gets no phantom torque -------
+    const SLOP = 0.0015;
+    let px = 0, py = 0, pz = 0;
+    for (let i = 0; i < n; i++) {
+      const c = C[i], d = c.depth - SLOP;
+      if (d <= 0) continue;
+      px += c.nx * d; py += c.ny * d; pz += c.nz * d;
+    }
+    const pk = 0.8 / n;
+    P.x += px * pk; P.y += py * pk; P.z += pz * pk;
+
+    // ---- velocity: Jacobi (all contacts see the same pre-solve velocity, each
+    // impulse scaled by 1/n). Sequential solving leaves a resting crate rocking
+    // forever because the corner impulses never balance.
+    const inv = 1 / n;
+    let maxJ = 0, hitC = null;
+    for (let it = 0; it < 2; it++) {
+      let lx = 0, ly = 0, lz = 0, tx = 0, ty = 0, tz = 0;
+      for (let i = 0; i < n; i++) {
+        const c = C[i];
+        const rx = c.x - P.x, ry = c.y - P.y, rz = c.z - P.z;
+        const w = body.angularVelocity;
+        const vx = body.velocity.x + (w.y * rz - w.z * ry);
+        const vy = body.velocity.y + (w.z * rx - w.x * rz);
+        const vz = body.velocity.z + (w.x * ry - w.y * rx);
+        const vn = vx * c.nx + vy * c.ny + vz * c.nz;
+        if (vn >= 0) continue;
+        const den = body.invMass + this._angularTerm(body, rx, ry, rz, c.nx, c.ny, c.nz);
+        if (den <= 1e-9) continue;
+        const e = -vn < 0.9 ? 0 : body.restitution;      // no micro-bouncing
+        const jn = Math.max(0, -(1 + e) * vn / den) * inv;
+        let ix = c.nx * jn, iy = c.ny * jn, iz = c.nz * jn;
+
+        // friction, clamped by Coulomb
+        const tvx = vx - c.nx * vn, tvy = vy - c.ny * vn, tvz = vz - c.nz * vn;
+        const tl = Math.sqrt(tvx * tvx + tvy * tvy + tvz * tvz);
+        if (tl > 1e-5) {
+          const ux = -tvx / tl, uy = -tvy / tl, uz = -tvz / tl;
+          const td = body.invMass + this._angularTerm(body, rx, ry, rz, ux, uy, uz);
+          let jt = (tl * inv) / Math.max(td, 1e-9);
+          const maxF = body.friction * jn;
+          if (jt > maxF) jt = maxF;
+          ix += ux * jt; iy += uy * jt; iz += uz * jt;
+        }
+        lx += ix; ly += iy; lz += iz;
+        tx += ry * iz - rz * iy; ty += rz * ix - rx * iz; tz += rx * iy - ry * ix;
+        if (it === 0 && jn > maxJ) { maxJ = jn; hitC = c; }
+      }
+      body.velocity.x += lx * body.invMass;
+      body.velocity.y += ly * body.invMass;
+      body.velocity.z += lz * body.invMass;
+      this._addAngular(body, tx, ty, tz);
+    }
+
+    if (hitC) {
+      const g = hitC.chunk.groups[hitC.chunk.grp[hitC.tri]];
+      body.groundSurface = g ? g.surface : DEFAULT_SURFACE;
+      if (body.onCollide && maxJ * n > 0.08 && body._hitCd <= 0) {
+        body._hitCd = 0.05;
+        body.onCollide({
+          body,
+          point: new THREE.Vector3(hitC.x, hitC.y, hitC.z),
+          normal: new THREE.Vector3(hitC.nx, hitC.ny, hitC.nz),
+          impulse: maxJ * n,
+          speed: maxJ * n * body.invMass,
+          surface: body.groundSurface,
+          object: g ? g.mesh : hitC.chunk.root,
+        });
+      }
+    }
+  }
+
+  // Debris resting on a surface must go quiet. Sequential per-corner impulses
+  // leave a little rocking energy behind, so damp hard once a body is in
+  // sustained contact and moving slowly — it settles within a few tenths.
+  _restingDamp(body, h) {
+    if (body.contacts < 2) return;
+    if (body.velocity.lengthSq() > 0.36 || body.angularVelocity.lengthSq() > 9) return;
+    const k = 1 / (1 + 9 * h);
+    body.velocity.multiplyScalar(k);
+    body.angularVelocity.multiplyScalar(k);
   }
 
   _applyImpulseAt(body, ix, iy, iz, rx, ry, rz) {
@@ -1864,6 +1988,11 @@ export default class Physics {
   // ---- frame --------------------------------------------------------------
 
   update(dt) {
+    // The level may populate the scene after our init() (or the engine may install
+    // its fallback scene). Keep looking for collidable geometry until we find some.
+    if (!this.chunks.length && this._autoScans < 12) {
+      if ((this._scanTick++ % 10) === 0) { this._autoScans++; this.rebuildFromScene(); }
+    }
     const h = this._step;
     this._acc += Math.min(dt, 0.1);
     let n = 0;
@@ -1904,7 +2033,7 @@ export default class Physics {
       const b = bodies[i];
       if (!b.alive || b.sleeping || !b.allowSleep || b.invMass === 0) continue;
       const v2 = b.velocity.lengthSq(), w2 = b.angularVelocity.lengthSq();
-      if (v2 < 0.0064 && w2 < 0.09 && b.contacts > 0) {
+      if (v2 < 0.01 && w2 < 0.16 && b.contacts > 0) {
         b.sleepTimer += h;
         if (b.sleepTimer > 0.4) {
           b.sleeping = true;
@@ -1938,13 +2067,26 @@ export default class Physics {
 
   setGravity(x, y, z) { this.gravity.set(x, y, z); }
 
-  /** Cheap standing test used by crouch/uncrouch checks. */
-  capsuleFits(pos, halfHeight, radius) {
+  /** Snapshot of the internal query scratch — for the dev bench / debugging. */
+  debugState() {
+    return {
+      hit: { t: HIT.t, n: [HIT.nx, HIT.ny, HIT.nz], p: [HIT.px, HIT.py, HIT.pz], surface: HIT.surface, tri: HIT.tri },
+      slide: { x: SL.x, y: SL.y, z: SL.z, ceiling: SL.ceiling, blocked: SL.blocked, hits: SL.hits },
+      depen: { x: DP.x, y: DP.y, z: DP.z, pushed: DP.pushed, deep: DP.deep },
+    };
+  }
+
+  /** How deep a capsule at `pos` (feet) is inside static geometry. 0 = clear. */
+  penetrationDepth(pos, halfHeight, radius) {
     const r = Math.max(0.02, radius || 0.34);
     const hh = Math.max(halfHeight || 0.9, r + 1e-4);
-    const hs = hh - r;
-    this._depenetrate(pos.x, pos.y + hh, pos.z, hs, r, 1);
-    return DP.pushed < 1e-4;
+    this._depenetrate(pos.x, pos.y + hh, pos.z, hh - r, r, 1);
+    return DP.deep;
+  }
+
+  /** Cheap standing test used by crouch/uncrouch checks. */
+  capsuleFits(pos, halfHeight, radius) {
+    return this.penetrationDepth(pos, halfHeight, radius) <= 1e-4;
   }
 
   // ---- debug draw ---------------------------------------------------------
@@ -2069,7 +2211,6 @@ export default class Physics {
       seg(p0.x - ax, p0.y - ay, p0.z - az, p1.x - ax, p1.y - ay, p1.z - az);
       seg(p0.x + bx, p0.y + by, p0.z + bz, p1.x + bx, p1.y + by, p1.z + bz);
       seg(p0.x - bx, p0.y - by, p0.z - bz, p1.x - bx, p1.y - by, p1.z - bz);
-      seg(p0.x, p0.y - r * (dy < 0 ? 1 : 0), p0.z, p0.x, p0.y, p0.z);
     };
 
     // last capsule query
@@ -2169,12 +2310,14 @@ function sweepTri(cx, cy, cz, hs, r, mx, my, mz, tmax,
     segTriClosest(qx, qy - hs, qz, qx, qy + hs, qz,
       ax, ay, az, bx, by, bz, cx2, cy2, cz2, nx, ny, nz);
     const d = Math.sqrt(CP.d2) - r;
-    if (d <= CONTACT_EPS) return t;
     let ex = CP.sx - CP.tx, ey = CP.sy - CP.ty, ez = CP.sz - CP.tz;
     const el = Math.sqrt(ex * ex + ey * ey + ez * ez);
-    if (el < 1e-9) return t;
+    if (el < 1e-9) return t;                      // dead centre — treat as contact
     ex /= el; ey /= el; ez /= el;
     const denom = -(mx * ex + my * ey + mz * ez);
+    // Already touching: only a contact if the motion actually drives into it.
+    // Without this the capsule freezes against the floor it is standing on.
+    if (d <= CONTACT_EPS) return denom > 1e-7 ? t : -1;
     if (denom <= 1e-7) return -1;
     t += d / denom;
     if (t >= tmax) return -1;
