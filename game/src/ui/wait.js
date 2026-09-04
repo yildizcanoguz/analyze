@@ -309,7 +309,7 @@ function flashCard(d) {
 }
 
 /** A sign lands across the middle of the screen before it settles into the log. */
-let newsEl = null, newsTimer = null;
+let newsEl = null, newsTimer = null, newsHide = null;
 function announce(text, tone) {
   if (document.body.classList.contains('staged')) return;
   if (!newsEl || !document.body.contains(newsEl)) {
@@ -323,10 +323,11 @@ function announce(text, tone) {
   void newsEl.offsetWidth;
   newsEl.classList.add('in');
   clearTimeout(newsTimer);
+  clearTimeout(newsHide);
   newsTimer = setTimeout(() => {
     newsEl.classList.remove('in');
-    setTimeout(() => { if (newsEl) newsEl.hidden = true; }, 900);
-  }, 4200);
+    newsHide = setTimeout(() => { if (newsEl && !newsEl.classList.contains('in')) newsEl.hidden = true; }, 900);
+  }, 4600);
 }
 
 export function recomputeHeart() { tickWait(true); }

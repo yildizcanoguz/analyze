@@ -615,7 +615,7 @@ export const EVENTS = [
             }
             S.flags.spyTurned = spy.id;
             remember(spy.id, S.playerId, 'Beni sıkıştırmaya kalktı.', -60, 50);
-            return { beat: 'diklendi', title: 'İki Sır, İki Taraf', text: `Güldü ve senin sırrını söyledi. Aynı cümlede, aynı sesle.\n\nArtık ikiniz de birbirinizi tutuyorsunuz. Bu bir anlaşma değil; bir düğüm.`, effects: [`<b>${spy.name}</b> elinde koz var`, '−20 itibar'] };
+            return { beat: 'diklendi', title: 'İki Sır, İki Taraf', text: `Güldü ve senin sırrını söyledi. Aynı cümlede, aynı sesle.\n\nArtık her biriniz ötekini tutuyor. Bu bir anlaşma değil; bir düğüm.`, effects: [`<b>${spy.name}</b> elinde koz var`, '−20 itibar'] };
           },
         },
         {
@@ -798,7 +798,7 @@ export const EVENTS = [
   id: 'heir_flaw', cat: 'veraset', weightHint: 0.7, cooldown: 9 * YEAR, chance: 0.3,
   valid() {
     const SOFT = ['craven', 'slow', 'frail', 'shy', 'content'];
-    const kids = livingChildren(P() || {}).filter((k) => k.sex === 'm' && age(k) >= 10
+    const kids = livingChildren(P() || {}).filter((k) => k.sex === 'm' && age(k) >= 13
       && (k.traits.some((t) => SOFT.includes(t)) || (k.prowess || 0) < 5));
     if (!kids.length) return false;
     const m = councilman('marshal');
@@ -814,7 +814,7 @@ export const EVENTS = [
       kind: 'event', title: 'Talim Meydanı', targetId: heir.id,
       scene: { provinceIdx: anyProvinceOf(S.playerId) },
       framing: `${cap(kinWord(heir) || 'oğlun')} ${heir.name} talimde yine ${flaw}.`,
-      body: `Marşalın ${fullName(m)} bunu sana söylemek için üç ay bekledi.\n\n"Adamlar arkasından gülüyor. Bir gün önünden gülecekler."\n\n${faceLine(heir)} ${spell(age(heir))} yaşında ve senden sonra bu toprağı o alacak.`,
+      body: `Marşalın ${fullName(m)} bunu sana söylemek için üç ay bekledi.\n\n"Adamlar arkasından gülüyor. Bir gün önünden gülecekler."\n\n${faceLine(heir)} ${cap(spell(age(heir)))} yaşında; senden sonra bu toprağı o alacak.`,
       options: opts(
         {
           key: 'war', label: 'Sınıra yolla.',
@@ -847,7 +847,7 @@ export const EVENTS = [
           confirm: 'Kendi oğlunu mirastan çıkarmak mı?',
           cost: [{ kind: STAKE.PRESTIGE, value: 60 }],
           stakes: [{ kind: STAKE.KIN, who: heir.name }, { kind: STAKE.REPUTATION }],
-          waitDays: 150, odds: clampOdds(0.34 + skill(P(), 'diplomacy') * 0.028),
+          waitDays: 150, odds: clampOdds(0.26 + skill(P(), 'diplomacy') * 0.034),
           onCommit() { heir.disinherited = true; remember(heir.id, S.playerId, 'Onu mirastan çıkardı.', -80, 60); },
           tells: [{ at: 0.6, text: () => `${heir.name} üç haftadır sofraya oturmuyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -859,7 +859,7 @@ export const EVENTS = [
         {
           key: 'keep', label: 'Yanında tut.', detail: 'Zayıf oğlunu senden sonra kim koruyacak, onu düşün.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 400, odds: 0.42,
+          waitDays: 400, odds: 0.51,
           onCommit() { courtHears('Zayıf oğlunu koruyor.', -10, 25); },
           tells: [{ at: 0.5, text: () => `Divanda ${gen(heir.name)} adı geçtiğinde kimse bir şey söylemiyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -939,7 +939,7 @@ export const EVENTS = [
             const p2 = P();
             p2.piety = Math.max(0, p2.piety - 40);
             if (ok) { remember(sp.id, S.playerId, 'Hasta yatağında yanında olmadı.', -55, 70);
-              return { beat: 'sensiz', title: 'Kendi Kalktı', text: `Sensiz iyileşti. Bunu ikiniz de biliyorsunuz ve konuşmuyorsunuz.\n\nSofrada karşılıklı oturuyorsunuz. Kadeh kaldırılmıyor.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> −55`, '+40 altın', '−40 dindarlık'] }; }
+              return { beat: 'sensiz', title: 'Kendi Kalktı', text: `Sensiz iyileşti. O da biliyor bunu, sen de. Konuşulmuyor.\n\nSofrada hâlâ karşılıklı oturuyor. Kadeh artık kalkmıyor.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> −55`, '+40 altın', '−40 dindarlık'] }; }
             kill(sp, 'illness'); S.stats.kin_lost++;
             S.flags.wasNotThere = true;
             return { beat: 'yoktun', title: 'Haberi Divanda Aldın', knell: true, text: `Kâhya kapıda durdu ve bekledi. Cümleyi bitirmesine gerek kalmadı.\n\nO odada son kim vardı, hiç sormadın. Sormak istemiyorsun.`, effects: [`<b>${sp.name}</b> öldü`, '−40 dindarlık', 'Saray orada olmadığını gördü'] };
@@ -1280,7 +1280,7 @@ export const EVENTS = [
         {
           key: 'swallow', label: 'Yut.', detail: 'Değirmenci senin adamındı. Oğlu da öyleydi.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 220, odds: 0.36,
+          waitDays: 220, odds: 0.24,
           onCommit() { P().prestige -= 40; courtHears('Yanan değirmeni yuttu.', -14, 30); },
           tells: [{ at: 0.5, text: 'Bu ay sınırda iki sürü daha kayboldu.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1344,7 +1344,7 @@ export const EVENTS = [
           detail: 'Toplarsın, yürürsün, durursun. Blöf tutarsa savaşsız kazanırsın.',
           cost: [{ kind: STAKE.GOLD, value: 60 }],
           stakes: [{ kind: STAKE.GOLD, value: 60 }, { kind: STAKE.REPUTATION }],
-          waitDays: 150, odds: clampOdds(0.30 + skill(P(), 'diplomacy') * 0.02 + skill(P(), 'martial') * 0.02),
+          waitDays: 150, odds: clampOdds(0.24 + skill(P(), 'diplomacy') * 0.022 + skill(P(), 'martial') * 0.022),
           disabled: (P()?.gold || 0) < 60, disabledWhy: 'altmış altının yok',
           onCommit() { S.flags.paraded = S.day; },
           tells: [
@@ -1366,7 +1366,7 @@ export const EVENTS = [
         {
           key: 'wait', label: 'Haritayı kaldır.', detail: 'Marşalın haklı olabilir. Haklı olmak yetmez.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 400, odds: clampOdds(0.42 + skill(P(), 'stewardship') * 0.022),
+          waitDays: 400, odds: clampOdds(0.54 + skill(P(), 'stewardship') * 0.022),
           onCommit() { remember(m.id, S.playerId, 'Haritayı katlayıp kaldırdı.', -25, 30); },
           tells: [{ at: 0.6, text: () => `${gen(target.name)} sınırında yeni bir kule yükseliyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {

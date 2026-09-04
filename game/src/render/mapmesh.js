@@ -275,11 +275,11 @@ export function buildMap(map) {
         // uplands dry to straw, the tops go to bare rock. That is the ramp that
         // makes relief readable from any height.
         float alt = clamp(vH / (uYScale*1.10), 0.0, 1.0);
-        base = mix(base, base*vec3(1.16,0.98,0.70), smoothstep(0.20,0.56,alt));
-        base = mix(base, vec3(0.21,0.20,0.19), smoothstep(0.56,0.94,alt)*0.85);
+        base = mix(base, base*vec3(1.14,0.99,0.72), smoothstep(0.40,0.78,alt));
+        base = mix(base, vec3(0.15,0.14,0.13), smoothstep(0.80,1.00,alt)*0.9);
 
         float slope = 1.0 - clamp(N.y, 0.0, 1.0);
-        base = mix(base, vec3(0.20,0.18,0.165), smoothstep(0.22,0.58,slope));
+        base = mix(base, vec3(0.17,0.155,0.14), smoothstep(0.30,0.70,slope));
 
         float snowLine = mix(1.24, 0.66, uSeason) * uYScale;
         float snow = smoothstep(snowLine, snowLine+9.0, vH) * (1.0 - smoothstep(0.5,0.85,slope));
@@ -302,7 +302,7 @@ export function buildMap(map) {
         // is what flattens a heightfield into a painted sheet.
         vec3 L = normalize(uSunDir);
         vec3 Nd = N;
-        float detail = (1.0 - uParchment) * (1.0 - smoothstep(260.0, 820.0, dist));
+        float detail = (1.0 - uParchment) * (1.0 - smoothstep(500.0, 1700.0, dist));
         if (detail > 0.01) {
           // finite-differenced noise: a hillside keeps its texture up close,
           // where the 7-unit mesh has nothing left to say
@@ -315,9 +315,9 @@ export function buildMap(map) {
         float ndl = dot(Nd, L);
         float key = clamp(ndl, 0.0, 1.0);
         float soft = clamp(dot(N,L)*0.5 + 0.5, 0.0, 1.0);
-        vec3 lightSum = uSunColor * (key*0.86 + soft*0.10)
-                      + uSkyColor * (0.135 + 0.115*N.y)
-                      + uGroundColor * 0.06;
+        vec3 lightSum = uSunColor * (key*0.92 + soft*0.10)
+                      + uSkyColor * (0.100 + 0.100*N.y)
+                      + uGroundColor * 0.05;
         vec3 lit = col * lightSum;
         // parchment is lit flatly: it is a document, not a landscape
         col = mix(lit, col * (0.95 + 0.10*ndl), uParchment);
@@ -354,39 +354,137 @@ export function buildMap(map) {
   return M;
 }
 
+/**
+ * A depth/shore field for the water. R = how deep the seabed is here, G = how
+ * far the nearest coast is. Both come from the same heightfield the mesh uses,
+ * so the shallows land exactly on the beaches.
+ */
+function buildSeaField(map) {
+  const { W, H, height } = map;
+  const waterH = -0.5 / M.yScale;
+  const INF = 1e9;
+  const dist = new Float32Array(W * H).fill(INF);
+  for (let i = 0; i < W * H; i++) if (Math.max(-0.06, height[i]) > waterH) dist[i] = 0;
+  const D = 1, Q = 1.41421356;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; let d = dist[i];
+    if (x > 0) d = Math.min(d, dist[i - 1] + D);
+    if (y > 0) d = Math.min(d, dist[i - W] + D);
+    if (x > 0 && y > 0) d = Math.min(d, dist[i - W - 1] + Q);
+    if (x < W - 1 && y > 0) d = Math.min(d, dist[i - W + 1] + Q);
+    dist[i] = d;
+  }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+    const i = y * W + x; let d = dist[i];
+    if (x < W - 1) d = Math.min(d, dist[i + 1] + D);
+    if (y < H - 1) d = Math.min(d, dist[i + W] + D);
+    if (x < W - 1 && y < H - 1) d = Math.min(d, dist[i + W + 1] + Q);
+    if (x > 0 && y < H - 1) d = Math.min(d, dist[i + W - 1] + Q);
+    dist[i] = d;
+  }
+  const data = new Uint8Array(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    const depth = Math.max(0, Math.min(1, -height[i] / 0.30));
+    data[i * 4 + 0] = Math.round(depth * 255);
+    data[i * 4 + 1] = Math.round(Math.max(0, Math.min(1, dist[i] / 9)) * 255);
+    data[i * 4 + 2] = 255;
+    data[i * 4 + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
+  tex.magFilter = tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function buildWater(map) {
   const { W, H } = map, sx = M.scaleXZ;
-  const geo = new THREE.PlaneGeometry((W - 1) * sx * 1.6, (H - 1) * sx * 1.6, 96, 96);
+  // Wide enough that the far edge of the sea is past where anyone looks: the
+  // world should end in haze, not in a rectangle floating in the dark.
+  const geo = new THREE.PlaneGeometry((W - 1) * sx * 3.2, (H - 1) * sx * 3.2, 120, 120);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
-    transparent: true,
     uniforms: {
       uTime: { value: 0 },
-      uDeep: { value: new THREE.Color(0x0d2136) },
-      uShallow: { value: new THREE.Color(0x1c5c78) },
-      uSun: { value: new THREE.Vector3(-0.5, 0.7, 0.4).normalize() },
+      uSea: { value: buildSeaField(map) },
+      uGrid: { value: new THREE.Vector2(W, H) },
+      uCellSx: { value: sx },
+      uDeep: { value: new THREE.Color(0x0a2036) },
+      uMid: { value: new THREE.Color(0x14536e) },
+      uShallow: { value: new THREE.Color(0x2e93a0) },
+      uSun: { value: new THREE.Vector3(-0.52, 0.74, 0.42).normalize() },
+      uSunColor: { value: new THREE.Color(0xfff0d2) },
+      uSkyColor: { value: new THREE.Color(0x9fbcdd) },
+      uHorizon: { value: new THREE.Color(0x9d8c6b) },
       uParchment: { value: 0 },
       uPaper: { value: new THREE.Color(0x71818c) },
     },
-    vertexShader: `varying vec2 vUv; varying vec3 vW; uniform float uTime;
-      void main(){ vUv=uv; vec3 p=position;
-        p.y += sin(p.x*0.02+uTime*0.7)*0.9 + cos(p.z*0.027-uTime*0.5)*0.8;
-        vec4 wp=modelMatrix*vec4(p,1.0); vW=wp.xyz; gl_Position=projectionMatrix*viewMatrix*wp; }`,
-    fragmentShader: `precision highp float; varying vec2 vUv; varying vec3 vW;
-      uniform vec3 uDeep,uShallow,uSun,uPaper; uniform float uTime,uParchment;
-      float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
-        return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+    vertexShader: /* glsl */`
+      varying vec3 vW; uniform float uTime;
       void main(){
-        vec2 uv=vW.xz*0.012;
-        float w = n(uv+uTime*0.05)*0.5 + n(uv*2.3-uTime*0.07)*0.3 + n(uv*5.1+uTime*0.11)*0.2;
-        vec3 col = mix(uDeep, uShallow, smoothstep(0.35,0.75,w));
-        float spec = pow(max(0.0,w-0.62),2.0)*3.2;
-        col += vec3(0.85,0.92,1.0)*spec*0.5;
+        vec3 p = position;
+        p.y += sin(p.x*0.021 + uTime*0.62)*0.30 + cos(p.z*0.028 - uTime*0.47)*0.26;
+        vec4 wp = modelMatrix*vec4(p,1.0); vW = wp.xyz;
+        gl_Position = projectionMatrix*viewMatrix*wp;
+      }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vW;
+      uniform sampler2D uSea;
+      uniform vec2 uGrid;
+      uniform float uCellSx, uTime, uParchment;
+      uniform vec3 uDeep, uMid, uShallow, uSun, uSunColor, uSkyColor, uHorizon, uPaper;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+
+      void main(){
+        // where are we on the map?
+        vec2 g = vec2(vW.x/uCellSx + (uGrid.x-1.0)*0.5, vW.z/uCellSx + (uGrid.y-1.0)*0.5);
+        vec2 st = (g + 0.5) / uGrid;
+        float depth = 1.0, shore = 1.0;
+        if (st.x > 0.0 && st.x < 1.0 && st.y > 0.0 && st.y < 1.0) {
+          vec4 sea = texture2D(uSea, st);
+          depth = sea.r; shore = sea.g;
+        }
+
+        // --- colour by depth: sand-lit shallows, then shelf, then dark water --
+        vec3 col = mix(uShallow, uMid, smoothstep(0.03, 0.28, depth));
+        col = mix(col, uDeep, smoothstep(0.28, 0.80, depth));
+
+        // --- ripples: three long crossing swells, cheap and calm --------------
+        vec2 k1 = vec2(0.030, 0.017), k2 = vec2(-0.019, 0.040), k3 = vec2(0.055,-0.038);
+        float p1 = dot(vW.xz,k1) + uTime*0.85;
+        float p2 = dot(vW.xz,k2) + uTime*0.66;
+        float p3 = dot(vW.xz,k3) + uTime*1.25;
+        vec2 sl = k1*cos(p1)*0.55 + k2*cos(p2)*0.42 + k3*cos(p3)*0.22;
+        // choppier where it is shallow
+        sl *= 1.0 + (1.0-shore)*1.6;
+        vec3 Nw = normalize(vec3(-sl.x*14.0, 1.0, -sl.y*14.0));
+
+        vec3 V = normalize(cameraPosition - vW);
+        vec3 Hv = normalize(normalize(uSun) + V);
+        float spec = pow(max(dot(Nw,Hv), 0.0), 110.0);
+        float fres = pow(1.0 - max(dot(Nw,V), 0.0), 4.0);
+        col = mix(col, uSkyColor*0.55, clamp(fres,0.0,1.0)*0.40);
+        col += uSunColor * spec * 0.75;
+
+        // --- surf: a lace of foam that only lives on the last few cells -------
+        float band = 1.0 - smoothstep(0.0, 0.30, shore);
+        float lace = n(vW.xz*0.075 + vec2(uTime*0.10, -uTime*0.07))
+                   + n(vW.xz*0.20 - vec2(uTime*0.16, uTime*0.11))*0.6;
+        float foam = band * smoothstep(0.55, 1.05, lace*0.72 + band*0.55);
+        col = mix(col, vec3(0.82,0.88,0.90), clamp(foam,0.0,1.0)*0.75);
+
+        // --- the world ends in haze, not in an edge --------------------------
+        float far = smoothstep(2400.0, 4600.0, length(vW.xz - cameraPosition.xz));
+        col = mix(col, uHorizon*0.55, far*0.9);
+
         // parchment sea: hatched lines, like an old chart
-        float hatch = smoothstep(0.45,0.55, fract((vW.x+vW.z)*0.035 + n(uv*3.0)*0.6));
-        vec3 paper = mix(uPaper*1.06, uPaper*0.86, hatch*0.55);
-        col = mix(col, paper, uParchment);
+        if (uParchment > 0.004) {
+          float hatch = smoothstep(0.45,0.55, fract((vW.x+vW.z)*0.035 + n(vW.xz*0.036)*0.6));
+          vec3 paper = mix(uPaper*1.06, uPaper*0.86, hatch*0.55);
+          col = mix(col, paper, uParchment);
+        }
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -432,6 +530,9 @@ export function setSeason(t) {
   M.mat.uniforms.uSkyColor.value.copy(R.hemi.color);
   M.mat.uniforms.uGroundColor.value.copy(R.hemi.groundColor);
   M.water.uniforms.uSun.value.copy(dir);
+  M.water.uniforms.uSunColor.value.copy(R.sun.color);
+  M.water.uniforms.uSkyColor.value.copy(R.hemi.color);
+  M.water.uniforms.uHorizon.value.copy(R.sky.uniforms.uHorizon.value);
 }
 export function tickMap(dt) {
   if (!M.mat) return;

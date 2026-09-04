@@ -289,7 +289,9 @@ function relevance(actorId, targetId) {
  */
 function rumor(text, tone = 'ambiguous', { actorId = null, targetId = null, force = 0 } = {}) {
   const A = W();
-  if (S.day - A.lastRumorDay < 40 && !force) return false;
+  // `force` shortens the silence, it does not abolish it: three whispers in
+  // one afternoon read as a bug, not as a busy border.
+  if (S.day - A.lastRumorDay < (force ? 14 : 40)) return false;
   const rel = actorId || targetId ? relevance(actorId, targetId) : 0.5;
   if (rel <= 0.2) return false;
   const chance = clamp01(spyReach() * (0.5 + rel) + force);
@@ -661,8 +663,11 @@ function announceGrowth(c, a) {
   if (told >= steps.length || ratio < steps[told]) return;
   a.ratioTold = told + 1;
   const n = Math.max(2, Math.round(ratio));
-  rumor(`Serdarın haritayı katladı ve tek bir cümle söyledi: "${fullName(c)} artık senin her kılıcına ${n} kılıç çıkarıyor."`,
-    'bad', { actorId: c.id, targetId: pid, force: 0.5 });
+  rumor(voice(c, [
+    `Serdarın haritayı katladı ve tek bir cümle söyledi: "${fullName(c)} artık senin her kılıcına ${n} kılıç çıkarıyor."`,
+    `Defterdarın hesabı iki kez yaptı: ${gen(fullName(c))} bir yıllık geliri, senin ${n} yılınki kadar.`,
+    `${fullName(c)} bu yıl ${n} kat asker besliyor. Kâhyan bunu söylerken sana bakmadı.`,
+  ]), 'bad', { actorId: c.id, targetId: pid, force: 0.5 });
 }
 
 /** Is this ruler close enough to the player to want anything from them? */
@@ -999,11 +1004,15 @@ function pressurePlayer(day) {
   A.kindDay ||= {};
   const recent = A.lastKinds || [];
   for (const m of menu) {
-    if (recent.includes(m.k)) m.w *= 0.08;
     const since = day - (A.kindDay[m.k] ?? -9999);
-    if (since < 4 * YEAR) m.w *= Math.max(0.05, since / (4 * YEAR));
+    if (since < 2 * YEAR) { m.w = 0; continue; }          // hard silence, not a nudge
+    if (since < 4 * YEAR) m.w *= since / (4 * YEAR);
+    if (recent.includes(m.k)) m.w *= 0.08;
   }
-  const kind = rng.weighted(menu).k;
+  const live = menu.filter((m) => m.w > 0.001);
+  // Better a quiet season than the same letter twice: the cooldown will lapse.
+  if (!live.length) { A.lastOfferDay = day - OFFER_COOLDOWN + 120; return; }
+  const kind = rng.weighted(live).k;
   A.lastKinds = [kind, ...recent].slice(0, 3);
   A.kindDay[kind] = day;
   A.lastOfferDay = day;

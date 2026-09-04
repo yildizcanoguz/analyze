@@ -290,6 +290,12 @@ export function lintProse(s, where = '') {
     const n = sent.split(/\s+/).length;
     if (n > STYLE.maxWords) out.push(`${tag}uzun cümle (${n} kelime): "${sent.slice(0, 48)}…"`);
   }
+  // A sentence that starts lower case almost always means a helper was dropped
+  // into a slot it was not written for. Cheap to check, impossible to unsee.
+  for (const sent of sentences(raw)) {
+    const c = sent.replace(/^["“”'«»\s—-]+/, '')[0];
+    if (c && /[a-zçğıöşü]/.test(c)) out.push(`${tag}küçük harfle başlayan cümle: "${sent.slice(0, 40)}…"`);
+  }
   // Case endings are checked on the raw string: a broken suffix inside a line of
   // dialogue is just as loud as one in narration.
   out.push(...lintSuffix(raw, where));

@@ -88,8 +88,8 @@ const HAIR = [
   0x4d301b, 0x63401f, 0x7a542c, 0x8c6634, 0x94703c, 0xa9803f, 0xb08e4e,
   0xc9ab68, 0x6a5b4a, 0x8f7d63, 0x9a3c1c,
 ];
-const EYE = [0x2e2116, 0x3b2a1a, 0x4a3320, 0x5c4526, 0x6b5a3a, 0x2f4a52, 0x3f5a4a,
-  0x4a6470, 0x59606a, 0x7a6a4a, 0x35402e];
+const EYE = [0x2e2116, 0x3b2a1a, 0x453020, 0x4f3c26, 0x5a4c33, 0x36444a, 0x3e4a42,
+  0x44545c, 0x525862, 0x625a44, 0x3a4038];
 
 // Culture drives cloth, headgear and how hair is worn. A Turkish bey and a
 // Greek aristocrat must not wear the same collar.
@@ -111,6 +111,18 @@ const CULT = {
               fur: 0x6a5a48, beardy: 0.70, longM: 0.40 },
 };
 const cultOf = (c) => CULT[c?.culture] || CULT.turkish;
+
+/** Push a colour away from the skin's value. A grey head of hair on a pale old
+ *  face, or a white beard on a pale chin, disappears completely at 52px — the
+ *  head reads as bald and the man reads as clean-shaven. The palette rule at
+ *  parameter time cannot catch this, because greying happens afterwards. */
+function separate(col, skinLum, min = 0.17) {
+  const l = col.r * 0.299 + col.g * 0.587 + col.b * 0.114;
+  if (Math.abs(l - skinLum) >= min) return col;
+  const target = skinLum > 0.46 ? skinLum - min - 0.05 : skinLum + min + 0.05;
+  col.multiplyScalar(Math.max(0.25, Math.min(2.8, target / Math.max(0.04, l))));
+  return col;
+}
 
 // ---------------------------------------------------------------- expression
 // Traits are the game's moral vocabulary; the face is where the player reads
@@ -228,9 +240,9 @@ function faceParams(c) {
     temple: r(),
 
     // --- eyes ---
-    eyeX: 0.372 + r() * 0.150,
+    eyeX: 0.372 + r() * 0.108,
     eyeY: -0.005 + (r() - 0.5) * 0.05,
-    eyeR: (0.053 + r() * 0.026) * (male ? 1 : 1.07),
+    eyeR: (0.049 + r() * 0.019) * (male ? 1 : 1.07),
     eyeTilt: (r() - 0.45) * 0.30,      // + = outer corner up
     socket: 0.45 + r() * 0.75,
     lidHeavy: r(),
@@ -379,7 +391,7 @@ function sculpt(x, y, z, p, out) {
   if (fy > 0.30) oz += (fy - 0.30) * p.forehead * 0.055 * fz;
 
   // eye sockets — the darkest, most important hollow on the face
-  const sd = (p.socket * 0.062 + p.old * 0.034 + p.m.hollow * 0.022) * (p.male ? 1.18 : 0.88);
+  const sd = (p.socket * 0.075 + p.old * 0.038 + p.m.hollow * 0.024) * (p.male ? 1.18 : 0.92);
   const dx = (ax - p.eyeX) / 0.215, dy = (fy - p.eyeY - 0.02) / 0.145;
   const sock = Math.exp(-(dx * dx + dy * dy) * 1.05) * fz;
   oz -= sock * sd;
@@ -584,12 +596,12 @@ function buildEyes(p, parent) {
 
     if (!closed) {
       const sc = new THREE.Mesh(s < 0 ? scGeo : scGeo.clone(), white);
-      sc.scale.set(R * 1.30, hh, R * 0.34);
+      sc.scale.set(R * 1.16, hh, R * 0.34);
       g.add(sc);
       // The iris fills most of the opening. Sclera showing on both sides of a
       // small iris is what read as two bright dots at thumbnail size.
       const gx = (s * p.m.gaze * 0.30 - p.m.gaze * 0.10) * R * 0.48;
-      const irR = Math.min(R * 0.86, hh * 1.16);
+      const irR = Math.min(R * 0.80, hh * 1.16);
       const ir = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), irisM);
       ir.scale.set(irR, irR, R * 0.20);
       ir.position.set(gx, -R * 0.02, R * 0.20);
@@ -604,19 +616,28 @@ function buildEyes(p, parent) {
       g.add(gl);
     } else {
       const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), lidM);
-      lid.scale.set(R * 1.40, Math.max(hh, R * 0.30), R * 0.32);
+      lid.scale.set(R * 1.22, Math.max(hh, R * 0.30), R * 0.32);
       g.add(lid);
+    }
+    // The upper lid has to lie ON the eye, in front of it. Without this the
+    // opening is a hard-edged almond sitting on the cheek and every face looks
+    // like it is wearing goggles.
+    if (!closed) {
+      const fold = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), lidM);
+      fold.scale.set(R * 1.30, hh * 0.95, R * 0.30);
+      fold.position.set(0, hh * 1.58, R * 0.16);
+      g.add(fold);
     }
     // upper lid edge: the single darkest mark on the face, and the one that
     // makes a thumbnail read as a person looking back at you
-    const lash = new THREE.Mesh(new THREE.TorusGeometry(R * 1.40, R * 0.105, 6, 16, Math.PI), lashM);
-    lash.scale.set(1, Math.max(0.26, (hh * 1.02) / (R * 1.40)), 0.40);
-    lash.position.set(0, 0, R * 0.18);
+    const lash = new THREE.Mesh(new THREE.TorusGeometry(R * 1.20, R * 0.105, 6, 16, Math.PI), lashM);
+    lash.scale.set(1, Math.max(0.26, (hh * 0.98) / (R * 1.20)), 0.40);
+    lash.position.set(0, 0, R * 0.22);
     lash.rotation.x = -0.10;
     g.add(lash);
-    const low = new THREE.Mesh(new THREE.TorusGeometry(R * 1.30, R * 0.055, 6, 16, Math.PI), lowM);
-    low.scale.set(1, Math.max(0.20, (hh * 0.80) / (R * 1.30)), 0.38);
-    low.position.set(0, 0, R * 0.14);
+    const low = new THREE.Mesh(new THREE.TorusGeometry(R * 1.14, R * 0.055, 6, 16, Math.PI), lowM);
+    low.scale.set(1, Math.max(0.20, (hh * 0.82) / (R * 1.14)), 0.38);
+    low.position.set(0, 0, R * 0.16);
     low.rotation.set(0.10, 0, Math.PI);
     g.add(low);
     parent.add(g);
@@ -625,8 +646,8 @@ function buildEyes(p, parent) {
 
 // ---------------------------------------------------------------- brows
 function buildBrows(p, parent) {
-  const col = new THREE.Color(p.hair).lerp(new THREE.Color(p.skin), 0.16)
-    .lerp(new THREE.Color(0x9e988c), p.grey * 0.62);
+  const col = separate(new THREE.Color(p.hair).lerp(new THREE.Color(p.skin), 0.16)
+    .lerp(new THREE.Color(0x9e988c), p.grey * 0.62), p.skinLum, 0.20);
   // A brow the value of the skin is no brow at all, and a face with no brows
   // has no expression left in it.
   const bl = col.r * 0.299 + col.g * 0.587 + col.b * 0.114;
@@ -727,7 +748,7 @@ const HSTYLE_M = [
   { hl: 0.45, drop: 0.30, vol: 0.95, wave: 0.35, fall: 0, knot: 0 },   // bowl
   { hl: 0.55, drop: 0.04, vol: 0.50, wave: 0.10, fall: 0, knot: 0 },   // high hairline
   { hl: 0.46, drop: 0.52, vol: 1.05, wave: 0.55, fall: 1, knot: 0 },   // long, loose
-  { hl: 0.58, drop: -0.30, vol: 0.60, wave: 0.10, fall: 0, knot: 1 },  // shaved, top-knot
+  { hl: 0.48, drop: -0.26, vol: 0.70, wave: 0.10, fall: 0, knot: 1 },  // shaved, top-knot
   { hl: 0.48, drop: 0.20, vol: 1.55, wave: 1.00, fall: 0, knot: 0 },   // thick curls
 ];
 const HSTYLE_F = [
@@ -777,7 +798,7 @@ function hairMaskFn(p) {
 
 function buildHair(p, parent) {
   const H = hstyle(p);
-  const col = new THREE.Color(p.hair).lerp(new THREE.Color(0x8e877d), p.grey * 0.92);
+  const col = separate(new THREE.Color(p.hair).lerp(new THREE.Color(0x8e877d), p.grey * 0.92), p.skinLum);
   if (p.dead) col.lerp(new THREE.Color(0x7e7e7a), 0.4);
   const mat = M('hair', { vertexColors: true, metalness: 0 }, { color: col, roughness: 0.93 });
   const totalBald = p.male && p.baldness > 0.86 && p.old > 0.7;
@@ -841,7 +862,7 @@ function beardMaskFn(p) {
 
 function buildBeard(p, parent) {
   if (!p.male || p.beardStyle < 2) return;
-  const col = new THREE.Color(p.hair).lerp(new THREE.Color(0x8a8378), p.grey * 0.90);
+  const col = separate(new THREE.Color(p.hair).lerp(new THREE.Color(0x8a8378), p.grey * 0.90), p.skinLum, 0.14);
   if (p.dead) col.lerp(new THREE.Color(0x767672), 0.4);
   const mat = M('beard', { vertexColors: true, metalness: 0 }, { color: col, roughness: 0.96 });
   const mask = beardMaskFn(p);

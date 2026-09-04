@@ -80,6 +80,19 @@ function traitChips(c, max = 3) {
 function badTrait(t) {
   return ['craven', 'slow', 'frail', 'kinslayer', 'oathbreaker', 'excommunicated', 'ill', 'pox', 'wounded', 'humbled', 'arbitrary', 'arrogant', 'deceitful', 'wrathful', 'greedy', 'paranoid'].includes(t);
 }
+/** Turkish locative: Bitlis'te, Kayseri'de, Ankara'da. Names are said out loud
+ *  in this game, so they have to be said correctly. */
+function loc(name) {
+  const t = String(name || '');
+  if (!t) return t;
+  const V = 'aıouâAIOUeiöüEİÖÜ';
+  let last = 'e';
+  for (let i = t.length - 1; i >= 0; i--) if (V.includes(t[i])) { last = t[i].toLocaleLowerCase('tr'); break; }
+  const back = 'aıouâ'.includes(last);
+  const hard = 'fstkçşhpFSTKÇŞHP'.includes(t[t.length - 1]);
+  return `${t}'${hard ? 't' : 'd'}${back ? 'a' : 'e'}`;
+}
+
 function years(days) {
   const y = Math.floor(days / YEAR), m = Math.round((days % YEAR) / 30);
   if (y <= 0) return `${Math.max(1, m)} ay`;
@@ -133,7 +146,7 @@ export function refreshChip(force = false) {
 
   const L = lawInfo();
   chip.innerHTML = `
-    <div class="p08k"><span class="dot"></span>VERASET · ${esc(L.name)}</div>
+    <div class="p08k"><span class="dot"></span>VERASET · ${esc(L.name)}<em>V</em></div>
     ${BODY[band] ? `<div class="p08body b${band}">${esc(BODY[band](age(p)))}</div>` : ''}
     ${h ? `
       <div class="p08who">
@@ -465,8 +478,9 @@ function runDeath(deadId, heirId) {
     outcome: {
       success: false, knell: true, beat: 'bir ömür bitti', title: 'Öldün.',
       // P03 prints paragraphs with textContent — pass raw text, not escaped.
-      text: `${fullName(dead)} · ${age(dead)} yaşında · ${last.style || styleOf(dead)}\n\n`
-        + `Son nefesini ${where}'de verdin. Kimse odaya girmiyor; dışarıda birileri çoktan konuşuyor.`,
+      // Their caption already carries the name and the years, so do not repeat it.
+      text: `${last.style || styleOf(dead)}. Son nefesini ${loc(where)} verdin.\n\n`
+        + 'Kimse odaya girmiyor; dışarıda birileri çoktan konuşuyor.',
       effects,
     },
   };
@@ -484,7 +498,7 @@ function act1Local(dead, last, reign, where) {
     ${portraitBlock(dead)}
     <h1>Öldün.</h1>
     <div class="p08name">${esc(fullName(dead))} · ${age(dead)} yaşında · ${esc(last.style || styleOf(dead))}</div>
-    <p>${reign > 0 ? `${reign} yıl tahtta kaldın.` : 'Tahtta bir yıl bile duramadın.'} Son nefesini ${esc(where)}'de verdin.</p>
+    <p>${reign > 0 ? `${reign} yıl tahtta kaldın.` : 'Tahtta bir yıl bile duramadın.'} Son nefesini ${esc(loc(where))} verdin.</p>
     <p class="dim">Kimse odaya girmiyor. Dışarıda birileri çoktan konuşuyor.</p>
   `, () => act2(), { label: 'geriye ne kaldı', wait: 2600 });
   paintPortraits(el);
@@ -676,6 +690,9 @@ const STYLE = `
 #p08chip:hover{border-color:rgba(201,163,78,.6);transform:translateX(2px)}
 body.staged #p08chip{opacity:.10;pointer-events:none;transition:opacity .6s}
 #p08chip .p08k{font-size:9.5px;letter-spacing:2.2px;text-transform:uppercase;color:#8a7a58;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+#p08chip .p08k em{margin-left:auto;font-style:normal;letter-spacing:0;border:1px solid rgba(201,163,78,.28);
+  padding:0 4px;color:#a8987a;font-size:9px}
+#p08chip:hover .p08k em{border-color:var(--gold);color:#e8c877}
 #p08chip .dot{width:5px;height:5px;border-radius:50%;background:#a83028;box-shadow:0 0 8px rgba(168,48,40,.9);animation:p08pulse 2.8s ease-in-out infinite}
 @keyframes p08pulse{0%,100%{opacity:.45}50%{opacity:1}}
 .p08who{display:flex;gap:9px;align-items:flex-start}
