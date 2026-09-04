@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>Hanedan — Bir Ülke Yönetimi</title>
+<link rel="stylesheet" href="./src/ui/style.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="vignette"></div>
+  <div id="dim"></div>
+
+  <!-- top bar -->
+  <header id="topbar">
+    <div class="ruler" id="rulerChip">
+      <div class="portrait" id="rulerPortrait"><canvas width="96" height="96"></canvas></div>
+      <div class="who">
+        <div class="name" id="rulerName">—</div>
+        <div class="style" id="rulerStyle">—</div>
+      </div>
+    </div>
+    <div class="resources">
+      <div class="res" id="resGold"    title="Altın"><i>◈</i><b>0</b><em></em></div>
+      <div class="res" id="resPrestige" title="İtibar"><i>❖</i><b>0</b><em></em></div>
+      <div class="res" id="resPiety"   title="Dindarlık"><i>☩</i><b>0</b><em></em></div>
+      <div class="res" id="resLevy"    title="Asker"><i>⚔</i><b>0</b><em></em></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="clockbox">
+      <div class="date" id="dateLabel">—</div>
+      <div class="speeds">
+        <button data-sp="1">I</button><button data-sp="2">II</button><button data-sp="3">III</button><button data-sp="4">IV</button><button data-sp="5">V</button>
+        <button id="pauseBtn" class="pause">▮▮</button>
+      </div>
+      <div class="pausenote" id="pauseNote"></div>
+    </div>
+  </header>
+
+  <!-- map mode rail -->
+  <nav id="modeRail"></nav>
+
+  <!-- pending decisions ribbon: the waiting -->
+  <section id="pending"></section>
+
+  <!-- chronicle / whispers -->
+  <section id="whispers"></section>
+
+  <!-- province panel -->
+  <aside id="provPanel" class="panel hidden"></aside>
+
+  <!-- character panel -->
+  <aside id="charPanel" class="panel hidden"></aside>
+
+  <!-- bottom bar -->
+  <footer id="bottombar">
+    <button id="btnRealm">Tebaa</button>
+    <button id="btnCourt">Saray</button>
+    <button id="btnDynasty">Hanedan</button>
+    <button id="btnChronicle">Vakayiname</button>
+    <div class="spacer"></div>
+    <div id="alertRow"></div>
+  </footer>
+
+  <!-- decision modal -->
+  <div id="decisionRoot"></div>
+  <!-- reveal overlay -->
+  <div id="revealRoot"></div>
+  <!-- tooltip -->
+  <div id="tip" class="hidden"></div>
+
+  <div id="boot"><div class="bootinner"><div class="sigil">☩</div><div class="bootmsg">Dünya kuruluyor…</div></div></div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
