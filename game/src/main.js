@@ -42,7 +42,13 @@ async function start() {
   window.__S = S;   // read-only handle for the inspection harness
   // Test affordance: run the simulation forward without waiting on wall clock.
   // Critics need to reach year 1080 without sitting through it.
-  window.__advance = (days = 365) => { for (let i = 0; i < days; i++) { S.day++; tickDay(S.day); } refreshTop(); return S.day; };
+  window.__advance = (days = 365) => {
+    for (let i = 0; i < days; i++) {
+      if (S.decisions.some((d) => d.state === 'open') || S.pendingPlayer) break;
+      S.day++; tickDay(S.day);
+    }
+    refreshTop(); return S.day;
+  };
   await generateWorld(seed);
 
   bootmsg.textContent = 'Sahne hazırlanıyor…';
@@ -129,8 +135,19 @@ function wirePicking() {
 }
 
 // ---------------------------------------------------------------- your death
+function overlayBusy() {
+  return !!document.querySelector('#decisionRoot .dec') || !!document.querySelector('#revealRoot .reveal, #revealRoot .breath');
+}
+function whenClear(fn) {
+  if (!overlayBusy()) return fn();
+  const t = setInterval(() => { if (!overlayBusy()) { clearInterval(t); fn(); } }, 250);
+}
+
 function wireDeath() {
-  on('player:died', ({ deadId, heirId }) => {
+  on('player:died', (payload) => { pause('death'); whenClear(() => showDeath(payload)); });
+}
+function showDeath({ deadId, heirId }) {
+  {
     pause('death');
     const dead = ch(deadId), heir = ch(heirId);
     SFX.knell();
@@ -140,7 +157,8 @@ function wireDeath() {
     r.innerHTML = `<div class="reveal">
       <div class="beat">bir ömür bitti</div>
       <h1 class="bad">${fullName(dead)} Öldü</h1>
-      <p>${age(dead)} yıl yaşadı. Geriye ${Object.values(S.titles).filter((t) => t.holderId === deadId).length} unvan, ${S.memories.length} karar ve bir isim bıraktı.</p>
+      <p>${age(dead)} yıl yaşadı. Geriye ${S.memories.length} karar, ${S.stats.irreversible} geri dönüşü olmayan hamle ve bir isim bıraktı.</p>
+      ${S.memories.length ? `<p style="font-size:14px;color:#9a8a6a">Son olarak: ${S.memories[S.memories.length - 1].text}</p>` : ''}
       <p>Şimdi taht <b>${fullName(heir)}</b>'in. ${age(heir)} yaşında. Senin verdiğin kararların faturasını o ödeyecek.</p>
       <button class="ok">devral</button></div>`;
     r.querySelector('.ok').onclick = () => {
@@ -150,7 +168,7 @@ function wireDeath() {
       refreshTop();
       resume();
     };
-  });
+  }
 }
 
 start().catch((e) => { console.error(e); bootmsg.textContent = 'Hata: ' + e.message; });

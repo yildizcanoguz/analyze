@@ -2,8 +2,8 @@
 // the player, and the liege chain that binds them.
 
 import { S, rng, newId, setSeed, ch, ti, pv } from '../core/state.js';
-import { makeCharacter, fullName, bear, remember } from './characters.js';
-import { makeTitle, grantTitle, TIER, recomputeVassalage, primaryTitle } from './realm.js';
+import { makeCharacter, fullName, bear, remember, livingChildren } from './characters.js';
+import { makeTitle, grantTitle, TIER, recomputeVassalage, primaryTitle, directCountiesOf } from './realm.js';
 import { NAMES } from '../content/names.js';
 import { YEAR } from '../core/date.js';
 import { emit } from '../core/bus.js';
@@ -88,6 +88,7 @@ export async function generateWorld(seed = 1066) {
   you.gold = 120; you.prestige = 250; you.piety = 100;
   buildCourt(you);
   seedGrudges();
+  openingSituation(you);
 
   S.chronicle.push({ day: S.day, kind: 'start', text: `${fullName(you)} — hikâye burada başlıyor.`, tone: 'neutral' });
   emit('world:ready');
@@ -169,4 +170,83 @@ function seedGrudges() {
     ]).t;
     remember(a, b, kind[0], kind[1], kind[2]);
   }
+}
+
+
+/**
+ * The opening must already be tense. A ruler with nothing at risk has nothing to
+ * decide, so before the first day we guarantee the player five pressures:
+ * a liege who distrusts them, a brother who wants their chair, a neighbour with
+ * a claim on their land, a debt with a name attached, and a child whose survival
+ * is not assumed.
+ */
+function openingSituation(you) {
+  const situ = {};
+
+  // 1. A liege with a grudge inherited from your father.
+  if (!you.liegeId) {
+    // If the map left you independent, put a king over you — a leash is the
+    // premise of the whole game.
+    const kings = Object.values(S.titles).filter((t) => t.tier >= TIER.kingdom && t.holderId && t.holderId !== you.id);
+    if (kings.length) you.liegeId = rng.pick(kings).holderId;
+  }
+  const liege = ch(you.liegeId);
+  if (liege) {
+    remember(liege.id, you.id, 'Baban ona bir kuşatmada söz verdi, tutmadı.', -30, 60);
+    remember(you.id, liege.id, 'Seni divanda iki kez beklettiler.', -15, 40);
+    situ.liegeId = liege.id;
+  }
+
+  // 2. A brother old enough to be dangerous.
+  let sib = Object.values(S.chars).find((c) => c.deathDay == null && c.isSibling === you.id);
+  if (!sib || Math.abs(sib.birthDay) / YEAR < 18) {
+    sib = makeCharacter({
+      culture: you.culture, faith: you.faith, dynastyId: you.dynastyId, sex: 'm',
+      birthDay: you.birthDay + rng.int(2, 7) * YEAR,
+      fatherId: you.fatherId, motherId: you.motherId,
+      traits: ['ambitious'], skillMean: 8,
+    });
+    sib.courtOf = you.id; sib.liegeId = you.id; sib.isSibling = you.id;
+  }
+  remember(sib.id, you.id, 'Babanız toprağı sana bıraktı, ona hiçbir şey.', -30, 999);
+  situ.brotherId = sib.id;
+
+  // 3. A neighbour with a claim on one of your counties.
+  const mine = directCountiesOf(you.id);
+  if (mine.length) {
+    const target = mine[mine.length - 1];
+    const prov = pv(target.provinceId);
+    const nb = (prov?.neighbors || []).map((pid) => ti(`t_${pid}`)).filter((t) => t?.holderId && t.holderId !== you.id);
+    if (nb.length) {
+      const rival = ch(rng.pick(nb).holderId);
+      target.claims.push({ charId: rival.id, kind: 'inherited', day: S.day });
+      remember(rival.id, you.id, `${prov.name} onun dedesinindi.`, -40, 999);
+      situ.claimantId = rival.id;
+      situ.claimedTitleId = target.id;
+    }
+  }
+
+  // 4. A debt with a face. Money you owe is more interesting than money you lack.
+  const creditor = Object.values(S.chars).find((c) => c.deathDay == null && c.courtOf === you.id && c.id !== sib.id)
+    || makeCharacter({ culture: 'greek', skillMean: 9, traits: ['greedy'] });
+  creditor.courtOf = you.id;
+  S.flags.debt = { toId: creditor.id, amount: 140, dueDay: S.day + YEAR * 2 };
+  remember(you.id, creditor.id, 'Babanın cenazesini o ödedi.', +20, 60);
+  situ.creditorId = creditor.id;
+
+  // 5. A child young enough to lose.
+  let kid = livingChildren(you)[0];
+  if (!kid) {
+    if (!you.spouseId) {
+      const sp = makeCharacter({ culture: you.culture, faith: you.faith, sex: you.sex === 'm' ? 'f' : 'm', birthDay: you.birthDay + rng.int(-4, 6) * YEAR });
+      you.spouseId = sp.id; sp.spouseId = you.id; sp.courtOf = you.id; sp.liegeId = you.id;
+    }
+    const m = you.sex === 'f' ? you : ch(you.spouseId);
+    const f = you.sex === 'm' ? you : ch(you.spouseId);
+    kid = bear(m.id, f.id);
+  }
+  if (kid) { kid.birthDay = S.day - rng.int(4, 9) * YEAR; kid.courtOf = you.id; situ.heirId = kid.id; }
+
+  S.flags.opening = situ;
+  return situ;
 }
