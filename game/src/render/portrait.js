@@ -79,7 +79,7 @@ function MB(key, color) {
 
 // ---------------------------------------------------------------- palettes
 const SKIN = [
-  0xfadcc0, 0xf3d2b6, 0xead9c0 & 0xffffff, 0xecc6a4, 0xe0b491, 0xd6a880, 0xcb9d76,
+  0xf1d3b7, 0xe9cbad, 0xe3c3a4, 0xdcbb9a, 0xd6b18e, 0xcfa682, 0xc99c78,
   0xc9946a, 0xbc8a63, 0xb07e57, 0xad7a52, 0x9c6b48, 0x8a5c3e, 0x7a5138,
   0x744c34, 0x684434, 0x5b3c2e,
 ];
@@ -269,6 +269,12 @@ function faceParams(c) {
     rank: Math.max(0, Math.min(4, c._rank ?? 0)),
     rr2,
   };
+
+  // Eyes and mouth are sized in world units but the skull is not: on a narrow
+  // head an unscaled eye pushes out through the temple. Tie them to the width.
+  const wScale = p.W / 0.372;
+  p.eyeR *= wScale;
+  p.mouthScale = wScale;
 
   // A child is not a small adult: the cranium runs ahead of the face.
   if (p.young > 0) {
@@ -573,12 +579,12 @@ function buildEyes(p, parent) {
     sculpt(s * p.eyeX, p.eyeY + 0.02, 0.86, p, o);
     const g = new THREE.Group();
     g.position.set(o.x, o.y, o.z + 0.006);
-    g.rotation.y = -s * 0.22;                                  // the eye wraps the skull
+    g.rotation.y = -s * 0.19;                                  // the eye wraps the skull
     g.rotation.z = s * p.eyeTilt;
 
     if (!closed) {
       const sc = new THREE.Mesh(s < 0 ? scGeo : scGeo.clone(), white);
-      sc.scale.set(R * 1.36, hh, R * 0.34);
+      sc.scale.set(R * 1.30, hh, R * 0.34);
       g.add(sc);
       // The iris fills most of the opening. Sclera showing on both sides of a
       // small iris is what read as two bright dots at thumbnail size.
@@ -667,7 +673,7 @@ function buildMouth(p, parent) {
   const lipM = M('lip', { metalness: 0 }, { color: lipC, roughness: 0.50 });
   const lineM = M('lipLine', { metalness: 0 }, { color: new THREE.Color(lipC).multiplyScalar(0.09), roughness: 0.85 });
   const o = new THREE.Vector3();
-  const halfW = 0.104 * p.mouthW;
+  const halfW = 0.104 * p.mouthW * (p.mouthScale || 1);
   const cy = p.mouthY;
 
   const sample = (u, dy) => {                     // u in [-1,1] across the mouth
@@ -1228,7 +1234,7 @@ export function renderPortrait(c, canvas2d, opts = {}) {
   ic.imageSmoothingEnabled = true; ic.imageSmoothingQuality = 'high';
   // A little extra contrast is what carries a face through a 3× downscale;
   // without it the whole head lands as one mid-brown value.
-  if (tight) ic.filter = 'contrast(1.17) saturate(1.10) brightness(1.02)';
+  if (tight) ic.filter = 'contrast(1.12) saturate(1.10)';
   ic.drawImage(rr.domElement, 0, 0, cs, cs);
   img._dead = p.dead;
   img._rank = p.rank;

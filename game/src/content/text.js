@@ -331,13 +331,14 @@ export function lintSuffix(s, where = '') {
  * number stops being information and becomes decoration.
  */
 export function lintOdds(options, where = '') {
-  const seen = new Map();
   const out = [];
-  for (const o of options || []) {
-    if (o.odds == null || o.disabled) continue;
-    const pct = Math.round(o.odds * 100);
-    if (seen.has(pct)) out.push(`${where ? where + ': ' : ''}aynı ihtimal %${pct} — "${seen.get(pct)}" ve "${o.label}"`);
-    seen.set(pct, o.label);
+  const live = (options || []).filter((o) => o.odds != null && !o.disabled);
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = Math.round(live[i].odds * 100), b = Math.round(live[j].odds * 100);
+      // Two points apart is not a choice, it is noise wearing a number.
+      if (Math.abs(a - b) <= 2) out.push(`${where ? where + ': ' : ''}ayırt edilemez ihtimal %${a}/%${b} — "${live[i].label}" ve "${live[j].label}"`);
+    }
   }
   return out;
 }

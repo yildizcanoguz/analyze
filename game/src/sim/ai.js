@@ -871,8 +871,14 @@ function tickPlots(day) {
     // your spymaster gets one chance every season to trip over it
     if (!pl.found && day % 90 === 13 && rng.chance(spyReach() * 0.55)) {
       pl.found = true;
-      if (!S.decisions.some((d) => d.state === 'open') && day - A.lastOfferDay > OFFER_COOLDOWN * 0.8) {
-        A.lastOfferDay = day; A.offers++;
+      // shares the same budget as every other demand — otherwise the kitchen
+      // spy becomes the only thing that ever happens to the player
+      A.kindDay ||= {};
+      const spyGap = day - (A.kindDay.spy ?? -9999);
+      if (!S.decisions.some((d) => d.state === 'open')
+          && day - A.lastOfferDay > OFFER_COOLDOWN * 0.8
+          && spyGap > 4 * YEAR) {
+        A.lastOfferDay = day; A.kindDay.spy = day; A.offers++;
         offerCaughtSpy(by, pl);
         A.plots.splice(i, 1);
         continue;

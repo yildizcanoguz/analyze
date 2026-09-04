@@ -251,6 +251,30 @@ export const EVENTS = [
           },
         },
         {
+          key: 'crone', label: 'Köyden kadını çağır.',
+          detail: 'Adı yok, ünü var. İki köy öteden geliyor ve para almıyor.',
+          cost: [{ kind: STAKE.PIETY, value: 40 }],
+          stakes: [{ kind: STAKE.KIN, who: kid.name }, { kind: STAKE.REPUTATION }],
+          waitDays: 16, odds: 0.57,
+          onCommit() { const c2 = councilman('chaplain'); if (c2) remember(c2.id, S.playerId, 'Çocuğa okuyucu kadın getirtti.', -35, 40); },
+          tells: [
+            { at: 0.4, text: 'Kadın odaya kimseyi almıyor. İçeriden bir koku geliyor, tanımadığın bir koku.', goodTone: 'ambiguous', badTone: 'ambiguous' },
+            { at: 0.8, text: () => `${kid.name} bu sabah su içti. İki gündür ilk kez.`, goodTone: 'good', badTone: 'bad' },
+          ],
+          onResolve(d, ok) {
+            const p2 = P();
+            if (ok) {
+              kid.health += 1;
+              S.flags.usedTheCrone = true;
+              return { beat: 'kalktı', title: 'Ot Kokusu', text: `Üçüncü sabah çocuk yatakta oturuyordu. Kadın çoktan gitmişti, ücretini de almamıştı.\n\nOdadaki koku bir hafta çıkmadı. Kimse pencereyi açmayı teklif etmedi.`, effects: [`<b>${kid.name}</b> iyileşti`, '−40 dindarlık', 'İmamın bunu duydu'] };
+            }
+            kill(kid, 'illness'); S.stats.kin_lost++;
+            p2.stress += 25;
+            courtHears('Çocuğuna okuyucu kadın getirtti, çocuk öldü.', -20, 40);
+            return { beat: 'tutmadı', title: `${kid.name} Öldü`, knell: true, text: `Kadın sabaha karşı kapıdan çıktı ve arkasına bakmadı. Peşinden kimse gitmedi.\n\nHekimi çağırmadın. Bunu sana kimse söylemeyecek, çünkü herkes biliyor.`, effects: [`<b>${kid.name}</b> öldü`, '−40 dindarlık', 'Sarayın konuşuyor'] };
+          },
+        },
+        {
           key: 'pray', label: 'Hekimi gönder.',
           detail: lens({ zealous: 'Şifa hekimin elinde değil. Bunu biliyorsun.', cynical: 'Buna inanmıyorsun. Yine de yapacaksın.' }, 'Tanrıya bırakmak da bir karardır. En ağırı.'),
           stakes: [{ kind: STAKE.KIN, who: kid.name }, { kind: STAKE.SOUL }],
@@ -573,6 +597,25 @@ export const EVENTS = [
             }
             remember(spy.id, S.playerId, 'Yalanını yüzüne vurdu.', -25, 20);
             return { beat: 'uydurmuş', title: 'Kâğıt Sahte', text: `Mühür yeni. Mum hâlâ yumuşak.\n\nCasusun sana bakmıyor. Parayı geri istemek de bir şeyi düzeltmez.`, effects: ['Kırk beş altın gitti', `<b>${spy.name}</b> −25`] };
+          },
+        },
+        {
+          key: 'squeeze', label: 'Bedava söylet.',
+          detail: 'Onun da bir sırrı var. Sende olduğunu bilmiyor.',
+          cost: [{ kind: STAKE.PRESTIGE, value: 20 }],
+          stakes: [{ kind: STAKE.SECRET }, { kind: STAKE.OATH }],
+          waitDays: 45, odds: clampOdds(0.28 + intrigue() * 0.045),
+          tells: [{ at: 0.6, text: () => `${spy.name} bu hafta iki kez odana bakıp geri döndü.`, goodTone: 'good', badTone: 'bad' }],
+          onResolve(d, ok) {
+            const p2 = P();
+            if (ok) {
+              p2.hooks.push({ onId: v.id, kind: 'weak', secretId: 'vassal_sin' });
+              remember(spy.id, S.playerId, 'Beni kendi sırrımla sıkıştırdı.', -45, 45);
+              return { beat: 'söyledi', title: 'Bedava Anlattı', text: `Anlattı. Kısa anlattı, gözünün içine bakmadan anlattı, sonra izin istemeden çıktı.\n\nBildiğin şey elinde. Casusun da artık senin ne yapabileceğini biliyor.`, effects: [`<b>${v.name}</b> üzerinde koz`, `<b>${spy.name}</b> −45`] };
+            }
+            S.flags.spyTurned = spy.id;
+            remember(spy.id, S.playerId, 'Beni sıkıştırmaya kalktı.', -60, 50);
+            return { beat: 'diklendi', title: 'İki Sır, İki Taraf', text: `Güldü ve senin sırrını söyledi. Aynı cümlede, aynı sesle.\n\nArtık ikiniz de birbirinizi tutuyorsunuz. Bu bir anlaşma değil; bir düğüm.`, effects: [`<b>${spy.name}</b> elinde koz var`, '−20 itibar'] };
           },
         },
         {
@@ -1187,7 +1230,7 @@ export const EVENTS = [
           detail: 'Sınırı geçmek savaş demek. Geçmemek de bir şey demek.',
           cost: [{ kind: STAKE.GOLD, value: 45 }],
           stakes: [{ kind: STAKE.LIFE, who: 'kendi adamlarının' }, { kind: STAKE.OATH }],
-          waitDays: 40, odds: clampOdds(0.26 + skill(P(), 'martial') * 0.042),
+          waitDays: 40, odds: clampOdds(0.16 + skill(P(), 'martial') * 0.052),
           tells: [
             { at: 0.5, text: 'İz kuzeye dönmüş. Kuzey senin toprağın değil.', goodTone: 'ambiguous', badTone: 'bad' },
           ],
@@ -1208,7 +1251,7 @@ export const EVENTS = [
           detail: 'Bir mektup, bir elçi, bir rakam. Cevabı bir mevsim sürer.',
           cost: [{ kind: STAKE.PRESTIGE, value: 15 }],
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 150, odds: clampOdds(0.42 + skill(P(), 'diplomacy') * 0.028),
+          waitDays: 150, odds: clampOdds(0.30 + skill(P(), 'diplomacy') * 0.036),
           tells: [{ at: 0.6, text: 'Elçin sınırda bekletiliyor. On gündür.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             if (ok) { P().gold += 80; remember(raider.id, S.playerId, 'Kan bedelini ödetti.', -20, 25);
@@ -1297,6 +1340,30 @@ export const EVENTS = [
           },
         },
         {
+          key: 'parade', label: 'Sınırda göster, geçme.',
+          detail: 'Toplarsın, yürürsün, durursun. Blöf tutarsa savaşsız kazanırsın.',
+          cost: [{ kind: STAKE.GOLD, value: 60 }],
+          stakes: [{ kind: STAKE.GOLD, value: 60 }, { kind: STAKE.REPUTATION }],
+          waitDays: 150, odds: clampOdds(0.30 + skill(P(), 'diplomacy') * 0.02 + skill(P(), 'martial') * 0.02),
+          disabled: (P()?.gold || 0) < 60, disabledWhy: 'altmış altının yok',
+          onCommit() { S.flags.paraded = S.day; },
+          tells: [
+            { at: 0.4, text: () => `${gen(target.name)} adamları da sınıra çıktı. Aynı sayıda göründüler.`, goodTone: 'ambiguous', badTone: 'bad' },
+            { at: 0.85, text: 'Adamların üç haftadır çadırda. Yem bitiyor.', goodTone: 'good', badTone: 'bad' },
+          ],
+          onResolve(d, ok) {
+            const p2 = P();
+            if (ok) {
+              p2.prestige += 90; p2.gold += 70;
+              remember(target.id, S.playerId, 'Sınırda ordusunu gösterdi.', -30, 35);
+              return { beat: 'geri çekildi', title: 'Sınır Taşları Kalktı', text: `Üçüncü hafta karşı taraf çadırlarını topladı. İki sınır köyünü boşalttılar, kimse tek ok atmadı.\n\nAdamların bir kere bile kılıç çekmedi. Bunu evde anlatmayacaklar.`, effects: ['+90 itibar', '+70 altın', `<b>${target.name}</b> −30`] };
+            }
+            p2.prestige -= 70;
+            courtHears('Bizi çadırda bekletti, sonra eve yolladı.', -20, 30);
+            return { beat: 'blöf görüldü', title: 'Çadırlar Söküldü', text: `Karşı taraf yerinden kımıldamadı. Yem bitti, sonra adamlar sormaya başladı.\n\nGeri döndün. Sınır taşları yerinde. Marşalın haritayı kendi eliyle katladı.`, effects: ['−70 itibar', 'Vassalların −20', 'Altmış altın gitti'] };
+          },
+        },
+        {
           key: 'wait', label: 'Haritayı kaldır.', detail: 'Marşalın haklı olabilir. Haklı olmak yetmez.',
           stakes: [{ kind: STAKE.REPUTATION }],
           waitDays: 400, odds: clampOdds(0.42 + skill(P(), 'stewardship') * 0.022),
@@ -1346,6 +1413,28 @@ export const EVENTS = [
             for (const t of myCounties().slice(0, 1)) { const pr = pv(t.provinceId); pr.unrest += 30; pr.development = Math.max(1, pr.development - 2); }
             remember(capt.id, S.playerId, 'Kışın ortasında bıraktı.', -10, 20);
             return { beat: 'bıraktılar', title: 'Kışın Ortasında Gittiler', text: `Daha iyi bir teklif gelmiş. Sana söyleme nezaketini gösterdiler.\n\nGiderken iki köyü boşalttılar. Paranı geri istemeyi düşünmedin bile.`, effects: [`${price} altın gitti`, 'Bir kontluğunda huzursuzluk', 'Sınır açık'] };
+          },
+        },
+        {
+          key: 'half', label: 'Yarısını tut.',
+          detail: 'İki yüz atlı, yarı fiyat. Kalan iki yüzü kimin tuttuğunu sonra öğrenirsin.',
+          cost: [{ kind: STAKE.GOLD, value: Math.round(price * 0.55) }],
+          stakes: [{ kind: STAKE.GOLD, value: Math.round(price * 0.55) }, { kind: STAKE.REPUTATION }],
+          waitDays: 200, odds: 0.47,
+          disabled: p.gold < Math.round(price * 0.55), disabledWhy: 'kesende o kadar yok',
+          tells: [
+            { at: 0.45, text: 'Bölüğün öbür yarısı sınırın karşısında konakladı. Aynı sancak, öbür taraf.', goodTone: 'ambiguous', badTone: 'bad' },
+          ],
+          onResolve(d, ok) {
+            const p2 = P();
+            if (ok) {
+              p2.prestige += 40;
+              remember(capt.id, S.playerId, 'Yarısını tuttu, sözünde durdu.', +20, 25);
+              return { beat: 'yetti', title: 'İki Yüz Atlı Yetti', text: `Geçit dar. İki yüz atlı da yeter, dört yüz de. Bunu ikisi de biliyordu.\n\nÖbür yarısı hiç gelmedi. Nerede kışladıklarını kimse söylemedi.`, effects: ['+40 itibar', `${Math.round(price * 0.55)} altın gitti`] };
+            }
+            const t2 = myCounties()[0]; const pr2 = t2 ? pv(t2.provinceId) : null;
+            if (pr2) pr2.unrest += 20;
+            return { beat: 'karşılaştılar', title: 'Aynı Sancak, İki Yaka', text: `Geçitte iki yüz atlın, iki yüz atlıyla karşılaştı. Aynı bölüğün adamlarıydı.\n\nKimse kılıç çekmedi. İkisi de çekildi, sen ödedin.`, effects: [pr2 ? `${pr2.name} +20 huzursuzluk` : 'Sınırda huzursuzluk', `${Math.round(price * 0.55)} altın gitti`] };
           },
         },
         {
@@ -1597,6 +1686,25 @@ export const EVENTS = [
             p2.piety = Math.max(0, p2.piety - 60);
             courtHears('Sarayında kâfir kitapları var.', -18, 40);
             return { beat: 'duyuldu', title: 'Cuma Vaazı', text: `${clericWord()} senin adını vermeden konuştu. Herkes kimi kastettiğini anladı.\n\nAdam gece yarısı gitti. Sandıklarını da götürdü.`, effects: ['−60 dindarlık', 'Vassalların −18', 'Otuz altın gitti'] };
+          },
+        },
+        {
+          key: 'seize', label: 'Sandıkları al, adamı yolla.',
+          detail: 'Kitaplar kalır, sahibi kalmaz. Kimse okuyamaz ama kimse de sormaz.',
+          stakes: [{ kind: STAKE.OATH }, { kind: STAKE.REPUTATION }],
+          waitDays: 260, odds: 0.4,
+          onCommit() { P().prestige -= 30; courtHears('Misafirinin sandığına el koydu.', -22, 40); },
+          tells: [{ at: 0.5, text: 'Kule odasında kimse yok, kitaplar açık duruyor. Kimse dokunmuyor.', goodTone: 'ambiguous', badTone: 'bad' }],
+          onResolve(d, ok) {
+            const p2 = P();
+            if (ok) {
+              p2.bonus = { ...(p2.bonus || {}), learning: (p2.bonus?.learning || 0) + 1 };
+              return { beat: 'kaldılar', title: 'Kimse Açmadı', text: `Sandıklar üç yıl kule odasında durdu. Sonra kâhyan birini açtı ve haritaları çıkardı.\n\nHaritalar işine yaradı. Ötekini hâlâ kimse açmadı.`, effects: ['+1 ilim', 'Vassalların −22', '−30 itibar'] };
+            }
+            const sc = ch(S.flags.scholarId);
+            if (sc) remember(sc.id, S.playerId, 'Sandıklarımı aldı.', -80, 60);
+            S.flags.stoleTheBooks = true;
+            return { beat: 'anlatmış', title: 'Antakya\'da Anlatılıyor', text: `Adam Antakya\'ya vardı ve orada anlattı. Kitapları alan Türk beyi diye anlattı.\n\nO yıl kapına bir tek tüccar geldi. Ertesi yıl o da gelmedi.`, effects: ['Yabancı tüccarlar uzak duruyor', 'Vassalların −22', '−30 itibar'] };
           },
         },
         {
