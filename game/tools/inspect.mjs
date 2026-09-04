@@ -134,9 +134,13 @@ async function clearDecision(page, shot, label) {
 let shotN = 0;
 async function shot(name) {
   const f = join(OUT, `${String(++shotN).padStart(2, '0')}-${name}.png`);
-  await page.screenshot({ path: f });
-  report.shots.push(f);
-  return f;
+  // Under a loaded box a screenshot can exceed the default deadline. Losing one
+  // frame is a nuisance; losing the whole report because of it is not.
+  for (const timeout of [60000, 60000]) {
+    try { await page.screenshot({ path: f, timeout, animations: 'disabled' }); report.shots.push(f); return f; }
+    catch (e) { report.notes.push(`screenshot "${name}" failed: ${String(e).split('\n')[0]}`); }
+  }
+  return null;
 }
 
 // --- default pass: look at the world -----------------------------------------
@@ -144,6 +148,7 @@ await page.waitForTimeout(3800);   // let the opening camera move settle
 await clearDecision(page, shot, 'first-decision');
 await shot('opening');
 
+try {
 if (args.script && existsSync(resolve(args.script))) {
   const mod = await import('file://' + resolve(args.script));
   await mod.default({ page, shot, report, W, H });
@@ -179,8 +184,11 @@ if (args.script && existsSync(resolve(args.script))) {
     if (irrev) { await irrev.click(); await page.waitForTimeout(900); await shot('gate'); }
   } else report.notes.push('no decision appeared after 3600 simulated days');
 }
+} catch (e) {
+  report.notes.push('tour aborted: ' + String(e).split('\n')[0]);
+}
 
-report.state = await page.evaluate(() => window.__state?.());
+report.state = await page.evaluate(() => window.__state?.()).catch(() => null);
 report.timings.totalMs = Date.now() - t0;
 writeFileSync(join(OUT, 'report.json'), JSON.stringify(report, null, 2));
 
