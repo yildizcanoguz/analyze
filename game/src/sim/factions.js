@@ -476,7 +476,12 @@ function tryDeliverDemand(f, day) {
         key: 'refuse',
         label: 'Reddet. Sancakları çıkar.',
         detail: `${loyal} kişiyle ${rebel} kişinin üstüne gideceksin. Kâhyan yüzüne bakmıyor.`,
-        cost: [{ kind: STAKE.GOLD, value: Math.min(Math.max(30, Math.round(loyal / 14)), Math.max(1, Math.floor(p.gold))) }],
+        // Calling banners costs money you may not have and standing you do:
+        // a refusal that costs one gold piece is not a refusal.
+        cost: [
+          { kind: STAKE.GOLD, value: Math.min(Math.max(30, Math.round(loyal / 14)), Math.max(1, Math.floor(p.gold))) },
+          { kind: STAKE.PRESTIGE, value: 80 },
+        ],
         stakes: [{ kind: STAKE.LIFE, who: 'kendi tebaanın' }, { kind: STAKE.TITLE, who: 'tahtın', irreversible: true }],
         waitDays: 380 + rng.int(0, 160),
         odds,
