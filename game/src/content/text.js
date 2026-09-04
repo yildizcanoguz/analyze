@@ -20,7 +20,7 @@
 // ===========================================================================
 
 import { S, ch } from '../core/state.js';
-import { seasonOf, ageAt } from '../core/date.js';
+import { seasonOf } from '../core/date.js';
 import { fullName, age, relation } from '../sim/characters.js';
 
 // ---------------------------------------------------------------------------
@@ -53,21 +53,60 @@ function I(w) {
   return back ? (round ? 'u' : 'ı') : (round ? 'ü' : 'i');
 }
 
+// A name that already carries the third-person possessive takes the pronominal
+// -n- before any case suffix: Selçukoğulları'NA, not Selçukoğulları'ya. Half the
+// dynasties in this game are shaped that way, so the wrong buffer would be on
+// screen every other sentence.
+function possessive(w) {
+  const t = low(w);
+  return /oğulları$/.test(t) || (t.length >= 10 && /(ları|leri)$/.test(t));
+}
+
 // Proper nouns take an apostrophe before the case suffix, which is also what
 // saves us from having to model consonant softening (Mesud'u, not Mesudu).
-export function dat(n) { return `${n}'${endsInVowel(n) ? 'y' : ''}${A(n)}`; }        // -e  (to)
-export function acc(n) { return `${n}'${endsInVowel(n) ? 'y' : ''}${I(n)}`; }        // -i  (object)
+export function dat(n) { return possessive(n) ? `${n}'n${A(n)}` : `${n}'${endsInVowel(n) ? 'y' : ''}${A(n)}`; }
+export function acc(n) { return possessive(n) ? `${n}'n${I(n)}` : `${n}'${endsInVowel(n) ? 'y' : ''}${I(n)}`; }
 export function gen(n) { return `${n}'${endsInVowel(n) ? 'n' : ''}${I(n)}n`; }       // -in (of)
-export function loc(n) { return `${n}'${isHard(n) ? 't' : 'd'}${A(n)}`; }            // -de (at)
-export function abl(n) { return `${n}'${isHard(n) ? 't' : 'd'}${A(n)}n`; }           // -den (from)
-export function ins(n) { return `${n}'l${A(n)}`; }                                    // -le (with)
+export function loc(n) { return possessive(n) ? `${n}'nd${A(n)}` : `${n}'${isHard(n) ? 't' : 'd'}${A(n)}`; }
+export function abl(n) { return possessive(n) ? `${n}'nd${A(n)}n` : `${n}'${isHard(n) ? 't' : 'd'}${A(n)}n`; }
+export function ins(n) { return `${n}'${endsInVowel(n) ? 'y' : ''}l${A(n)}`; }        // -le (with)
 
-/** Common-noun (no apostrophe) variants, for words like "kardeş", "oğul". */
-export function datL(w) { return `${w}${endsInVowel(w) ? 'y' : ''}${A(w)}`; }
-export function accL(w) { return `${w}${endsInVowel(w) ? 'y' : ''}${I(w)}`; }
-export function genL(w) { return `${w}${endsInVowel(w) ? 'n' : ''}${I(w)}n`; }
+// Common nouns, unlike proper nouns, soften their final stop before a vowel:
+// mescit -> mescidi, kitap -> kitabı, toprak -> toprağı. Single-syllable words
+// do not (at -> atı), so count the vowels before touching the stem.
+const SOFTEN = { p: 'b', 'ç': 'c', t: 'd', k: 'ğ' };
+// A short closed list of nouns that drop their second vowel before a suffix:
+// oğul -> oğlu, burun -> burnu, şehir -> şehri. There is no rule for these, only
+// a list, and a game that writes "oğulu" once has lost the reader.
+const DROP = {
+  'oğul': 'oğl', 'burun': 'burn', 'ağız': 'ağz', 'karın': 'karn', 'boyun': 'boyn',
+  'göğüs': 'göğs', 'akıl': 'akl', 'şehir': 'şehr', 'isim': 'ism', 'resim': 'resm',
+  'nehir': 'nehr', 'fikir': 'fikr', 'omuz': 'omz', 'beyin': 'beyn',
+};
+function stem(w) { return DROP[low(w)] || null; }
+function soften(w) {
+  const t = low(w);
+  const syll = (t.match(/[aeıioöuü]/g) || []).length;
+  const last = t[t.length - 1];
+  if (syll < 2 || !SOFTEN[last]) return w;
+  return w.slice(0, -1) + SOFTEN[last];
+}
+
+/** Common-noun (no apostrophe) variants, for words like "kardeş", "mescit". */
+const base = (w) => stem(w) || (endsInVowel(w) ? w : soften(w));
+export function datL(w) { return `${base(w)}${endsInVowel(w) ? 'y' : ''}${A(w)}`; }
+export function accL(w) { return `${base(w)}${endsInVowel(w) ? 'y' : ''}${I(w)}`; }
+export function genL(w) { return `${base(w)}${endsInVowel(w) ? 'n' : ''}${I(w)}n`; }
 export function locL(w) { return `${w}${isHard(w) ? 't' : 'd'}${A(w)}`; }
 export function plural(w) { return `${w}l${A(w)}r`; }
+
+/** Lower-case the first letter, for a phrase that lands mid-sentence. */
+export function uncap(s) {
+  const t = String(s ?? '');
+  if (!t) return t;
+  const f = t[0] === 'İ' ? 'i' : t[0] === 'I' ? 'ı' : t[0].toLowerCase();
+  return f + t.slice(1);
+}
 
 /** Turkish-correct capitalisation of the first letter. */
 export function cap(s) {
@@ -148,6 +187,10 @@ export function who(c) { return c ? `${spell(age(c))} yaşındaki ${fullName(c)}
 export function whoFace(c) { return c ? `${cap(faceTag(c))}, ${spell(age(c))} yaşındaki ${fullName(c)}` : 'Biri'; }
 /** Short form for repeat mentions inside the same scene. */
 export function him(c) { return c ? c.name : 'o'; }
+
+/** Grammatical sex matters: calling a woman "adam" ends the illusion instantly. */
+export function manWord(c) { return c?.sex === 'f' ? 'kadın' : 'adam'; }
+export function sexed(c, male, female) { return c?.sex === 'f' ? female : male; }
 
 /** What this person is *to you*: "kardeşin", "kızın", "vassalın". */
 export function kinWord(c) {

@@ -14,6 +14,7 @@ import { S, rng, newId, ch, alive } from '../core/state.js';
 import { emit } from '../core/bus.js';
 import { pause } from '../core/clock.js';
 import { fmtDate } from '../core/date.js';
+import { fullName, age, remember, opinion, relation, livingChildren, isKin } from './characters.js';
 
 export const STAKE = {
   GOLD: 'gold', PRESTIGE: 'prestige', PIETY: 'piety',
@@ -24,10 +25,36 @@ export const STAKE = {
   REPUTATION: 'reputation',
   SECRET: 'secret',       // exposure risk
   SOUL: 'soul',           // damnation, excommunication
+  // --- things that leave you the moment you commit, and have a name ---
+  REGARD: 'regard',       // a named person thinks less of you, starting now
+  FAVOR: 'favor',         // an iyilik you were holding over someone, spent
+  TOLD: 'told',           // one more living person now knows what you did
 };
 
 /** Stakes that cannot be walked back once the die is cast. */
 const IRREVERSIBLE = new Set([STAKE.LIFE, STAKE.KIN, STAKE.OATH, STAKE.TITLE, STAKE.SOUL]);
+
+// --- presentation tier -------------------------------------------------------
+// Weight is not a number the player ever sees; it is how hard the game stops.
+// A decision that costs four coins must not get the same rectangle as one that
+// costs a child, so the tier is decided here — in the sim — and the UI obeys.
+export const TIER = { CARD: 'card', SHEET: 'sheet', RITE: 'rite' };
+
+export function tierOf(d) {
+  const w = d.weight ?? weighDecision(d);
+  if (w >= 0.50) return TIER.RITE;
+  if (w >= 0.20) return TIER.SHEET;
+  return TIER.CARD;
+}
+
+/**
+ * How long the player must physically hold the button down. The heavier the
+ * thing, the longer your own hand has to stay on it.
+ */
+export function holdMillis(d, opt) {
+  const w = Math.max(d?.weight ?? 0, weighDecision({ stakes: opt?.stakes, odds: opt?.odds, targetId: d?.targetId }));
+  return Math.round(900 + w * 2600);
+}
 
 // --- weight -----------------------------------------------------------------
 // 0 = a shrug. 1 = you will remember where you were sitting.
@@ -51,8 +78,8 @@ export function weighDecision(d) {
     }
   }
   // A coin flip is worse than a long shot. Uncertainty itself is the pressure.
-  const o = d.odds ?? 0.5;
-  w += (1 - Math.abs(o - 0.5) * 2) * 0.16;
+  // A certain outcome (odds === null) carries none of it.
+  if (d.odds != null) w += (1 - Math.abs(d.odds - 0.5) * 2) * 0.16;
   // The longer you have to live with it unresolved, the heavier it sits.
   const wait = Math.max(0, (d.resolveDay ?? S.day) - S.day);
   w += Math.min(0.12, wait / 900);
@@ -63,6 +90,151 @@ export function weighDecision(d) {
 
 export function isIrreversible(d) {
   return (d.stakes || []).some((s) => IRREVERSIBLE.has(s.kind) || s.irreversible);
+}
+
+// ===========================================================================
+// THE PRICE, PAID BEFORE YOU KNOW ANYTHING
+// ---------------------------------------------------------------------------
+// Gold is the least interesting thing a decision can cost. Blood, a broken word
+// and a secret are all carried out by somebody, and that somebody is in the room
+// when you decide. What they saw is spent immediately — before the dice, before
+// the wait, before you have any right to feel clever about it.
+//
+// The surcharge is computed at offer() time and printed on the button. A hidden
+// price is a cheat; a named one is a decision.
+// ===========================================================================
+
+const ROLE_TR = { chancellor:'Müşavirin', marshal:'Seraskerin', steward:'Defterdarın', spymaster:'Casusbaşın', chaplain:'Kadın' };
+
+function courtOfPlayer() {
+  return Object.values(S.chars).filter((c) => c.deathDay == null && c.courtOf === S.playerId && c.id !== S.playerId);
+}
+function councilMember(role) {
+  const id = S.council?.[role];
+  return id && alive(id) ? ch(id) : null;
+}
+/** Title the player would use for this person: "Casusbaşın", "kardeşin", "Kâhyan". */
+export function addressOf(c) {
+  if (!c) return 'biri';
+  for (const [k, id] of Object.entries(S.council || {})) if (id === c.id) return ROLE_TR[k] || 'divan üyen';
+  const r = relation(S.playerId, c.id);
+  if (r === 'kardeş') return 'kardeşin';
+  if (r === 'evlat') return 'çocuğun';
+  if (r === 'ebeveyn') return 'anan baban';
+  if (r === 'eş') return 'eşin';
+  if (r === 'efendi') return 'efendin';
+  if (r === 'vassal') return 'vassalın';
+  if (c.courtOf === S.playerId) return 'sarayından biri';
+  return 'biri';
+}
+
+function witnessFor(d, kinds) {
+  const prefer = [];
+  if (kinds.has(STAKE.SECRET) || kinds.has(STAKE.LIFE) || kinds.has(STAKE.KIN)) prefer.push('spymaster');
+  if (kinds.has(STAKE.SOUL)) prefer.push('chaplain');
+  if (kinds.has(STAKE.OATH)) prefer.push('chancellor');
+  if (kinds.has(STAKE.TITLE)) prefer.push('steward');
+  for (const role of prefer) { const c = councilMember(role); if (c) return c; }
+  const friend = S.flags?.friendId && alive(S.flags.friendId) ? ch(S.flags.friendId) : null;
+  if (friend) return friend;
+  const court = courtOfPlayer();
+  return court.length ? rng.pick(court) : null;
+}
+
+const WITNESS_LINE = {
+  [STAKE.KIN]: 'Kendi kanına kıydığını gördü.',
+  [STAKE.LIFE]: 'Emri senin ağzından duydu.',
+  [STAKE.OATH]: 'Sözünden döndüğüne şahit oldu.',
+  [STAKE.SOUL]: 'Bunu Tanrı’nın da duyduğunu düşünüyor.',
+  [STAKE.SECRET]: 'Artık senin hakkında bilmemesi gereken bir şey biliyor.',
+  [STAKE.TITLE]: 'Toprağını dağıtışını izledi.',
+};
+
+/**
+ * Everything this option takes from you the second you commit — the writer's
+ * declared cost plus what the world charges on top of it, with names.
+ * Pure: returns plain JSON, mutates nothing.
+ */
+export function plannedCost(d, o) {
+  return [...(o.cost || []), ...(o.pays || [])];
+}
+
+function surcharge(d, o) {
+  const kinds = new Set((o.stakes || []).map((s) => s.kind));
+  const out = [];
+  const p = ch(S.playerId);
+  if (!p) return out;
+
+  // 1. Somebody has to watch you do it.
+  const heavy = [STAKE.KIN, STAKE.LIFE, STAKE.OATH, STAKE.SOUL, STAKE.SECRET, STAKE.TITLE].filter((k) => kinds.has(k));
+  if (heavy.length) {
+    const w = witnessFor(d, kinds);
+    if (w && w.id !== d.targetId) {
+      const sev = (kinds.has(STAKE.KIN) ? 26 : kinds.has(STAKE.LIFE) ? 20 : kinds.has(STAKE.OATH) ? 18 : 12);
+      // An honest man is harder on you; a schemer shrugs.
+      const mod = w.traits?.includes('honest') ? 1.4 : w.traits?.includes('deceitful') ? 0.6 : 1;
+      out.push({
+        kind: STAKE.REGARD, whoId: w.id, who: fullName(w), address: addressOf(w),
+        value: Math.round(sev * mod),
+        why: WITNESS_LINE[heavy[0]] || 'Ne yaptığını gördü.',
+        life: kinds.has(STAKE.KIN) ? 60 : 30,
+      });
+    }
+  }
+
+  // 2. A secret is not a thing you keep. It is a thing one more person carries.
+  if (kinds.has(STAKE.SECRET)) {
+    const acc = councilMember('spymaster') || witnessFor(d, kinds);
+    if (acc) out.push({ kind: STAKE.TOLD, whoId: acc.id, who: fullName(acc), address: addressOf(acc), value: 1 });
+  }
+
+  // 3. An iyilik you were holding over somebody buys silence — once.
+  if ((kinds.has(STAKE.SECRET) || d.kind === 'scheme') && p.hooks?.length) {
+    const h = p.hooks[0];
+    const on = ch(h.onId);
+    if (on) out.push({ kind: STAKE.FAVOR, whoId: on.id, who: fullName(on), address: addressOf(on), value: 1 });
+  }
+  return out.slice(0, 2);
+}
+
+/** Turkish phrase for one line of the bill. */
+export function costPhrase(c) {
+  switch (c.kind) {
+    case STAKE.GOLD: return `${c.value} altın`;
+    case STAKE.PRESTIGE: return `${c.value} itibar`;
+    case STAKE.PIETY: return `${c.value} dindarlık`;
+    case STAKE.REGARD: return `${c.who} — gözünde ${c.value} düşersin`;
+    case STAKE.FAVOR: return `${c.who} üzerindeki iyiliğin`;
+    case STAKE.TOLD: return `${c.who} bunu öğrenir`;
+    default: return stakeLine(c);
+  }
+}
+
+/** Apply the bill. Nothing here is refundable and nothing here is a roll. */
+function payAll(p, bill, d) {
+  const paid = [];
+  for (const c of bill) {
+    const row = { ...c };
+    if (c.kind === STAKE.GOLD) { row.before = Math.floor(p.gold); p.gold -= c.value; row.after = Math.floor(p.gold); }
+    else if (c.kind === STAKE.PRESTIGE) { row.before = Math.floor(p.prestige); p.prestige -= c.value; row.after = Math.floor(p.prestige); }
+    else if (c.kind === STAKE.PIETY) { row.before = Math.floor(p.piety); p.piety -= c.value; row.after = Math.floor(p.piety); }
+    else if (c.kind === STAKE.REGARD && c.whoId && alive(c.whoId)) {
+      row.before = opinion(c.whoId, p.id);
+      remember(c.whoId, p.id, c.why || 'Ne yaptığını gördü.', -Math.abs(c.value), c.life || 30);
+      row.after = opinion(c.whoId, p.id);
+    } else if (c.kind === STAKE.FAVOR && p.hooks?.length) {
+      const i = p.hooks.findIndex((h) => h.onId === c.whoId);
+      if (i >= 0) p.hooks.splice(i, 1); else p.hooks.shift();
+    } else if (c.kind === STAKE.TOLD && c.whoId && alive(c.whoId)) {
+      const w = ch(c.whoId);
+      (w.knownSecrets ||= []).push({ ownerId: p.id, kind: d?.kind || 'deed', decisionId: d?.id || null, day: S.day });
+      // What he knows about you is a hook he now holds.
+      (w.hooks ||= []).push({ onId: p.id, kind: 'weak', day: S.day });
+    }
+    row.line = costPhrase(c);
+    paid.push(row);
+  }
+  return paid;
 }
 
 /** Human phrase for what you are about to spend, in the second person. */
@@ -77,8 +249,56 @@ export function stakeLine(st) {
     case STAKE.TITLE: return `${st.who || 'bir toprak'}`;
     case STAKE.SECRET: return `sırrın açığa çıkabilir`;
     case STAKE.SOUL: return `ruhun`;
-    default: return st.label || '';
+    case STAKE.REPUTATION: return st.label || `adın`;
+    case STAKE.REGARD: return `${st.who || 'birinin'} gözünde ${st.value || ''} düşersin`;
+    case STAKE.FAVOR: return `${st.who || 'birinin'} üzerindeki iyiliğin`;
+    case STAKE.TOLD: return `${st.who || 'bir kişi'} bunu öğrenir`;
+    default: return st.label || 'bir şey';
   }
+}
+
+
+// --- who exactly is on the table -------------------------------------------
+/**
+ * The named people this option puts at risk. Not "a vassal" — "41 yaşındaki
+ * kardeşin Sökmen, iki çocuk babası". Returned as plain JSON so the gate can
+ * print it and the sim never has to know what a gate is.
+ */
+export function lossOf(d, o) {
+  const out = [];
+  const seen = new Set();
+  const push = (id, why) => {
+    const c = id && ch(id);
+    if (!c || seen.has(id) || c.deathDay != null) return;
+    seen.add(id);
+    const kids = livingChildren(c);
+    out.push({
+      id: c.id, name: fullName(c), short: c.name, age: age(c),
+      address: addressOf(c), relation: relation(S.playerId, c.id),
+      kin: isKin(S.playerId, c.id),
+      opinion: c.id === S.playerId ? 100 : opinion(c.id, S.playerId),
+      children: kids.slice(0, 4).map((k) => ({ name: k.name, age: age(k) })),
+      childCount: kids.length,
+      why,
+    });
+  };
+  for (const st of o.stakes || []) {
+    if (st.kind === STAKE.LIFE || st.kind === STAKE.KIN) push(st.whoId || d.targetId, st.kind);
+  }
+  if (!out.length && d.targetId) {
+    const kinds = new Set((o.stakes || []).map((x) => x.kind));
+    if (kinds.has(STAKE.TITLE) || kinds.has(STAKE.OATH) || kinds.has(STAKE.SECRET)) push(d.targetId, 'target');
+  }
+  return out;
+}
+
+/** One sentence about what happens to this person's household if it goes wrong. */
+export function householdLine(l) {
+  if (!l) return '';
+  if (l.childCount === 0) return 'Arkasında kimse kalmaz.';
+  const names = l.children.map((k) => `${k.name} (${k.age})`).join(', ');
+  if (l.childCount === 1) return `Bir çocuğu var: ${names}.`;
+  return `${l.childCount} çocuğu var: ${names}${l.childCount > l.children.length ? '…' : ''}.`;
 }
 
 // --- lifecycle --------------------------------------------------------------
@@ -109,18 +329,24 @@ export function offer(spec) {
       tone: o.tone || 'neutral',
       disabled: o.disabled || false,
       disabledWhy: o.disabledWhy || '',
+      confirm: o.confirm || null,     // the writer's own line for the gate
       onCommit: o.onCommit || null,
       onResolve: o.onResolve || null,
       tells: o.tells || null,
+      pays: [],                      // what the world charges on top, with names
+      hiddenMod: o.hiddenMod ?? 0,   // what the shown odds do not tell you
     })),
     weight: 0,
     onExpire: spec.onExpire || null,
     expiresDay: spec.expiresDay ?? null,
   };
-  d.weight = Math.max(...d.options.map((o) => weighDecision({ stakes: o.stakes, odds: o.odds, resolveDay: S.day + o.waitDays, targetId: d.targetId })), 0.05);
+  // The bill is written before the button is drawn, so the button can show it.
+  for (const o of d.options) o.pays = surcharge(d, o);
+  d.weight = Math.max(...d.options.map((o) => weighDecision({ stakes: o.stakes, odds: o.odds, cost: plannedCost(d, o), resolveDay: S.day + o.waitDays, targetId: d.targetId })), 0.05);
+  d.tier = tierOf(d);
   S.decisions.push(d);
-  // Anything heavy stops the world. You do not get to skim past this.
-  if (d.weight > 0.34) pause('decision');
+  // Anything above a shrug stops the world. You do not get to skim past this.
+  if (d.tier !== TIER.CARD) pause('decision');
   emit('decision:offered', d);
   return d;
 }
@@ -133,13 +359,7 @@ export function commit(decisionId, optionKey) {
   if (!opt || opt.disabled) return null;
 
   const p = ch(S.playerId);
-  const paid = [];
-  for (const c of opt.cost) {
-    if (c.kind === STAKE.GOLD) { p.gold -= c.value; paid.push({ ...c }); }
-    else if (c.kind === STAKE.PRESTIGE) { p.prestige -= c.value; paid.push({ ...c }); }
-    else if (c.kind === STAKE.PIETY) { p.piety -= c.value; paid.push({ ...c }); }
-    else paid.push({ ...c });
-  }
+  const paid = payAll(p, plannedCost(d, opt), d);
 
   d.state = opt.waitDays > 0 ? 'pending' : 'resolving';
   d.chosen = optionKey;
@@ -161,6 +381,7 @@ export function commit(decisionId, optionKey) {
   if (d.irreversible) S.stats.irreversible++;
 
   if (opt.onCommit) { try { opt.onCommit(d); } catch (e) { console.error(e); } }
+  if (paid.length) emit('decision:paid', { d, paid });
   emit('decision:committed', d);
 
   if (d.state === 'resolving') resolve(d);
