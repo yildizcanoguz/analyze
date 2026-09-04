@@ -287,6 +287,7 @@ export function setMode(id, mode) {
   const o = ch(sc.ownerId);
   const price = mode === 'rush' ? 25 : mode === 'quiet' ? 12 : 0;
   if (price && o.gold < price) return;
+  if (sc.mode === mode) return;
   o.gold -= price;
   sc.goldSpent += price;
   sc.mode = mode;
@@ -641,6 +642,7 @@ function snitchDecision(sc, c) {
         detail: 'Bir ağız kapanır. Bir mezar açılır.',
         confirm: `${fullName(c)} bu geceden sonra konuşmasın mı?`,
         cost: [{ kind: STAKE.GOLD, value: 45 }],
+        disabled: p.gold < 45, disabledWhy: 'bıçak da para ister — 45 altının yok',
         stakes: kin ? [{ kind: STAKE.KIN, who: fullName(c) }, { kind: STAKE.SOUL }]
                     : [{ kind: STAKE.LIFE, who: fullName(c) }, { kind: STAKE.SOUL }],
         waitDays: 20,
@@ -671,6 +673,7 @@ function snitchDecision(sc, c) {
         key: 'buy', label: 'Ağzını parayla kapat.',
         detail: 'Bir kez susturur. İkinci kez daha pahalı olur.',
         cost: [{ kind: STAKE.GOLD, value: 70 }],
+        disabled: p.gold < 70, disabledWhy: '70 altının yok',
         stakes: [{ kind: STAKE.SECRET }],
         waitDays: 0,
         onResolve() {
@@ -1106,7 +1109,8 @@ function threatDecision(sc, plotter, target) {
         cost: [{ kind: STAKE.GOLD, value: 60 }],
         stakes: [{ kind: STAKE.SECRET }, { kind: STAKE.LIFE, who: fullName(plotter) }],
         waitDays: 0,
-        disabled: (P()?.gold || 0) < 60 + (schemeType('secret')?.gold || 0), disabledWhy: 'yeterli altının yok',
+        disabled: (P()?.gold || 0) < 60 + (schemeType('secret')?.gold || 0),
+        disabledWhy: `${60 + (schemeType('secret')?.gold || 0)} altının yok`,
         onResolve() {
           const counter = launchScheme('secret', plotter.id, {
             openingLine: `${fullName(plotter)}'in defterini karıştırmaya başladın. O senin bildiğini bilmiyor.`,

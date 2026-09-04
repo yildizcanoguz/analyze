@@ -33,6 +33,16 @@ import * as Wait from './wait.js';
 import * as Audio from '../audio/audio.js';
 import { css } from './_css.js';
 
+/** relation() says "stranger" for your own cook. Say something truer. */
+function tie(p, c) {
+  const r = relation(p.id, c.id);
+  if (r !== 'yabancı') return r;
+  if (Object.values(S.council || {}).includes(c.id)) return 'divanından';
+  if (c.courtOf === p.id) return 'sarayından';
+  if (c.liegeId === p.id) return 'vassalın';
+  return 'yabancı';
+}
+
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
 const sfx = (k) => { try { Audio.SFX?.[k]?.(); } catch {} };
 const say = (t, tone) => { try { Wait.whisper?.(t, tone); } catch {} };
@@ -247,7 +257,11 @@ function buildBoard() {
   board.querySelector('.p06bg').onclick = () => toggleBoard(false);
 }
 
+function overlayBusy() {
+  return !!document.querySelector('#decisionRoot .dec, #revealRoot .reveal, #revealRoot .breath, #revealRoot .rv');
+}
 function toggleBoard(v) {
+  if (v && overlayBusy()) return;      // never sit on top of a staged moment
   openBoard = v;
   board.hidden = !v;
   if (v) { sfx('open'); drawBoard(); }
@@ -434,7 +448,7 @@ function openInvite(sc, roleId) {
           <div class="mface"><canvas width="88" height="88" data-face="${c.id}"></canvas></div>
           <div class="mwho">
             <b>${esc(fullName(c))}</b>
-            <i>${age(c)} yaşında · ${esc(relation(p.id, c.id))} · ${esc(SKILL_LABEL[role.skill])} ${skill(c, role.skill)}</i>
+            <i>${age(c)} yaşında · ${esc(tie(p, c))} · ${esc(SKILL_LABEL[role.skill])} ${skill(c, role.skill)}</i>
             <i class="dim">sana ${op > 0 ? '+' : ''}${op} · hedefe ${opT > 0 ? '+' : ''}${opT}</i>
           </div>
           <div class="mreads">
@@ -476,7 +490,7 @@ function askRoom(modal, sc, roleId, charId) {
       <div>
         <div class="askkick">${esc(role.name)} · ${esc(t.name)}</div>
         <h3>${esc(fullName(c))}</h3>
-        <div class="sub">${esc(styleOf(c))} · ${age(c)} yaşında · ${esc(relation(p.id, c.id))}</div>
+        <div class="sub">${esc(styleOf(c))} · ${age(c)} yaşında · ${esc(tie(p, c))}</div>
       </div>
     </div>
     <p class="askline">${esc(line)}</p>

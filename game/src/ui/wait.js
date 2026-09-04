@@ -79,6 +79,9 @@ function pressureNow() {
 let lastPump = -1, lastCeil = -1;
 export function tickWait(force = false) {
   ensureFx();
+  // While an outcome is being staged, the wait gets out of the way entirely.
+  const revealing = !!document.getElementById('revealRoot')?.firstElementChild;
+  document.body.classList.toggle('p02-hushed', revealing);
   const ceil = ribbonCeiling();
   const moved = Math.abs(ceil - lastCeil) > 8;
   if (S.day !== lastPump || moved) { lastPump = S.day; lastCeil = ceil; pumpTells(S.day); renderPending(); }
@@ -325,7 +328,7 @@ function announce(text, tone) {
     document.body.appendChild(newsEl);
   }
   newsEl.className = tone || 'ambiguous';
-  newsEl.innerHTML = `<em>beklerken bir haber geldi</em><p>${esc(text)}</p>`;
+  newsEl.innerHTML = `<em>beklerken bir haber geldi</em><p>${esc(text)}</p><u></u>`;
   newsEl.hidden = false;
   void newsEl.offsetWidth;
   newsEl.classList.add('in');
@@ -334,7 +337,7 @@ function announce(text, tone) {
   newsTimer = setTimeout(() => {
     newsEl.classList.remove('in');
     newsHide = setTimeout(() => { if (newsEl && !newsEl.classList.contains('in')) newsEl.hidden = true; }, 900);
-  }, 4600);
+  }, tone === 'bad' ? 6000 : 4800);
 }
 
 export function recomputeHeart() { tickWait(true); }
@@ -401,7 +404,11 @@ body.staged #p02ghost{opacity:0;transition:opacity .4s ease}
 #p02news{position:fixed;left:50%;top:27%;transform:translate(-50%,-8px);z-index:25;pointer-events:none;
   width:min(620px,72vw);text-align:center;opacity:0;transition:opacity .5s ease,transform .5s cubic-bezier(.16,1,.3,1)}
 #p02news.in{opacity:1;transform:translate(-50%,0)}
-body.staged #p02news{opacity:0}
+body.staged #p02news,body.p02-hushed #p02news{opacity:0}
+body.p02-hushed .p02fx,body.p02-hushed #p02ghost{opacity:0;transition:opacity .5s ease}
+#p02news u{display:block;width:64px;height:1px;margin:14px auto 0;background:linear-gradient(90deg,transparent,rgba(201,163,78,.55),transparent)}
+#p02news em::before,#p02news em::after{content:"";display:inline-block;width:26px;height:1px;vertical-align:middle;
+  margin:0 10px;background:rgba(138,114,72,.55)}
 #p02news em{display:block;font-style:normal;font-size:10px;letter-spacing:4.5px;text-transform:uppercase;
   color:#8a7248;margin-bottom:9px}
 #p02news p{margin:0;font-size:21px;line-height:1.55;color:#e2d6b6;letter-spacing:.2px;
@@ -428,6 +435,11 @@ body.p02-close #dateLabel::after{content:var(--p02-after,"");color:#c9705e;lette
 #pending.row .pend .pfoot{padding:3px 9px 5px;font-size:9px}
 #pending.row .pend .podds{display:none}
 #pending.row .pmore{width:auto;font-size:11px;padding:14px 2px 0}
+
+/* the running log of signs: this piece's own voice, kept legible */
+body.p02-waiting #whispers{z-index:26}
+body.p02-waiting .whisper{background:rgba(8,5,4,.90);border-left-width:3px;font-size:13px;padding:6px 13px;
+  box-shadow:0 6px 20px rgba(0,0,0,.55)}
 
 /* ---------- the letter you cannot recall ---------- */
 #pending{position:fixed;right:14px;top:86px;z-index:22;display:flex;flex-flow:column wrap-reverse;

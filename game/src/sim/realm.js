@@ -56,7 +56,13 @@ export function grantTitle(titleId, charId, reason = 'grant') {
 
 /** Rebuild liege links from title hierarchy: whoever holds your de jure liege is your liege. */
 export function recomputeVassalage() {
-  for (const c of Object.values(S.chars)) c.liegeId = null;
+  // Only landed characters get their liege re-derived from the title hierarchy.
+  // The landless — spouses, siblings, councillors, courtiers — are sworn to
+  // whoever's hall they live in, and that link must survive this pass: clearing
+  // it wholesale detached every court in the world once a year.
+  for (const c of Object.values(S.chars)) {
+    c.liegeId = c.titles?.length ? null : (c.courtOf || c.liegeId || null);
+  }
   for (const t of Object.values(S.titles)) {
     if (!t.holderId) continue;
     let p = t.dejureLiege ? ti(t.dejureLiege) : null;
@@ -71,7 +77,16 @@ export function recomputeVassalage() {
       p = p.dejureLiege ? ti(p.dejureLiege) : null;
     }
   }
+  // A landed character with no superior in the chain answers to nobody; a
+  // landless one never answers to themselves.
+  for (const c of Object.values(S.chars)) if (c.liegeId === c.id) c.liegeId = null;
 }
+
+/** Everyone sworn to this person who actually holds land of their own. */
+export function landedVassalsOf(charId) {
+  return Object.values(S.chars).filter((c) => c.deathDay == null && c.liegeId === charId && c.titles?.length);
+}
+
 export function vassalsOf(charId) {
   return Object.values(S.chars).filter((c) => c.deathDay == null && c.liegeId === charId);
 }
@@ -104,8 +119,10 @@ export function incomeOf(charId) {
     if (!p) continue;
     inc += p.development * 0.09 * (p.taxMult || 1) * (1 + (p.buildings?.length || 0) * 0.10);
   }
-  // vassal tax scales with how much they like you
-  for (const v of vassalsOf(charId)) {
+  // vassal tax scales with how much they like you. Courtiers hold no land and
+  // owe no tax, so only the landed are counted — and counting only the landed
+  // also keeps this recursion from ever walking a court-membership cycle.
+  for (const v of landedVassalsOf(charId)) {
     const vi = incomeOf(v.id);
     const op = opinion(v.id, charId);
     inc += vi * Math.max(0.05, 0.25 + op / 400);
@@ -127,7 +144,7 @@ export function levyOf(charId) {
 }
 export function realmLevy(charId) {
   let lv = levyOf(charId);
-  for (const v of vassalsOf(charId)) {
+  for (const v of landedVassalsOf(charId)) {
     const op = opinion(v.id, charId);
     lv += realmLevy(v.id) * Math.max(0, 0.35 + op / 260);
   }

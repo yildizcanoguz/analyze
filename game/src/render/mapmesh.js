@@ -174,6 +174,9 @@ export function buildMap(map) {
       uSkyColor: { value: new THREE.Color(0x9fbcdd) },
       uGroundColor: { value: new THREE.Color(0x6d5c3f) },
       uParchment: { value: 0.0 },        // 0 = terrain, 1 = political parchment
+      // How hard the map-mode colour is painted over the land. Map modes set
+      // this: low for terrain, high for realm/vassal/faith/culture.
+      uPoliticalMix: { value: 0.72 },
       uHover: { value: -1 },
       uSelected: { value: -1 },
       uTime: { value: 0 },
@@ -199,7 +202,7 @@ export function buildMap(map) {
       uniform float uIdBias;
       uniform vec3 uBiome[8];
       uniform vec3 uSunDir, uSunColor, uSkyColor, uGroundColor, uBorderInk, uFogColor;
-      uniform float uParchment, uTime, uSeason, uYScale, uFogDensity;
+      uniform float uParchment, uTime, uSeason, uYScale, uFogDensity, uPoliticalMix;
       uniform float uHover, uSelected;
       varying vec2 vUv; varying vec3 vNormal; varying vec3 vWorld; varying float vBiome; varying float vH;
 
@@ -256,8 +259,13 @@ export function buildMap(map) {
         idField(id, edge, rival);
 
         // --- ink border: constant width on screen, antialiased by derivative --
+        // A line between two realms is drawn heavier than a line between two
+        // counties of the same realm — that alone reads as politics.
+        vec4 ownCol = id < 0.0 ? vec4(0.0) : palAt(id);
+        vec4 rivCol = rival < 0.0 ? vec4(0.0) : palAt(rival);
+        float realmEdge = clamp(length(ownCol.rgb - rivCol.rgb) * 3.2, 0.0, 1.0);
         float grad = max(fwidth(edge), 1e-5);
-        float wpx = mix(1.10, 1.70, uParchment);
+        float wpx = mix(1.10, 1.70, uParchment) * (1.0 + realmEdge*1.05);
         float t0 = min(wpx*grad, 0.30);
         float t1 = min((wpx+1.2)*grad, 0.58);
         float b = 1.0 - smoothstep(t0, t1, edge);
@@ -265,7 +273,7 @@ export function buildMap(map) {
         float coast = (id < -1.5 || rival < -1.5) ? 1.0 : 0.0;
         b *= mix(1.0, 0.34, coast);
 
-        vec4 pc = id < 0.0 ? vec4(0.0) : palAt(id);
+        vec4 pc = ownCol;
         float dist = length(vWorld - cameraPosition);
         vec3 N = normalize(vNormal);
         vec2 wp = vWorld.xz;
@@ -291,10 +299,16 @@ export function buildMap(map) {
         float snow = smoothstep(snowLine, snowLine+9.0, vH) * (1.0 - smoothstep(0.5,0.85,slope));
         base = mix(base, vec3(0.68,0.72,0.80), snow);
 
+        // The palette is authored in sRGB; the land is lit in linear. Without
+        // this the whole wheel arrives washed out and every realm looks khaki.
+        vec3 politLin = pow(clamp(pc.rgb, 0.0, 1.0), vec3(2.2));
         float lum = dot(base, LUM);
-        vec3 pol = atLuma(pc.rgb, lum);
-        pol = clamp(mix(vec3(lum), pol, 1.40), 0.0, 1.4);     // push near-neighbours apart
-        vec3 terr = mix(base, pol, mix(0.46, 0.62, uParchment) * pc.a);
+        // The land shades the realm's colour instead of replacing it: gold stays
+        // gold, dark red stays dark red, and the hills still read underneath.
+        float shade = clamp(lum / 0.20, 0.42, 1.55);
+        vec3 pol = politLin * shade * (0.94 + 0.12*fbm3(wp*0.018));
+        float ps = clamp(mix(uPoliticalMix, uPoliticalMix + 0.22, uParchment), 0.0, 1.0) * pc.a;
+        vec3 terr = mix(base, pol, ps);
 
         // --- parchment --------------------------------------------------------
         vec3 parch = terr;
@@ -342,7 +356,7 @@ export function buildMap(map) {
         col = mix(lit, col * (0.95 + 0.10*ndl), uParchment);
 
         // --- ink borders -------------------------------------------------------
-        col = mix(col, uBorderInk, b * mix(0.55, 0.85, uParchment));
+        col = mix(col, uBorderInk, b * mix(0.50, 0.85, uParchment) * (0.72 + 0.28*realmEdge));
 
         // --- hover / selection -------------------------------------------------
         if (uHover >= 0.0 && abs(id - uHover) < 0.5)   col += vec3(0.10,0.10,0.07);
@@ -488,11 +502,11 @@ function buildWater(map) {
         col += uSunColor * spec * 0.75;
 
         // --- surf: a lace of foam that only lives on the last few cells -------
-        float band = 1.0 - smoothstep(0.0, 0.30, shore);
-        float lace = n(vW.xz*0.075 + vec2(uTime*0.10, -uTime*0.07))
-                   + n(vW.xz*0.20 - vec2(uTime*0.16, uTime*0.11))*0.6;
-        float foam = band * smoothstep(0.55, 1.05, lace*0.72 + band*0.55);
-        col = mix(col, vec3(0.82,0.88,0.90), clamp(foam,0.0,1.0)*0.75);
+        float band = 1.0 - smoothstep(0.0, 0.17, shore);
+        float lace = n(vW.xz*0.10 + vec2(uTime*0.10, -uTime*0.07))
+                   + n(vW.xz*0.27 - vec2(uTime*0.16, uTime*0.11))*0.6;
+        float foam = band * smoothstep(0.72, 1.12, lace*0.80 + band*0.42);
+        col = mix(col, vec3(0.72,0.80,0.83), clamp(foam,0.0,1.0)*0.55);
 
         // --- the world ends in haze, not in an edge --------------------------
         float far = smoothstep(2400.0, 4600.0, length(vW.xz - cameraPosition.xz));
@@ -538,6 +552,8 @@ export function setParchment(t) {
   setSkyParchment(t);
 }
 let _season = -1;
+/** How hard the map-mode colour is painted on. Map modes own this. */
+export function setPoliticalMix(t) { if (M.mat) M.mat.uniforms.uPoliticalMix.value = Math.max(0, Math.min(1, t)); }
 export function setSeason(t) {
   if (!M.mat) return;
   M.mat.uniforms.uSeason.value = t;
