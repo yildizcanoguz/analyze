@@ -94,6 +94,43 @@ window.__state = () => {
 };
 `});
 
+
+// A decision modal is fully blocking by design, so the tour must deal with one
+// before it can look at anything else.
+async function clearDecision(page, shot, label) {
+  if (!(await page.evaluate(() => !!document.querySelector('.dec')))) return false;
+  await page.waitForTimeout(1200);
+  if (label) await shot(label);
+  // Options render as .opt (medium/heavy sheets) or .copt (the light corner card).
+  const opts = await page.$$('.dec .opt:not(.disabled), .dec .copt:not(.disabled)');
+  if (opts.length) {
+    await opts[opts.length - 1].click();
+    await page.waitForTimeout(700);
+    // An irreversible choice opens a press-and-hold gate that must be held down.
+    const hold = await page.$('.gate .holdbtn');
+    if (hold) {
+      const box = await hold.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.waitForTimeout(3200);
+        await page.mouse.up();
+      }
+    }
+  }
+  await page.waitForTimeout(1000);
+  // A reveal may follow straight away; click through it.
+  for (let i = 0; i < 20; i++) {
+    const ok = await page.$('#revealRoot .ok, .reveal .ok');
+    if (ok) { await ok.click(); await page.waitForTimeout(600); continue; }
+    if (!(await page.evaluate(() => !!document.querySelector('#revealRoot .reveal, #revealRoot .breath, .dec')))) break;
+    await page.waitForTimeout(500);
+  }
+  const still = await page.evaluate(() => !!document.querySelector('.dec'));
+  if (still) report.notes.push('clearDecision: a decision modal survived the attempt');
+  return true;
+}
+
 let shotN = 0;
 async function shot(name) {
   const f = join(OUT, `${String(++shotN).padStart(2, '0')}-${name}.png`);
@@ -104,6 +141,7 @@ async function shot(name) {
 
 // --- default pass: look at the world -----------------------------------------
 await page.waitForTimeout(3800);   // let the opening camera move settle
+await clearDecision(page, shot, 'first-decision');
 await shot('opening');
 
 if (args.script && existsSync(resolve(args.script))) {
@@ -111,9 +149,12 @@ if (args.script && existsSync(resolve(args.script))) {
   await mod.default({ page, shot, report, W, H });
 } else {
   // built-in default tour
+  await clearDecision(page, shot, null);
   await page.keyboard.press('Space');                // start time
   await page.waitForTimeout(2500);
   await shot('running');
+  await clearDecision(page, shot, null);
+  await page.keyboard.press('Space');                // pause so the tour is not interrupted
   for (const [k, n] of [['3', 'culture'], ['4', 'faith'], ['5', 'terrain'], ['7', 'opinion'], ['1', 'realm']]) {
     await page.keyboard.press(k); await page.waitForTimeout(700); await shot('mode-' + n);
   }
