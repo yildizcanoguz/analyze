@@ -99,13 +99,17 @@ export function initRealmUI() {
     // Harness only: re-stage whatever decision is open. A test script that
     // commits through the sim (instead of clicking) leaves P01's modal behind;
     // this puts the real sheet back on screen so it can be photographed.
-    showOpen: () => {
-      const d = openDecisions()[0];
-      if (!d) return null;
+    clearStage: () => {
       close();
       const dr = document.getElementById('decisionRoot'); if (dr) dr.innerHTML = '';
-      const rr = document.getElementById('revealRoot'); if (rr) rr.innerHTML = '';
+      const rr = document.getElementById('revealRoot'); if (rr) { rr.innerHTML = ''; rr.className = ''; }
       document.body.classList.remove('staged');
+      return true;
+    },
+    showOpen: () => {
+      window.__p09.clearStage();
+      const d = openDecisions()[0];
+      if (!d) return null;
       showDecision(d);
       return d.title;
     },
@@ -262,6 +266,7 @@ function render() {
       <div class="p09body">
         ${factionsBlock(fs, mineF, p)}
         ${vassalsBlock(vs, p)}
+        ${signsBlock()}
         ${liege ? liegeBlock(liege, p) : ''}
       </div>
     </div>`;
@@ -302,19 +307,37 @@ function factionCard(f, p, isMine) {
   const yrs = ((S.day - f.founded) / YEAR).toFixed(1);
   const members = f.memberIds.map(ch).filter(Boolean);
   const pre = f.pretenderId ? ch(f.pretenderId) : null;
+  const signals = f.joinLog.slice(-3).reverse();
+
+  // Until it has a name you get the trail, not the conclusion. Joining the dots
+  // is the player's job; a game that does it for him has taken the tension away.
+  if (!f.known) {
+    return `<div class="p09fac rumour">
+      <div class="p09facHead">
+        <div class="p09face masked">?</div>
+        <div class="p09facWho">
+          <div class="p09kind">Söylenti <span class="p09flag">adı yok</span></div>
+          <div class="p09lead dim">Beylerinden bazıları bir şey konuşuyor</div>
+          <div class="p09want">“Ne istediklerini bilmiyorsun. Kaç kişi olduklarını da.”</div>
+        </div>
+        <div class="p09facAge">${yrs} yıl<span>süredir</span></div>
+      </div>
+      ${signals.length ? `<div class="p09signals">${signals.map((x) => `<div>“${esc(x.text)}”<span>${fmtDate(x.day)}</span></div>`).join('')}</div>` : ''}
+      <div class="p09gnum"><span>Casusun daha fazlasını söyleyemiyor. Bekle ve izle.</span></div>
+    </div>`;
+  }
+
   const state = f.state === 'revolt' ? '<span class="p09flag hot">AYAKLANMA</span>'
-    : f.state === 'demanding' ? '<span class="p09flag hot">FERMAN KAPIDA</span>'
-      : f.known ? '' : '<span class="p09flag">SÖYLENTİ</span>';
-  const signals = f.joinLog.slice(-2).reverse();
+    : f.state === 'demanding' ? '<span class="p09flag hot">FERMAN KAPIDA</span>' : '';
 
   return `<div class="p09fac${f.state === 'revolt' || f.state === 'demanding' ? ' hot' : ''}${isMine ? ' mine' : ''}">
     <div class="p09facHead">
       <div class="p09face"><canvas width="128" height="128" data-face="${f.leaderId}"></canvas></div>
       <div class="p09facWho">
         <div class="p09kind">${esc(KIND[f.kind].name)} ${state}</div>
-        <div class="p09lead"${f.known ? ` data-op="${f.leaderId}"` : ''}>${esc(f.known ? fullName(led) : 'Elebaşı henüz bilinmiyor')}</div>
+        <div class="p09lead" data-op="${f.leaderId}">${esc(fullName(led))}</div>
         <div class="p09want">“${esc(demandLine(f))}”</div>
-        ${pre && f.known ? `<div class="p09note">Aday: <b>${esc(fullName(pre))}</b>, ${age(pre)} yaşında${pre.isSibling === p.id ? ' — senin kardeşin' : ''}</div>` : ''}
+        ${pre ? `<div class="p09note">Aday: <b>${esc(fullName(pre))}</b>, ${age(pre)} yaşında${pre.isSibling === p.id ? ' — senin kardeşin' : ''}</div>` : ''}
         ${isMine ? `<div class="p09note mine">Senin mührün de bu kâğıtta. ${f.playerSecret ? 'Efendin henüz bilmiyor.' : '<b>Efendin biliyor.</b>'}</div>` : ''}
       </div>
       <div class="p09facAge">${yrs} yıl<span>örgütleniyor</span></div>
@@ -336,9 +359,9 @@ function factionCard(f, p, isMine) {
       ${members.map((m) => `<span class="p09chip${m.id === S.playerId ? ' you' : ''}"${m.id === S.playerId ? '' : ` data-op="${m.id}"`}>${esc(m.id === S.playerId ? 'sen' : m.name)} <b>${nominalLevy(m.id)}</b></span>`).join('')}
     </div>
 
-    ${signals.length ? `<div class="p09signals">${signals.map((s) => `<div>“${esc(s.text)}”<span>${fmtDate(s.day)}</span></div>`).join('')}</div>` : ''}
+    ${signals.length ? `<div class="p09signals">${signals.map((x) => `<div>“${esc(x.text)}”<span>${fmtDate(x.day)}</span></div>`).join('')}</div>` : ''}
 
-    ${!isMine && f.known ? `<div class="p09tools">
+    ${!isMine ? `<div class="p09tools">
       <button data-tool="gift" data-id="${f.leaderId}">Kese — ${toolPrice('gift', f.leaderId)} altın</button>
       ${grantableTitleFor(f.leaderId) ? `<button data-tool="office" data-id="${f.leaderId}">Yetki ver — ${esc(titleName(grantableTitleFor(f.leaderId)))}</button>` : ''}
       <button data-tool="betroth" data-id="${f.leaderId}">Nikâh bağı</button>
@@ -372,9 +395,14 @@ function vassalRow(v, p) {
         <div class="p09meta">${esc(t ? titleName(t) : styleOf(v))} · ${age(v)} · ${(v.traits || []).slice(0, 3).map((x) => esc(TRAITS[x]?.name || x)).join(', ')}</div>
       </div>
       <div class="p09levy" title="Çağırabildiği asker">⚔ ${lv}</div>
+      <div class="p09patience" title="${esc(patienceTip(v, p, mood, f))}">
+        <i style="width:${Math.min(100, Math.round((f ? 100 : mood) / 100 * 100))}%" class="${f ? 'done' : mood > 70 ? 'hot' : ''}"></i>
+        <span>${f ? 'örgütlendi' : mood < 8 ? 'sakin' : `sabır %${Math.max(0, 100 - Math.round(mood))}`}</span>
+      </div>
       <div class="p09op ${opClass(o)}" data-op="${v.id}">${o > 0 ? '+' : ''}${o}<span>${esc(opinionLabel(o))}</span></div>
       <div class="p09badges">
-        ${f ? `<span class="p09flag ${f.state === 'brewing' ? '' : 'hot'}">${esc(f.known ? KIND[f.kind].short : '?')}</span>` : ''}
+        ${f && f.known ? `<span class="p09flag ${f.state === 'brewing' ? '' : 'hot'}">${esc(KIND[f.kind].short)}</span>` : ''}
+        ${f && !f.known ? `<span class="p09flag warm">söylenti</span>` : ''}
         ${!f && mood > 45 ? `<span class="p09flag warm" title="Sabrı tükeniyor">huzursuz</span>` : ''}
         ${v.imprisonedBy ? `<span class="p09flag hot">zindanda</span>` : ''}
       </div>
@@ -382,6 +410,14 @@ function vassalRow(v, p) {
     </div>
     ${isOpen ? vassalDetail(v, p, o) : ''}
   </div>`;
+}
+
+function patienceTip(v, p, mood, f) {
+  if (f) return `${v.name} artık bir tarafın içinde.`;
+  if (mood < 8) return `${v.name} yerinden memnun.`;
+  const d = discontent(v.id, p.id);
+  const months = d > 0.02 ? Math.ceil((100 - mood) / (d * 6)) : 999;
+  return `${discontentReason(v.id, p.id)} — bu gidişle ${months > 240 ? 'hiçbir zaman' : `yaklaşık ${months} ay içinde`} birileriyle oturur.`;
 }
 
 function vassalDetail(v, p, o) {
@@ -411,6 +447,17 @@ function lineRow(l) {
     ? (l.decaying ? `<em>${l.yearsLeft < 1 ? 'son yılı' : `${Math.round(l.yearsLeft)} yıl kaldı`}</em>` : '<em>hiç geçmez</em>')
     : (l.kind === LINE.CLAMP ? '<em>tavan</em>' : '');
   return `<div class="p09line"><span>${esc(l.label)}</span>${tail}<b class="${cls}">${l.value > 0 ? '+' : ''}${Math.round(l.value)}</b></div>`;
+}
+
+// ------------------------------------------------------------------- the trail
+// Whispers fade in eleven seconds. A threat you are supposed to watch grow has
+// to be re-readable, so every sign is kept here with the date it arrived.
+function signsBlock() {
+  const rows = (S.chronicle || []).filter((e) => e.kind === 'unrest' || e.kind === 'faction').slice(-12).reverse();
+  if (!rows.length) return '';
+  return `<section class="p09sec"><h3>İşaretler <span>(son ${rows.length})</span></h3>
+    <div class="p09signs">${rows.map((e) => `<div class="${e.kind === 'faction' ? 'hot' : ''}">
+      <span>${fmtDate(e.day)}</span>${esc(e.text)}</div>`).join('')}</div></section>`;
 }
 
 // ---------------------------------------------------------------- your liege
@@ -558,11 +605,11 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 
 /* ---- the screen ---- */
 #p09screen{position:fixed;inset:0;z-index:34;display:flex;align-items:flex-start;justify-content:center;
-  padding:70px 20px 56px;background:rgba(5,4,3,.74);animation:p09fade .22s ease}
+  padding:70px 20px 56px;background:rgba(4,3,2,.86);animation:p09fade .22s ease}
 #p09screen.gone{opacity:0;transition:opacity .2s ease;pointer-events:none}
 @keyframes p09fade{from{opacity:0}to{opacity:1}}
 .p09sheet{width:min(1080px,94vw);max-height:100%;display:flex;flex-direction:column;
-  background:linear-gradient(170deg,var(--panel-2),var(--panel));border:1px solid var(--edge);
+  background:linear-gradient(170deg,#1d1710,#14100b);border:1px solid var(--edge);
   box-shadow:var(--shadow);animation:p09rise .3s cubic-bezier(.16,1,.3,1)}
 @keyframes p09rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .p09head{display:flex;align-items:center;gap:14px;padding:14px 18px 12px;border-bottom:1px solid var(--edge-2);
@@ -591,6 +638,10 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
   padding:12px 14px;margin-bottom:10px}
 .p09fac.hot{border-left-color:var(--blood-2);background:rgba(60,18,14,.22)}
 .p09fac.mine{border-left-color:#7a6aa8;background:rgba(30,24,46,.28)}
+.p09fac.rumour{border-left-color:#6b5a38;border-style:dashed}
+.p09face.masked{display:flex;align-items:center;justify-content:center;color:#5d4f36;font-size:30px;
+  border:1px dashed rgba(201,163,78,.28)}
+.p09lead.dim{color:#9a8a6a;font-style:italic;font-size:15px}
 .p09facHead{display:flex;gap:12px;align-items:flex-start}
 .p09face{width:62px;height:62px;flex:0 0 auto;border:1px solid var(--edge);background:#1a140e;overflow:hidden;
   box-shadow:inset 0 0 18px rgba(0,0,0,.7)}
@@ -624,8 +675,8 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 .p09signals div{font-size:12px;color:#bdae8e;font-style:italic;line-height:1.6;padding:2px 0}
 .p09signals span{font-style:normal;color:#6a5c42;font-size:10.5px;margin-left:8px}
 
-.p09tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.p09tools button{background:rgba(0,0,0,.35);border:1px solid var(--edge-2);color:var(--txt-dim);
+.p09tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:flex-start;align-content:flex-start}
+.p09tools button{flex:0 0 auto;align-self:flex-start;background:rgba(0,0,0,.35);border:1px solid var(--edge-2);color:var(--txt-dim);
   padding:6px 12px;font-family:var(--serif);font-size:12px;cursor:pointer;letter-spacing:.3px;transition:all .15s}
 .p09tools button:hover{border-color:var(--edge);color:var(--gold-2);background:rgba(201,163,78,.10)}
 .p09tools button.danger{border-color:rgba(168,48,40,.35);color:#c08878}
@@ -648,6 +699,12 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 .p09op span{display:block;font-size:10px;letter-spacing:.5px;color:var(--txt-dim);text-transform:uppercase}
 .p09op.neg2{color:#d0705e}.p09op.neg{color:#c09080}.p09op.mid{color:#a8987a}
 .p09op.pos{color:#a8bb8a}.p09op.pos2{color:#8fc06e}
+.p09patience{width:92px;flex:0 0 auto;cursor:help}
+.p09patience i{display:block;height:4px;background:linear-gradient(90deg,#6b5a38,var(--gold));transition:width .8s ease}
+.p09patience i.hot{background:linear-gradient(90deg,#8a4a20,#d05a48)}
+.p09patience i.done{background:var(--blood-2)}
+.p09patience span{display:block;font-size:9.5px;color:var(--txt-dim);letter-spacing:.4px;margin-top:3px;
+  border-top:1px solid rgba(201,163,78,.10);padding-top:2px}
 .p09badges{width:96px;flex:0 0 auto;display:flex;gap:4px;justify-content:flex-end}
 .p09caret{width:14px;flex:0 0 auto;color:#6a5c42;font-size:11px}
 .p09flag{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;padding:2px 6px;border:1px solid var(--edge-2);
@@ -655,7 +712,7 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 .p09flag.hot{border-color:var(--blood-2);color:#e8b5a8;background:rgba(122,31,26,.25)}
 .p09flag.warm{border-color:#7a6a3a;color:#cbbd97}
 
-.p09detail{padding:4px 4px 14px 55px;display:flex;gap:22px;flex-wrap:wrap;animation:p09fade .2s ease}
+.p09detail{padding:4px 4px 14px 55px;display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;animation:p09fade .2s ease}
 .p09why{flex:1;min-width:300px}
 .p09whyHead{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:#8a7a58;margin-bottom:5px}
 .p09line{display:flex;align-items:baseline;gap:8px;font-size:12.5px;padding:2.5px 0;
@@ -670,6 +727,14 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 .p09line.drift{border-bottom:none;opacity:.72}
 .p09line.drift span{color:var(--txt-dim);font-style:italic}
 .p09line b.neg2{color:#d0705e}.p09line b.pos2{color:#8fc06e}.p09line b.mid{color:#a8987a}
+
+/* ---- the trail of signs ---- */
+.p09signs{border-top:1px solid var(--edge-2)}
+.p09signs div{font-size:12.5px;color:#bdae8e;line-height:1.65;padding:4px 0;
+  border-bottom:1px solid rgba(201,163,78,.06);font-style:italic}
+.p09signs div.hot{color:#dfae9f;font-style:normal}
+.p09signs span{font-style:normal;color:#6a5c42;font-size:10.5px;margin-right:10px;
+  font-variant-numeric:tabular-nums;display:inline-block;min-width:104px}
 
 /* ---- liege block ---- */
 .p09liege{display:flex;align-items:center;gap:12px;padding:8px 4px;border-top:1px solid var(--edge-2);border-bottom:1px solid var(--edge-2)}

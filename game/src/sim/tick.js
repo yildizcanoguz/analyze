@@ -8,7 +8,7 @@ import { age, mortalityChance, kill, bear, opinion, remember, fullName, livingCh
 import { incomeOf, realmLevy, vassalsOf, primaryTitle, grantTitle, recomputeVassalage, directCountiesOf, TIER } from './realm.js';
 import { tickDecisions } from './decision.js';
 import { tryFireEvents } from '../content/events.js';
-import { succeed } from './succession.js';
+import { succeed, tickSuccession } from './succession.js';
 import { tickSchemes } from './schemes.js';
 import { tickCouncil } from './council.js';
 import { tickFactions } from './factions.js';
@@ -28,6 +28,7 @@ export function tickDay(day) {
   tickEconomy(day);
   tickAI(day);
   tickEchoes(day);
+  tickSuccession(day);
   const { y, m } = fromDay(day);
   if (m !== lastMonth) { lastMonth = m; monthly(day); }
   if (y !== lastYear) { lastYear = y; yearly(day, y); }

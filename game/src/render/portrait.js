@@ -15,11 +15,14 @@ import * as THREE from '../../vendor/three.module.js';
 import { hashStr, mulberry32 } from '../core/rng.js';
 
 const SIZE = 320;
-// Cached blits are stored smaller than they are rendered: the UI never shows a
-// portrait above ~96px, and a court of eighty full-size canvases is 80MB of
-// texture memory sitting behind a 3D map.
-const CACHE_SIZE = 224;
-const CACHE_MAX = 130;
+// The game shows portraits at 52px (top bar), 56px (court list) and 74px
+// (decision head) far more often than it shows them big. Those canvases get a
+// tighter crop and their own cache entry, because a face framed for a 300px
+// close-up is a brown oval at 52.
+const TIGHT_MAX = 160;          // backing-store width at or below this = small
+const CACHE_TIGHT = 176;
+const CACHE_WIDE = 256;
+const CACHE_MAX = 140;
 let rr = null, sc = null, cam = null, rig = null, L = null;
 
 function ensure() {
@@ -204,12 +207,16 @@ function faceParams(c) {
     skinLum: lum(SKIN[si]),
 
     // --- skull proportions. This is where two people stop looking alike. ---
-    W: 0.372 * (0.85 + r() * 0.32) * (male ? 1.04 : 0.97),
-    H: 0.552 * (0.91 + r() * 0.19),
-    D: 0.482 * (0.88 + r() * 0.26),
+    W: 0.372 * (0.80 + r() * 0.44) * (male ? 1.04 : 0.97),
+    H: 0.552 * (0.88 + r() * 0.26),
+    D: 0.482 * (0.86 + r() * 0.30),
     craniumW: r(),                 // 0 narrow skull, 1 broad
     occiput: 0.2 + r() * 0.9,      // how far the back of the head runs
     faceLong: (r() - 0.5) * 1.35,  // long face vs short
+    // How much of the head sits below the eyes. Two faces with identical
+    // colouring read as different people if this differs, and as twins if not.
+    midFace: (r() - 0.5) * 0.30,
+    faceRound: r(),                // fat in the lower cheek
     skew: (r() - 0.5) * 1.0,       // nobody's face is symmetric
     forehead: (r() - 0.45) * (male ? 1.1 : 0.7),   // + = upright, - = sloped back
     jawWide: r() * (male ? 1 : 0.66),
@@ -221,25 +228,25 @@ function faceParams(c) {
     temple: r(),
 
     // --- eyes ---
-    eyeX: 0.378 + r() * 0.135,
+    eyeX: 0.372 + r() * 0.150,
     eyeY: -0.005 + (r() - 0.5) * 0.05,
-    eyeR: (0.058 + r() * 0.013) * (male ? 1 : 1.07),
+    eyeR: (0.053 + r() * 0.026) * (male ? 1 : 1.07),
     eyeTilt: (r() - 0.45) * 0.30,      // + = outer corner up
     socket: 0.45 + r() * 0.75,
     lidHeavy: r(),
 
     // --- nose: the single strongest identity cue in a small portrait ---
-    noseLen: (0.60 + r() * 0.66) * (male ? 1.04 : 0.84),
-    noseW: (0.66 + r() * 0.80) * (male ? 1 : 0.86),
+    noseLen: (0.46 + r() * 0.92) * (male ? 1.04 : 0.84),
+    noseW: (0.56 + r() * 1.05) * (male ? 1 : 0.86),
     noseHook: (r() - 0.42) * 1.75,     // + = aquiline, - = snub
     noseTipDown: (r() - 0.4) * 0.9,
     bridgeW: 0.7 + r() * 0.7,
 
     // --- mouth ---
-    mouthW: (0.72 + r() * 0.60) * (male ? 1.04 : 0.94),
+    mouthW: (0.64 + r() * 0.78) * (male ? 1.04 : 0.94),
     lipUpper: (0.55 + r() * 0.85) * (male ? 0.92 : 1.30),
     lipLower: (0.70 + r() * 0.80) * (male ? 0.92 : 1.32),
-    mouthY: -0.545 + (r() - 0.5) * 0.105,
+    mouthY: -0.545 + (r() - 0.5) * 0.115,
 
     // --- hair / beard ---
     hairStyle: Math.floor(r() * 6),
@@ -251,7 +258,7 @@ function faceParams(c) {
     beardLen: 0,
     baldness: r(),
     browThick: (0.55 + r() * 0.8) * (male ? 1.25 : 0.68),
-    browHigh: (r() - 0.5) * 0.05 + fem * 0.026,
+    browHigh: (r() - 0.5) * 0.115 + fem * 0.026,
     browArch: r(),
     earSize: 0.8 + r() * 0.5,
 
@@ -334,8 +341,10 @@ function sculpt(x, y, z, p, out) {
   const fz = Math.max(0, z);
   const ax = Math.abs(x);
   const sgn = x < 0 ? -1 : 1;
-  // feature band shifted for long/short faces
-  const fy = y + p.faceLong * 0.07 * (1 - y * y);
+  // Feature band shifted for long/short faces, then stretched or squashed
+  // below the eye line: this is the single most individual proportion there is.
+  let fy = y + p.faceLong * 0.07 * (1 - y * y);
+  if (fy < 0.05) fy = 0.05 + (fy - 0.05) * (1 + p.midFace);
 
   let W = p.W, H = p.H, D = p.D;
   // cranium breadth above the eyes, and a flatter crown than a sphere gives
@@ -393,9 +402,10 @@ function sculpt(x, y, z, p, out) {
   const hol = g2(ax - 0.435, 0.20) * g2(fy + 0.330, 0.19) * fz;
   const holA = p.old * 0.95 + p.m.hollow * 0.6 + (1 - p.young) * 0.1;
   ox -= sgn * hol * holA * 0.038; oz -= hol * holA * 0.048;
-  // young faces carry fat where old faces carry shadow
+  // young faces carry fat where old faces carry shadow — and some adults keep it
   const chub = g2(ax - 0.40, 0.28) * g2(fy + 0.270, 0.26) * fz;
-  ox += sgn * chub * p.young * 0.035; oz += chub * p.young * 0.030;
+  const fat = p.young + (1 - p.old) * (p.faceRound - 0.5) * 0.9;
+  ox += sgn * chub * fat * 0.042; oz += chub * fat * 0.034;
 
   // masseter / clenched jaw
   const gon = g2(ax - 0.615, 0.185) * g2(fy + 0.520, 0.20);
@@ -452,7 +462,7 @@ function buildSkull(p) {
   const col = new Float32Array(pos.count * 3);
   const v = new THREE.Vector3(), o = new THREE.Vector3();
   const base = new THREE.Color(p.skin);
-  if (p.old) base.lerp(new THREE.Color(0xd8c6b4), p.old * 0.16);
+  if (p.old) { base.lerp(new THREE.Color(0xc4b3a2), p.old * 0.10); base.offsetHSL(0, -p.old * 0.10, 0); }
   if (p.m.pallor) base.lerp(new THREE.Color(0xa8ab97), p.m.pallor * 0.54);
   if (p.dead) base.lerp(new THREE.Color(0x9aa0a0), 0.55);
   const beardMask = beardMaskFn(p);
@@ -475,8 +485,9 @@ function buildSkull(p) {
     const ax = Math.abs(v.x), fy = v.y;
     // the nose is modelled with light, not polygons: a groove down each side,
     // two nostril marks, and a lit ridge — a bare ramp reads as a mask
-    const noseSide = g2(ax - 0.115 * p.noseW - 0.045, 0.055) * g2(fy + 0.215, 0.145) * Math.max(0, v.z);
-    s -= noseSide * 0.26;
+    const noseSide = g2(ax - 0.115 * p.noseW - 0.045, 0.048 + 0.022 * p.noseW)
+      * g2(fy + 0.215, 0.115 + 0.070 * p.noseLen) * Math.max(0, v.z);
+    s -= noseSide * (0.20 + 0.14 * p.noseLen);
     const nostril = g2(ax - 0.085 * p.noseW, 0.042) * g2(fy + 0.325, 0.040) * Math.max(0, v.z);
     s -= nostril * 0.42;
     s += f.bridge * 0.14;
@@ -523,22 +534,40 @@ function buildSkull(p) {
 
 // ---------------------------------------------------------------- eyes
 // The eye is an almond opening bounded by two lid arcs, not a ball with lids
-// laid over it: at 52 pixels what you actually see is a pale slit, a dark iris
-// and a dark line above it, and that reading must survive every parameter.
+// laid over it: at 52 pixels what you actually see is a dark iris inside a
+// dim slit with a hard line above it, and that reading must survive every
+// parameter. An eye-white lit like a headlight — which is what a plain bright
+// sclera becomes after a 3x downscale — makes every face look possessed and,
+// worse, makes them all look alike.
 function buildEyes(p, parent) {
   const o = new THREE.Vector3();
   const openU = Math.max(0, Math.min(1.30, p.m.open - p.lidHeavy * 0.12 - p.old * 0.22));
   const closed = p.dead || openU < 0.16;
-  const white = M('eyeW', { metalness: 0 }, { color: p.dead ? 0x86837b : 0xb5aa97, roughness: 0.34 });
-  const irisM = M('iris', { metalness: 0 }, { color: p.eyeCol, roughness: 0.52 });
-  const pupM = M('pupil', { metalness: 0 }, { color: 0x080606, roughness: 0.2 });
+  const white = M('eyeW', { vertexColors: true, metalness: 0 },
+    { color: p.dead ? 0x6b6862 : 0x8c8478, roughness: 0.62 });
+  const irisM = M('iris', { metalness: 0 },
+    { color: new THREE.Color(p.eyeCol).multiplyScalar(0.78).getHex(), roughness: 0.55 });
+  const pupM = M('pupil', { metalness: 0 }, { color: 0x070505, roughness: 0.3 });
   const lidCol = new THREE.Color(p.skin).multiplyScalar(0.90);
   if (p.dead) lidCol.lerp(new THREE.Color(0x9aa0a0), 0.55);
   const lidM = M('lid', { metalness: 0 }, { color: lidCol, roughness: 0.66 });
-  const lashM = M('lash', { metalness: 0 }, { color: 0x110d09, roughness: 0.9 });
-  const lowM = M('lidLow', { metalness: 0 }, { color: new THREE.Color(p.skin).multiplyScalar(0.55), roughness: 0.8 });
+  const lashM = M('lash', { metalness: 0 }, { color: 0x0f0c09, roughness: 0.9 });
+  const lowM = M('lidLow', { metalness: 0 }, { color: new THREE.Color(p.skin).multiplyScalar(0.52), roughness: 0.8 });
   const R = p.eyeR;
-  const hh = R * (0.20 + 0.44 * Math.min(1.30, openU));       // half-height of the opening
+  const hh = R * (0.19 + 0.40 * Math.min(1.30, openU));       // half-height of the opening
+
+  // the sclera carries its own shading: dark under the upper lid, less so below
+  const scGeo = new THREE.SphereGeometry(1, 14, 10);
+  {
+    const pos = scGeo.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      const v = 1 - Math.max(0, y) * 0.62 - Math.max(0, -y) * 0.12;
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
+    }
+    scGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
 
   for (const s of [-1, 1]) {
     sculpt(s * p.eyeX, p.eyeY + 0.02, 0.86, p, o);
@@ -548,36 +577,39 @@ function buildEyes(p, parent) {
     g.rotation.z = s * p.eyeTilt;
 
     if (!closed) {
-      const sc = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), white);
-      sc.scale.set(R * 1.44, hh, R * 0.34);
+      const sc = new THREE.Mesh(s < 0 ? scGeo : scGeo.clone(), white);
+      sc.scale.set(R * 1.36, hh, R * 0.34);
       g.add(sc);
-      const gx = (s * p.m.gaze * 0.34 - p.m.gaze * 0.12) * R * 0.62;
-      const irR = Math.min(R * 0.74, hh * 1.12);
+      // The iris fills most of the opening. Sclera showing on both sides of a
+      // small iris is what read as two bright dots at thumbnail size.
+      const gx = (s * p.m.gaze * 0.30 - p.m.gaze * 0.10) * R * 0.48;
+      const irR = Math.min(R * 0.86, hh * 1.16);
       const ir = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), irisM);
       ir.scale.set(irR, irR, R * 0.20);
       ir.position.set(gx, -R * 0.02, R * 0.20);
       g.add(ir);
       const pu = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), pupM);
-      pu.scale.set(irR * 0.44, irR * 0.44, R * 0.14);
+      pu.scale.set(irR * 0.50, irR * 0.50, R * 0.14);
       pu.position.set(gx, -R * 0.02, R * 0.27);
       g.add(pu);
-      const gl = new THREE.Mesh(new THREE.SphereGeometry(irR * 0.17, 8, 6), MB('glint', 0xe8dcc4));
-      gl.position.set(gx - irR * 0.44, irR * 0.44, R * 0.30);
+      // a catchlight, but a candle's, not a car's
+      const gl = new THREE.Mesh(new THREE.SphereGeometry(irR * 0.15, 8, 6), MB('glint', 0xa89980));
+      gl.position.set(gx - irR * 0.42, irR * 0.40, R * 0.30);
       g.add(gl);
     } else {
       const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), lidM);
-      lid.scale.set(R * 1.44, Math.max(hh, R * 0.30), R * 0.32);
+      lid.scale.set(R * 1.40, Math.max(hh, R * 0.30), R * 0.32);
       g.add(lid);
     }
     // upper lid edge: the single darkest mark on the face, and the one that
     // makes a thumbnail read as a person looking back at you
-    const lash = new THREE.Mesh(new THREE.TorusGeometry(R * 1.42, R * 0.085, 6, 16, Math.PI), lashM);
-    lash.scale.set(1, Math.max(0.24, (hh * 1.08) / (R * 1.42)), 0.40);
-    lash.position.set(0, 0, R * 0.16);
+    const lash = new THREE.Mesh(new THREE.TorusGeometry(R * 1.40, R * 0.105, 6, 16, Math.PI), lashM);
+    lash.scale.set(1, Math.max(0.26, (hh * 1.02) / (R * 1.40)), 0.40);
+    lash.position.set(0, 0, R * 0.18);
     lash.rotation.x = -0.10;
     g.add(lash);
-    const low = new THREE.Mesh(new THREE.TorusGeometry(R * 1.34, R * 0.050, 6, 16, Math.PI), lowM);
-    low.scale.set(1, Math.max(0.20, (hh * 0.82) / (R * 1.34)), 0.38);
+    const low = new THREE.Mesh(new THREE.TorusGeometry(R * 1.30, R * 0.055, 6, 16, Math.PI), lowM);
+    low.scale.set(1, Math.max(0.20, (hh * 0.80) / (R * 1.30)), 0.38);
     low.position.set(0, 0, R * 0.14);
     low.rotation.set(0.10, 0, Math.PI);
     g.add(low);
@@ -612,7 +644,7 @@ function buildBrows(p, parent) {
       pts.push(new THREE.Vector3(o.x * 0.995, o.y, o.z + 0.012));
     }
     const curve = new THREE.CatmullRomCurve3(pts);
-    const thick = 0.0158 * p.browThick * (1 + p.old * (p.male ? 0.75 : 0.15));
+    const thick = 0.0178 * p.browThick * (1 + p.old * (p.male ? 0.75 : 0.15));
     const g = new THREE.TubeGeometry(curve, 12, thick, 6, false);
     // taper the outer end
     const pos = g.attributes.position;
@@ -664,7 +696,7 @@ function buildMouth(p, parent) {
   parent.add(mk(tU * 0.72, tU, 0.80, 0));
   parent.add(mk(-tL * 0.76, tL, 0.92, 0.002));
   // the seam: the strongest single dark mark below the eyes
-  parent.add(mk(-0.0016, 0.0098, 0.40, 0.0128, lineM));
+  parent.add(mk(-0.0016, 0.0118, 0.38, 0.0132, lineM));
 }
 
 // ---------------------------------------------------------------- ears
@@ -1148,8 +1180,9 @@ export function renderPortrait(c, canvas2d, opts = {}) {
   ensure();
   const ctx = canvas2d.getContext('2d');
   if (!ctx) return;
+  const tight = (canvas2d.width || 0) <= TIGHT_MAX;
   const key = `${c.id}|${c.sex}|${c.culture}|${c.faith}|${c._ageCache | 0}|${(c.traits || []).join(',')}|` +
-    `${c._rank || 0}|${c.deathDay != null ? 'd' : 'l'}|${opts.yaw ?? ''}`;
+    `${c._rank || 0}|${c.deathDay != null ? 'd' : 'l'}|${opts.yaw ?? ''}|${tight ? 't' : 'w'}`;
   const hit = cacheImg.get(key);
   if (hit) { blit(ctx, hit, canvas2d); return; }
 
@@ -1159,13 +1192,17 @@ export function renderPortrait(c, canvas2d, opts = {}) {
 
   // Framing: eyes a little above centre, shoulders cut by the bottom edge.
   const seedYaw = (((c.faceSeed ?? hashStr(String(c.id || 'x'))) % 1000) / 1000 - 0.5);
-  rig.rotation.y = opts.yaw ?? (seedYaw * 0.44 - p.m.turn * 0.34);
+  rig.rotation.y = opts.yaw ?? (seedYaw * 0.62 - p.m.turn * 0.34);
+  rig.rotation.z = (((c.faceSeed ?? 1) >> 7) % 100) / 100 * 0.07 - 0.035;
   rig.rotation.x = 0;
   const tall = (p.cap === 'turban' || p.cap === 'wrap' || p.cap === 'cone' ? 0.10 : 0)
     + (p.cap === 'kalpak' || p.cap === 'fur' || p.cap === 'helmet' ? 0.06 : 0)
     + (p.rank >= 3 ? 0.05 : 0);
-  rig.scale.setScalar(1 - tall);
-  rig.position.set(0, 0.075 - tall * 0.10, 0);
+  // Small portraits are cropped hard onto the head: at 52px every pixel spent
+  // on empty shoulder is a pixel not spent on a face.
+  cam.position.z = tight ? 2.70 : 3.14;
+  rig.scale.setScalar(1 - tall * (tight ? 1.25 : 1.0));
+  rig.position.set(0, tight ? 0.03 : 0.075 - tall * 0.10, 0);
 
   // Light is mood. A dead face loses the candle.
   if (p.dead) {
@@ -1184,11 +1221,15 @@ export function renderPortrait(c, canvas2d, opts = {}) {
 
   rr.setClearColor(0x000000, 0);
   rr.render(sc, cam);
+  const cs = tight ? CACHE_TIGHT : CACHE_WIDE;
   const img = document.createElement('canvas');
-  img.width = img.height = CACHE_SIZE;
+  img.width = img.height = cs;
   const ic = img.getContext('2d');
   ic.imageSmoothingEnabled = true; ic.imageSmoothingQuality = 'high';
-  ic.drawImage(rr.domElement, 0, 0, CACHE_SIZE, CACHE_SIZE);
+  // A little extra contrast is what carries a face through a 3× downscale;
+  // without it the whole head lands as one mid-brown value.
+  if (tight) ic.filter = 'contrast(1.17) saturate(1.10) brightness(1.02)';
+  ic.drawImage(rr.domElement, 0, 0, cs, cs);
   img._dead = p.dead;
   img._rank = p.rank;
   // evict the oldest third rather than everything, so a full court does not
@@ -1201,22 +1242,44 @@ export function renderPortrait(c, canvas2d, opts = {}) {
   blit(ctx, img, canvas2d);
 }
 
+// Halving down to the target beats one big drawImage: a 224 -> 52 jump in a
+// single step is what turned every face into a smudge.
+let stepCv = null;
+function stepDown(img, w) {
+  let src = img, sw = img.width;
+  while (sw / 2 >= w * 1.2) {
+    const nw = Math.round(sw / 2);
+    if (!stepCv) stepCv = document.createElement('canvas');
+    stepCv.width = stepCv.height = nw;
+    const g = stepCv.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.clearRect(0, 0, nw, nw);
+    g.drawImage(src, 0, 0, nw, nw);
+    // copy out, because the next pass reuses the same scratch canvas
+    const out = document.createElement('canvas');
+    out.width = out.height = nw;
+    out.getContext('2d').drawImage(stepCv, 0, 0);
+    src = out; sw = nw;
+  }
+  return src;
+}
+
 function blit(ctx, img, canvas2d) {
   const w = canvas2d.width, h = canvas2d.height;
   const dead = img._dead;
   ctx.clearRect(0, 0, w, h);
   // the room behind the head: candle glow on the left, cold stone on the right
-  const g = ctx.createRadialGradient(w * 0.36, h * 0.34, w * 0.03, w * 0.5, h * 0.55, w * 0.82);
-  if (dead) { g.addColorStop(0, '#2a2c30'); g.addColorStop(0.55, '#181a1e'); g.addColorStop(1, '#0a0b0d'); }
-  else { g.addColorStop(0, '#523a22'); g.addColorStop(0.42, '#2a1e13'); g.addColorStop(1, '#0b0806'); }
+  const g = ctx.createRadialGradient(w * 0.36, h * 0.32, w * 0.02, w * 0.5, h * 0.55, w * 0.86);
+  if (dead) { g.addColorStop(0, '#2b2e33'); g.addColorStop(0.45, '#14161a'); g.addColorStop(1, '#07080a'); }
+  else { g.addColorStop(0, '#5a4026'); g.addColorStop(0.40, '#251a11'); g.addColorStop(1, '#070504'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, w, h);
-  // corner vignette so the head sits in the frame instead of on it
-  const v = ctx.createRadialGradient(w * 0.5, h * 0.48, w * 0.30, w * 0.5, h * 0.5, w * 0.78);
+  ctx.drawImage(stepDown(img, w), 0, 0, w, h);
+  // corner vignette so the head's silhouette has something to bite against
+  const v = ctx.createRadialGradient(w * 0.5, h * 0.46, w * 0.26, w * 0.5, h * 0.5, w * 0.76);
   v.addColorStop(0, 'rgba(0,0,0,0)');
-  v.addColorStop(1, dead ? 'rgba(4,5,7,0.72)' : 'rgba(8,4,2,0.62)');
+  v.addColorStop(1, dead ? 'rgba(3,4,6,0.80)' : 'rgba(6,3,2,0.74)');
   ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
 }
 

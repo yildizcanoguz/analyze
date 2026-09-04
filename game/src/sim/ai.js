@@ -19,6 +19,7 @@
 // ===========================================================================
 
 import { S, rng, ch, ti, pv, alive } from '../core/state.js';
+import { emit } from '../core/bus.js';
 import { YEAR } from '../core/date.js';
 import {
   fullName, age, opinion, opinionLabel, remember, kill, skill,
@@ -298,6 +299,8 @@ function rumor(text, tone = 'ambiguous', { actorId = null, targetId = null, forc
   A.lastLine = text;
   A.rumors++;
   S.chronicle.push({ day: S.day, kind: 'rumor', text, tone });
+  // sim never touches the DOM; if a UI piece listens, the whisper lands on screen
+  emit('ai:rumor', { day: S.day, text, tone, actorId, targetId });
   return true;
 }
 
@@ -305,6 +308,7 @@ function rumor(text, tone = 'ambiguous', { actorId = null, targetId = null, forc
 function news(text, tone = 'neutral', { actorId = null, targetId = null } = {}) {
   if (relevance(actorId, targetId) < 0.4) return false;
   S.chronicle.push({ day: S.day, kind: 'world', text, tone });
+  emit('ai:news', { day: S.day, text, tone, actorId, targetId });
   return true;
 }
 
@@ -539,9 +543,9 @@ function deedRevenge(c, a) {
   if (!t) return false;
   if (t.id === S.playerId) { a.heat = Math.min(100, a.heat + 6); return false; }  // you get a decision, not a knife in the dark
 
-  const canKill = a.guile > 0.42 && skill(c, 'intrigue') > 7 && target.g > 55;
-  if (canKill && rng.chance(0.30 * a.grudge + 0.10)) {
-    const odds = clamp01(0.10 + skill(c, 'intrigue') * 0.028 - skill(t, 'intrigue') * 0.018);
+  const canKill = a.guile > 0.40 && skill(c, 'intrigue') > 6 && target.g > 45;
+  if (canKill && rng.chance(0.45 * a.grudge + 0.15)) {
+    const odds = clamp01(0.16 + skill(c, 'intrigue') * 0.035 - skill(t, 'intrigue') * 0.016);
     if (rng.chance(odds)) {
       kill(t, 'murder', c.id);
       W().murders++;
@@ -627,6 +631,40 @@ function think(c, day) {
   }
 }
 
+/**
+ * A victory the whole border watched. Every neighbour steps back a little —
+ * otherwise winning changes a number and nothing else, and the player learns
+ * that standing up bought them nothing.
+ */
+function awe(strength = 0.45) {
+  const pid = S.playerId;
+  for (const id of neighborsOf(pid)) {
+    const c = ch(id);
+    if (!c?.ai?.v) continue;
+    c.ai.heat = Math.max(0, c.ai.heat * (1 - strength));
+    c.ai.told = 0;
+  }
+  const lord = ch(IDX.lord || '');
+  if (lord?.ai?.v) lord.ai.heat = Math.max(0, lord.ai.heat * (1 - strength * 0.6));
+}
+
+/**
+ * Somebody next door got bigger. A ratio is a number; "three swords for every
+ * one of yours" is a feeling, and the player can act on a feeling.
+ */
+function announceGrowth(c, a) {
+  const pid = S.playerId;
+  const mine = Math.max(60, strengthOf(pid));
+  const ratio = strengthOf(c.id) / mine;
+  const steps = [1.7, 2.7, 4.2];
+  const told = a.ratioTold || 0;
+  if (told >= steps.length || ratio < steps[told]) return;
+  a.ratioTold = told + 1;
+  const n = Math.max(2, Math.round(ratio));
+  rumor(`Serdarın haritayı katladı ve tek bir cümle söyledi: "${fullName(c)} artık senin her kılıcına ${n} kılıç çıkarıyor."`,
+    'bad', { actorId: c.id, targetId: pid, force: 0.5 });
+}
+
 /** Is this ruler close enough to the player to want anything from them? */
 function playerRelation(c, pid) {
   const near = neighborsOf(c.id).includes(pid) || (ch(pid)?.courtOf === c.id);
@@ -652,7 +690,33 @@ function wantOf(c, a, pid, rel) {
   const op = opinion(c.id, pid);
   w -= Math.max(0, op) * 0.45;
   if (op < -40) w += 10;
+  // What you are known for changes what people think they can take from you.
+  const tr = ch(pid)?.traits || [];
+  if (tr.includes('oathbreaker')) w += 12;      // no one fears breaking faith with you
+  if (tr.includes('kinslayer')) w += 8;
+  if (tr.includes('excommunicated')) w += 10;
+  if (tr.includes('humbled')) w += 10;
+  if (tr.includes('victorious')) w -= 16;
+  if (tr.includes('kinslayer') || tr.includes('oathbreaker')) w += (traitMod(ch(pid), 'dread') > 6 ? -6 : 0);
   return clamp(w, 0, 100);
+}
+
+/**
+ * Your reputation, spoken aloud by someone who has no reason to be kind. This is
+ * how an old sin comes back: not as a modifier, as a sentence in a room.
+ */
+function sinTalk(c, a) {
+  const pid = S.playerId, p = ch(pid);
+  if (!p || a.sinTold) return;
+  const tr = p.traits || [];
+  let line = null;
+  if (tr.includes('kinslayer')) line = `${fullName(c)} senin adını anarken "kan dökücü" dedi ve düzeltmedi. Masadakiler de düzeltmedi.`;
+  else if (tr.includes('oathbreaker')) line = `${gen(fullName(c))} divanında senin yeminin konuşulmuş. Biri gülmüş, kimse susturmamış.`;
+  else if (tr.includes('excommunicated')) line = `${fullName(c)} kadısına sormuş: aforoz edilmiş bir adamın toprağını almak günah mıdır? Kadı düşüneceğini söylemiş.`;
+  else if (tr.includes('humbled')) line = `${fullName(c)} senin geçen seferki yenilgini anlatıyormuş. Anlatırken sayıları büyütmüş.`;
+  if (!line) return;
+  a.sinTold = true;
+  rumor(line, 'bad', { actorId: c.id, targetId: pid, force: 0.55 });
 }
 
 /**
@@ -771,6 +835,7 @@ function seasonalReport(day) {
   A.lastLine = pick.t;
   A.rumors++;
   S.chronicle.push({ day, kind: 'rumor', text: pick.t, tone: pick.tone });
+  emit('ai:rumor', { day, text: pick.t, tone: pick.tone });
 }
 
 // ---------------------------------------------------------------------------
@@ -786,7 +851,7 @@ function maybePlot(day) {
     const c = ch(id);
     if (!c || c.deathDay != null) continue;
     const a = agenda(c);
-    if (a.guile < 0.45 || a.heat < 35) continue;
+    if (age(c) < 16 || a.guile < 0.45 || a.heat < 35) continue;
     cands.push({ id, w: a.guile * 4 + a.heat / 25 });
   }
   if (!cands.length) return;
@@ -892,6 +957,9 @@ function pressurePlayer(day) {
     if (id === pid) continue;
     const c = ch(id);
     if (!c || c.deathDay != null || c.imprisonedBy) continue;
+    // A ten-year-old countess does not send forty horsemen to your gate; her
+    // regents run her land and they do not write letters in her name.
+    if (age(c) < 16) continue;
     const a = agenda(c);
     if (a.heat < bar) continue;
     if (day - (A.demandsMade[id] || -9999) < 3 * YEAR) continue;
@@ -1016,6 +1084,7 @@ function offerLandUltimatum(c, a, title) {
             remember(c.id, pid, 'Beni sınırdan geri çevirdi.', -45, 60);
             for (const v of vassalsOf(pid)) remember(v.id, pid, 'Toprağı için durdu.', +25, 30);
             agenda(c).heat = 10;
+            awe(0.5);
             if (prov2) prov2.unrest = Math.min(100, (prov2.unrest || 0) + 15);
             imprint({ kind: 'defence', day: S.day, actorId: pid, targetId: c.id, weight: 0.5,
               text: `${name} önünde ${acc(fullName(c))} geri çevirdin.` });
@@ -1330,7 +1399,7 @@ function offerTribute(c, a) {
           for (const v of vassalsOf(pid)) remember(v.id, pid, 'Bir elçiyi astı. Sebebi vardı, ama yine de astı.', -8, 20);
         },
         onResolve(d, ok) {
-          if (ok) { p.prestige += 110; return { success: true, beat: 'korktular', title: 'Sınırda Kimse Defter Tutmuyor', text: `Ceset üç gün kapıda kaldı. Dördüncü gün ${gen(fullName(c))} adamları geldi, aldılar ve tek kelime etmeden gittiler.\n\nO kıştan sonra kimse senin köylerinde tahıl saymadı.`, effects: ['+110 itibar', 'Korkun arttı', `<b>${fullName(c)}</b> kalıcı düşman`] }; }
+          if (ok) { p.prestige += 110; awe(0.5); return { success: true, beat: 'korktular', title: 'Sınırda Kimse Defter Tutmuyor', text: `Ceset üç gün kapıda kaldı. Dördüncü gün ${gen(fullName(c))} adamları geldi, aldılar ve tek kelime etmeden gittiler.\n\nO kıştan sonra kimse senin köylerinde tahıl saymadı.`, effects: ['+110 itibar', 'Korkun arttı', `<b>${fullName(c)}</b> kalıcı düşman`] }; }
           const own3 = directCountiesOf(pid);
           const t = own3.length > 1 ? own3[own3.length - 1] : null;
           if (t) { grantTitle(t.id, c.id, 'conquest'); W().seizures++; }
@@ -1431,7 +1500,7 @@ function offerOath(c, a) {
     targetId: c.id,
     scene: sceneOf(pid),
     framing: `${foretold(c)}${gen(fullName(c))} seraskeri kırk atlıyla avluna girdi ve inmedi. Atlar terli değil; yolu ağır ağır gelmişler.`,
-    body: `"Efendim ${c.name} sana bir yol açıyor. Yılda ${per} altın gönder, bayrağını da onun yanında taşı. Karşılığında sınırın onun sınırı olur.\n\nBu bir teklif değil. Bir tarih."\n\nSerasker eyerin üstünde bekliyor. Avluda senin kaç adamın olduğunu o da sayıyor, sen de.`,
+    body: `"Efendim ${c.name} sana bir yol açıyor. Yılda ${per} altın gönder, bayrağını da onun yanında taşı. Karşılığında sınırın onun sınırı olur.\n\nBu bir pazarlık değil. Bir tarih: ne zaman geleceğimizi söylüyor."\n\nSerasker eyerin üstünde bekliyor. Avluda senin kaç adamın olduğunu o da sayıyor, sen de.`,
     options: [
       {
         key: 'kneel', label: 'Kabul et. Vergiye bağlan.',
@@ -1477,6 +1546,7 @@ function offerOath(c, a) {
           const prov = pv(provincesOf(pid)[0]);
           if (ok) {
             p.prestige += 130;
+            awe(0.55);
             if (!p.traits.includes('victorious') && rng.chance(0.35)) p.traits.push('victorious');
             for (const v of vassalsOfCached(pid)) remember(v.id, pid, 'Diz çökmedi.', +30, 40);
             return { success: true, beat: 'gelmediler', title: 'Kırk Atlı Bir Daha Gelmedi',
@@ -1547,6 +1617,7 @@ function offerBreakTribute(c, a) {
         onResolve(d, ok) {
           if (ok) {
             p.prestige += 160;
+            awe(0.6);
             for (const v of vassalsOfCached(pid)) remember(v.id, pid, 'Boyunduruğu kırdı.', +35, 50);
             imprint({ kind: 'freedom', day: S.day, actorId: pid, targetId: c.id, weight: 0.6,
               text: `${gen(fullName(c))} vergisini kestin ve ayakta kaldın.` });
@@ -1649,6 +1720,7 @@ function offerPassage(c, a) {
         onResolve(d, ok) {
           if (ok) {
             p.prestige += 120;
+            awe(0.45);
             p.dreadBonus = (p.dreadBonus || 0) + 3;
             return { success: true, beat: 'döndüler', title: 'Geçit Kapalı Kaldı',
               text: `Dar bir yol, yüksek iki yamaç ve senin doksan adamın. Saydılar ve gitmediler.\n\nDört gün sonra geri döndüler. ${foe ? `${fullName(foe)} o kışı sana borçlu geçirdi.` : 'O savaş başlamadan bitti.'}`,
@@ -1757,6 +1829,8 @@ function updatePressure(day) {
     const want = wantOf(c, a, pid, rel);
     a.heat = clamp(a.heat + (want - a.heat) * 0.10, 0, 100);
     if (a.heat < 18) a.told = 0;         // a build-up that cooled can start again
+    announceGrowth(c, a);
+    sinTalk(c, a);
     leakBuildup(c, a);
   }
   // everyone else cools off
@@ -1808,7 +1882,7 @@ function yearlyMoves(day) {
   const movers = [];
   for (const id of IDX.rulers) {
     const c = ch(id);
-    if (!c || c.deathDay != null || c.imprisonedBy) continue;
+    if (!c || c.deathDay != null || c.imprisonedBy || age(c) < 16) continue;
     const a = agenda(c);
     if (a.goal !== 'land' && a.land < 0.5) continue;
     movers.push({ c, a, w: 1 + a.land * 4 + a.risk * 3 });
@@ -1875,6 +1949,8 @@ export function aiIntent(charId) {
   const c = ch(charId);
   if (!c || !c.ai || c.id === S.playerId) return null;
   const a = c.ai;
+  const trib = S.ai?.tribute;
+  if (trib && trib.toId === c.id) return trib.forced ? 'vergini zorla alıyor' : 'vergini alıyor';
   if (a.heat > 78) return 'senin toprağını istiyor';
   if (a.heat > 50) return 'seni tartıyor';
   if (a.goal === 'land') return 'sınır tapuları karıştırıyor';

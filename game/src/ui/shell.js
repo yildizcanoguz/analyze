@@ -13,6 +13,9 @@ import { worldOfProvince, setSelected, setHover } from '../render/mapmesh.js';
 import { SFX, resumeAudio } from '../audio/audio.js';
 import { esc } from './decision.js';
 import { CULTURE_LABEL, FAITH_LABEL } from '../content/names.js';
+import { openScreen as openRealmScreen } from './realm.js';
+import { aiIntent } from '../sim/ai.js';
+import { memoryLines as memoryLinesOf, secretLines } from '../sim/memory.js';
 
 let prev = { gold: 0, prestige: 0, piety: 0 };
 
@@ -95,7 +98,7 @@ function setRes(id, val, rate) {
 }
 
 function wireBottom() {
-  document.getElementById('btnRealm').onclick = () => { SFX.page(); showRealm(); };
+  document.getElementById('btnRealm').onclick = () => { SFX.page(); openRealmScreen(); };
   document.getElementById('btnCourt').onclick = () => { SFX.page(); showCourt(); };
   document.getElementById('btnDynasty').onclick = () => { SFX.page(); showDynasty(); };
   document.getElementById('btnChronicle').onclick = () => { SFX.page(); showChronicle(); };
@@ -155,6 +158,7 @@ export function showChar(id) {
       </div>
       <div class="traitrow">${(c.traits || []).map((t) => `<span class="trait ${badTrait(t) ? 'bad' : ''}" title="${esc(TRAITS[t]?.desc || '')}">${TRAITS[t]?.icon || ''} ${esc(TRAITS[t]?.name || t)}</span>`).join('')}</div>
       ${c.id !== p.id ? `<div class="kv"><span>Sana bakışı</span><span style="color:${o < -20 ? '#d08a7a' : o > 20 ? '#9dc07e' : '#a8987a'}">${o > 0 ? '+' : ''}${o} · ${opinionLabel(o)}</span></div>` : ''}
+      ${intentLine(c)}
       <div class="kv"><span>İlişki</span><span>${relation(p.id, c.id)}</span></div>
       <div class="kv"><span>Kültür / İnanç</span><span>${CULTURE_LABEL[c.culture] || c.culture} · ${FAITH_LABEL[c.faith] || c.faith}</span></div>
       ${c.titles?.length ? `<div class="kv"><span>Unvanlar</span><span>${c.titles.map((t) => esc(titleName(ti(t)))).join(', ')}</span></div>` : ''}
@@ -167,11 +171,40 @@ export function showChar(id) {
   for (const a of el.querySelectorAll('[data-char]')) a.addEventListener('click', () => showChar(a.dataset.char));
 }
 function badTrait(t) { return ['craven','slow','frail','kinslayer','oathbreaker','excommunicated','ill','pox','wounded','humbled','arbitrary','arrogant'].includes(t); }
+/** A neighbour's agenda, when the game is willing to tell you. */
+function intentLine(c) {
+  let intent = null;
+  try { intent = aiIntent(c.id); } catch { /* ai may not be loaded yet */ }
+  if (!intent) return '';
+  return `<div class="kv"><span>Niyeti</span><span style="color:#c9a34e">${esc(intent)}</span></div>`;
+}
+
+/** What this person remembers about you, from the real ledger. */
 function memoryLines(c, p) {
-  const ms = (c.memoriesOf?.[p.id] || []).slice(-4).reverse();
-  if (!ms.length) return '';
-  return `<div style="margin-top:12px;color:#a8987a;font-size:12px">Hatırladıkları</div>` +
-    ms.map((m) => `<div style="font-size:12px;padding:3px 0;color:${m.delta < 0 ? '#d08a7a' : '#9dc07e'}">${esc(m.text)} <span style="color:#7a6a52">(${m.delta > 0 ? '+' : ''}${m.delta})</span></div>`).join('');
+  let rows = [];
+  try { rows = memoryLinesOf(c.id, { limit: 5 }) || []; } catch { rows = []; }
+  if (c.id !== p.id) {
+    const local = (c.memoriesOf?.[p.id] || []).slice(-4).reverse()
+      .map((m) => ({ text: m.text, tone: m.delta < 0 ? 'bad' : 'good', when: '', delta: m.delta }));
+    rows = local.length ? local : rows;
+  }
+  if (!rows.length) return '';
+  const head = c.id === p.id ? 'Taşıdıkların' : 'Hatırladıkları';
+  let html = `<div style="margin-top:12px;color:#a8987a;font-size:12px">${head}</div>` +
+    rows.slice(0, 5).map((m) => `<div style="font-size:12px;padding:3px 0;color:${m.tone === 'bad' ? '#d08a7a' : m.tone === 'good' ? '#9dc07e' : '#cfc2a6'}">${esc(m.text)}${
+      m.when ? ` <span style="color:#7a6a52">${esc(m.when)}</span>` : ''}${
+      m.delta != null ? ` <span style="color:#7a6a52">(${m.delta > 0 ? '+' : ''}${m.delta})</span>` : ''}</div>`).join('');
+
+  if (c.id === p.id) {
+    let secrets = [];
+    try { secrets = secretLines(p.id) || []; } catch { secrets = []; }
+    if (secrets.length) {
+      html += `<div style="margin-top:12px;color:#a8987a;font-size:12px">Sırların</div>` +
+        secrets.slice(0, 4).map((sx) => `<div style="font-size:12px;padding:3px 0;color:#c99a7a">${esc(sx.text || sx.label || '—')}${
+          sx.price != null ? ` <span style="color:#7a6a52">bugünkü bedeli ${sx.price}</span>` : ''}</div>`).join('');
+    }
+  }
+  return html;
 }
 
 // ---------------------------------------------------------------- list panels

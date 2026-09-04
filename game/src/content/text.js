@@ -290,6 +290,55 @@ export function lintProse(s, where = '') {
     const n = sent.split(/\s+/).length;
     if (n > STYLE.maxWords) out.push(`${tag}uzun cümle (${n} kelime): "${sent.slice(0, 48)}…"`);
   }
+  // Case endings are checked on the raw string: a broken suffix inside a line of
+  // dialogue is just as loud as one in narration.
+  out.push(...lintSuffix(raw, where));
+  return out;
+}
+
+/**
+ * Every apostrophe-suffix this stem can legally take. Used to catch the one
+ * failure that destroys a scene faster than anything else: a name with the
+ * wrong ending. "Sökmen'a" or "o'in" tells the reader a machine is talking.
+ */
+function suffixSet(w) {
+  const out = new Set();
+  for (const f of [dat, acc, gen, loc, abl, ins]) {
+    const t = f(w);
+    const i = t.lastIndexOf("'");
+    if (i >= 0) out.add(low(t.slice(i + 1)));
+  }
+  return out;
+}
+const SUFFIX_RE = /([A-Za-zÇĞİÖŞÜçğıöşü]+)'([a-zçğıöşü]{1,6})(?![A-Za-zÇĞİÖŞÜçğıöşü])/g;
+
+/** @returns {string[]} one complaint per broken case ending. */
+export function lintSuffix(s, where = '') {
+  const out = [];
+  const raw = String(s ?? '');
+  for (const m of raw.matchAll(SUFFIX_RE)) {
+    const stem = m[1], suf = low(m[2]);
+    const set = suffixSet(stem);
+    let ok = false;
+    for (const v of set) if (suf === v || suf.startsWith(v)) { ok = true; break; }
+    if (!ok) out.push(`${where ? where + ': ' : ''}bozuk çekim "${stem}'${m[2]}" — beklenen: ${[...set].join(', ')}`);
+  }
+  return out;
+}
+
+/**
+ * Two options in one event must never show the same chance. If they do, the
+ * number stops being information and becomes decoration.
+ */
+export function lintOdds(options, where = '') {
+  const seen = new Map();
+  const out = [];
+  for (const o of options || []) {
+    if (o.odds == null || o.disabled) continue;
+    const pct = Math.round(o.odds * 100);
+    if (seen.has(pct)) out.push(`${where ? where + ': ' : ''}aynı ihtimal %${pct} — "${seen.get(pct)}" ve "${o.label}"`);
+    seen.set(pct, o.label);
+  }
   return out;
 }
 

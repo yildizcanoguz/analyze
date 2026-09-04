@@ -16,6 +16,40 @@ import { S, rng, ch, alive } from '../core/state.js';
 import { on, emit } from '../core/bus.js';
 import { fullName, age, skill, remember } from './characters.js';
 
+
+// ------------------------------------------------- Turkish suffixes on names
+// A whisper with a broken suffix ("o'in kapısı") kills the whole mood in one
+// frame, so every name that takes an ending goes through here. Proper nouns
+// take an apostrophe; vowel harmony and final-consonant voicing decide the rest.
+const VOW = 'aâeıiîoöuûü';
+const VOICELESS = 'pçtkfshş';
+function lastVowel(w) {
+  const s = String(w || '').toLocaleLowerCase('tr');
+  for (let i = s.length - 1; i >= 0; i--) if (VOW.includes(s[i])) return s[i];
+  return 'a';
+}
+function h2(w) { return 'eiöüî'.includes(lastVowel(w)) ? 'e' : 'a'; }
+function h4(w) {
+  const v = lastVowel(w);
+  if (v === 'e' || v === 'i' || v === 'î') return 'i';
+  if (v === 'ö' || v === 'ü') return 'ü';
+  if (v === 'o' || v === 'u' || v === 'û') return 'u';
+  return 'ı';
+}
+function endsVowel(w) { const s = String(w || '').toLocaleLowerCase('tr'); return VOW.includes(s[s.length - 1]); }
+function hardEnd(w) { const s = String(w || '').toLocaleLowerCase('tr'); return VOICELESS.includes(s[s.length - 1]); }
+
+/** Ali'nin / Bitlis'in — possessive. */
+export function gen(n) { return n ? `${n}'${endsVowel(n) ? 'n' : ''}${h4(n)}n` : ''; }
+/** Ali'ye / Bitlis'e — to. */
+export function dat(n) { return n ? `${n}'${endsVowel(n) ? 'y' : ''}${h2(n)}` : ''; }
+/** Ali'yi / Bitlis'i — object. */
+export function acc(n) { return n ? `${n}'${endsVowel(n) ? 'y' : ''}${h4(n)}` : ''; }
+/** Ali'den / Bitlis'ten — from. */
+export function abl(n) { return n ? `${n}'${!endsVowel(n) && hardEnd(n) ? 't' : 'd'}${h2(n)}n` : ''; }
+/** Ali'de / Bitlis'te — at. */
+export function loc(n) { return n ? `${n}'${!endsVowel(n) && hardEnd(n) ? 't' : 'd'}${h2(n)}` : ''; }
+
 let wired = false;
 
 export function initTells() {
@@ -105,7 +139,7 @@ const LINES = {
   life: {
     bad: [
       { f: (x) => `Hekim ikinci kez çağrıldı. Bu sefer koşarak geldi.` },
-      { t: 1, f: (x) => `${x.T}'in kapısının önünde iki muhafız duruyor. Onları sen koymadın.` },
+      { t: 1, f: (x) => `${gen(x.T)} kapısının önünde iki muhafız duruyor. Onları sen koymadın.` },
       { t: 1, f: (x) => `${x.T} bu sabah kalkamadı. Öğleden sonra kalktı, kimseyle konuşmadı.` },
       { f: (x) => `Şafakta bir tabut geçti sokaktan. Kimin olduğunu sormadın.` },
     ],
@@ -114,14 +148,14 @@ const LINES = {
       { f: (x) => `Ateşin düştüğünü söylüyorlar. Kimse "geçti" demiyor.` },
     ],
     ambiguous: [
-      { t: 1, f: (x) => `${x.T}'in odasından bütün gece ses gelmedi.` },
+      { t: 1, f: (x) => `${gen(x.T)} odasından bütün gece ses gelmedi.` },
       { f: (x) => `Dadı koridorda ağlıyordu. Sorduğunda "yorgunluk" dedi.` },
     ],
   },
   title: {
     bad: [{ f: (x) => `Kâtip tapuyu üç kez temize çekti. Üçünde de eli titredi.` },
-          { p: 1, f: (x) => `${x.P} yolundaki sınır taşlarından biri gece yerinden oynamış. Kimse görmemiş.` }],
-    good: [{ t: 1, f: (x) => `${x.T}'in adamları sınır taşlarına dokunmamış. Demek ki kabul ediyorlar.` },
+          { p: 1, f: (x) => `${gen(x.P)} yolundaki sınır taşlarından biri gece yerinden oynamış. Kimse görmemiş.` }],
+    good: [{ t: 1, f: (x) => `${gen(x.T)} adamları sınır taşlarına dokunmamış. Demek ki kabul ediyorlar.` },
            { f: (x) => `Kâhyan defteri kapattı ve "tamamdır" dedi. Başka bir şey demedi.` }],
     ambiguous: [{ f: (x) => `Tapunun mührü kurudu. Kimse yüksek sesle okumak istemedi.` }],
   },
@@ -144,7 +178,7 @@ const LINES = {
     ambiguous: [{ f: (x) => `Rüyanda bir kapı vardı. Açılmadı.` }],
   },
   gold: {
-    bad: [{ p: 1, f: (x) => `${x.P}'a giden kervan yarı yoldan döndü. Yolları kar kapamış — ya da kapatmışlar.` },
+    bad: [{ p: 1, f: (x) => `${dat(x.P)} giden kervan yarı yoldan döndü. Yolları kar kapamış — ya da kapatmışlar.` },
           { f: (x) => `Tefeci senden haber sordu. Alacağı yok. Yine de sordu.` }],
     good: [{ f: (x) => `Kâhyan kesenin dibini gösterdi ve gülümsedi. İlk defa.` }],
     ambiguous: [{ f: (x) => `Hesap iki kez tutmadı, üçüncüde tuttu. Kâhyan bunu anlatmadı.` }],
@@ -157,7 +191,7 @@ const LINES = {
   },
   none: {
     bad: [{ f: (x) => `Beklediğin haberci gelmedi. Yerine yağmur geldi.` },
-          { p: 1, f: (x) => `${x.P}'tan gelen adam çamur içindeydi ve konuşmadan geçip gitti.` }],
+          { p: 1, f: (x) => `${abl(x.P)} gelen adam çamur içindeydi ve konuşmadan geçip gitti.` }],
     good: [{ f: (x) => `İlk haberci güler yüzlüydü. Bir şey söylemedi, ama güler yüzlüydü.` }],
     ambiguous: [{ f: (x) => `Gece bir at dörtnala geçti. Sabah kimse öyle bir at görmediğini söyledi.` },
                 { f: (x) => `Sessizlik uzadı. Sessizlik bir şey anlatmaz, ama insanı yer.` }],
@@ -176,7 +210,7 @@ const TRAIT_LEAKS = {
   zealous:   (x) => `${x.T} üç gündür ibadetten çıkmıyor.`,
   ambitious: (x) => `${x.T} yeni bir mühür kazdırmış. Henüz kullanmamış.`,
   frail:     (x) => `${x.T} merdiveni tek başına çıkamamış.`,
-  ill:       (x) => `${x.T}'in öksürüğü duvarın öbür tarafından duyuluyor.`,
+  ill:       (x) => `${gen(x.T)} öksürüğü duvarın öbür tarafından duyuluyor.`,
   arrogant:  (x) => `${x.T} senin haberciyi ayakta bekletmiş.`,
   patient:   (x) => `${x.T} hiçbir şey yapmıyor. Bekleyen bir adam, bekleyen bir adamı tanır.`,
 };
@@ -248,7 +282,7 @@ export function planTells(d) {
       const pool = usable(bank[tone] || bank.ambiguous, ctx);
       text = (pool.length ? rng.pick(pool) : rng.pick(usable(LINES.none.ambiguous, ctx))).f(ctx);
     }
-    if (i === 0 && ctx.W && rng.chance(0.6)) text = `${ctx.W}'den haber: ${lower(text)}`;
+    if (i === 0 && ctx.W && rng.chance(0.6)) text = `${abl(ctx.W)} haber: ${lower(text)}`;
 
     out.push({ at, day: d.committedDay + Math.max(1, Math.round(span * at)), text, tone, honest, kind: 'auto', fired: false });
   }

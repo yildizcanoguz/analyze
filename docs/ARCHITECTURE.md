@@ -46,6 +46,11 @@ audio/     ← WebAudio                              (bus'ı dinler)
 | `sim:month` / `sim:year` / `sim:unrest` | gün / yıl / `{charId}` | sim/tick |
 | `world:ready` | — | sim/world |
 | `render:resize` | `{w,h}` | render/scene |
+| `memory:echo` | `{day, text, tone, memoryId?, years?, secretId?, charId?}` | sim/memory |
+| `dynasty:extinct` | `{reason, day, deadId, name, age, dynasty, usurperId?, reignYears, reigns, generation}` | sim/succession |
+| `succession:law` | `{law, state:'sealed'\|'active', doneDay?}` | sim/succession |
+| `faction:formed` / `:known` / `:joined` / `:shrank` / `:demand` / `:revolt` / `:exposed` / `:resolved` | `{faction}` | sim/factions |
+| `faction:signal` | `{factionId, text, tone}` | sim/factions |
 
 Yeni olay eklerken bu tabloyu güncelle.
 

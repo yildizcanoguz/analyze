@@ -21,7 +21,7 @@ import { S, ch, ti, pv, rng, alive } from '../core/state.js';
 import { offer, STAKE } from '../sim/decision.js';
 import {
   fullName, age, livingChildren, opinion, remember, kill, relation, isKin, skill,
-  makeCharacter, healthOf,
+  makeCharacter, healthOf, dread,
 } from '../sim/characters.js';
 import {
   primaryTitle, styleOf, vassalsOf, directCountiesOf, grantTitle, incomeOf, realmLevy, topLiege,
@@ -280,22 +280,27 @@ export const EVENTS = [
   id: 'vassal_demand', cat: 'vassal', weightHint: 0.55, cooldown: 5 * YEAR, chance: 0.45,
   valid() {
     const vs = subjects().filter((v) => opinion(v.id, S.playerId) < 25);
-    if (!vs.length || myCounties().length < 2) return false;
+    if (!vs.length || !myCounties().length) return false;
     return { v: pickDay(vs) };
   },
   fire({ v }) {
     const mine = myCounties();
     const t = mine[mine.length - 1];
     if (!t) return;
+    // Asking for the only county a man holds is a different question from asking
+    // for one of five. The option stays visible; it just cannot be taken.
+    const onlyOne = mine.length < 2;
     offer({
       kind: 'event', title: 'Divanda Bir Talep', targetId: v.id,
       scene: { provinceIdx: provIdxOf(t.provinceId) },
       framing: `Divanın ortasında ${uncap(whoFace(v))} ayağa kalktı, ${acc(t.name)} istedi.`,
-      body: `"Babam o toprakta öldü," diyor. "Sizin bir kâhyanız yönetiyor. Benim orada kanım var."\n\nSesini yükseltmedi. ${ticLine(v)}\n\nSalon sessiz. Diğer vassalların sana bakmıyor; birbirlerine bakıyorlar. Ne yaparsan onu öğrenecekler.`,
+      body: `${onlyOne ? 'İstediği toprak senin oturduğun toprak. Kalen orada, ambarın orada.\n\n' : ''}"Babam o toprakta öldü," diyor. "Sizin bir kâhyanız yönetiyor. Benim orada kanım var."\n\nSesini yükseltmedi. ${ticLine(v)}\n\nSalon sessiz. Diğer vassalların sana bakmıyor; birbirlerine bakıyorlar. Ne yaparsan onu öğrenecekler.`,
       options: opts(
         {
-          key: 'give', label: 'Ver.', detail: 'Kâğıdı bugün mühürlersen akşama kadar biter.',
+          key: 'give', label: 'Ver.',
+          detail: onlyOne ? `${t.name} senin tek toprağın. Verirsen bir daha divan toplayamazsın.` : 'Kâğıdı bugün mühürlersen akşama kadar biter.',
           stakes: [{ kind: STAKE.TITLE, who: `${t.name} kontluğu`, irreversible: true }],
+          disabled: onlyOne, disabledWhy: 'elindeki tek kontluk',
           waitDays: 0,
           onResolve() {
             grantTitle(t.id, v.id, 'demand');
@@ -374,7 +379,7 @@ export const EVENTS = [
               return { beat: 'çıkardılar', title: 'Kışı Çıkardılar', text: `İlkbaharda ${dat(prov.name)} girdiğinde yol kenarına dizilmişlerdi.\n\nKimse alkışlamadı. Sadece baktılar. Bu daha iyiydi.`, effects: [`${prov.name} +1 kalkınma`, '+60 itibar'] };
             }
             prov.development = Math.max(1, prov.development - 2);
-            return { beat: 'yetmedi', title: 'Geç Geldi', text: `Buğday yola çıktı ama yollar kapalıydı.\n\nAltının gitti. İnsanlar da gitti.`, effects: [`${prov.name} −2 kalkınma`, `${cost} altın gitti`] };
+            return { beat: 'yetmedi', title: 'Geç Geldi', text: `Arabalar Mart sonunda geldi. Kar çoktan erimişti, karın altındakiler de görünmüştü.\n\nBuğdayı sağ kalanlara dağıttılar. Yetti.`, effects: [`${prov.name} −2 kalkınma`, `${cost} altın gitti`] };
           },
         },
         {
@@ -398,7 +403,7 @@ export const EVENTS = [
           detail: 'Fiyatı onlar söyler. Sen kabul edersin.',
           cost: [{ kind: STAKE.GOLD, value: Math.round(cost * 0.6) }, { kind: STAKE.PRESTIGE, value: 30 }],
           stakes: [{ kind: STAKE.GOLD, value: Math.round(cost * 0.6) }, { kind: STAKE.REPUTATION }],
-          waitDays: 90, odds: 0.5,
+          waitDays: 90, odds: clampOdds(0.34 + skill(P(), 'stewardship') * 0.028),
           disabled: p.gold < Math.round(cost * 0.6), disabledWhy: 'kesende o kadar yok',
           tells: [{ at: 0.6, text: 'Liman kapandı. Gemi bekliyor, kimse boşaltmıyor.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -494,7 +499,7 @@ export const EVENTS = [
           waitDays: 200, odds: 0.6,
           tells: [{ at: 0.5, text: () => `${r.name} yeni bir kürk almış. Nereden aldığını soran yok.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) { remember(r.id, S.playerId, 'Kesesini doldurdu.', +30, 15); return { beat: 'sustu', title: 'Kış Sessiz Geçti', text: `Artık senin masanda oturuyor ve gülmüyor.\n\nSatın aldığın şey sadakat değil. Sessizlik. Kirası her yıl ödenir.`, effects: [`<b>${r.name}</b> +30 — şimdilik`, 'Elli beş altın gitti'] }; }
+            if (ok) { remember(r.id, S.playerId, 'Kesesini doldurdu.', +30, 15); return { beat: 'satın aldın', title: 'Kış Sessiz Geçti', text: `Artık senin masanda oturuyor ve gülmüyor.\n\nSatın aldığın şey sadakat değil. Sessizlik. Kirası her yıl ödenir.`, effects: [`<b>${r.name}</b> +30 — şimdilik`, 'Elli beş altın gitti'] }; }
             r.hooks.push({ onId: S.playerId, kind: 'weak', secretId: 'paid_silence' });
             return { beat: 'pahalandı', title: 'Fiyat Arttı', text: `Parayı aldı, sonra bir daha istedi. Sonra bir daha.\n\nSusturmak için ödediğini biliyor. Asıl koz artık bu.`, effects: [`<b>${r.name}</b> elinde koz var`, 'Elli beş altın gitti'] };
           },
@@ -512,7 +517,7 @@ export const EVENTS = [
             const p2 = P();
             p2.dreadBonus = (p2.dreadBonus || 0) + 8;
             if (ok) { r.traits.push('wounded'); remember(r.id, S.playerId, 'Dilini kestirdi.', -90, 60);
-              return { beat: 'sustu', title: 'Salon Sessiz', text: `Hâlâ sarayında. Yemeğe geliyor, oturuyor, bakıyor.\n\nArtık kimse yüksek sesle konuşmuyor. Sen de.`, effects: ['+8 dehşet', `<b>${r.name}</b> sakat ve seni bekliyor`, 'Vassalların −18'] }; }
+              return { beat: 'kestin', title: 'Salon Sessiz', text: `Hâlâ sarayında. Yemeğe geliyor, oturuyor, bakıyor.\n\nArtık kimse yüksek sesle konuşmuyor. Sen de.`, effects: ['+8 dehşet', `<b>${r.name}</b> sakat ve seni bekliyor`, 'Vassalların −18'] }; }
             kill(r, 'wounds', S.playerId);
             if (!p2.traits.includes('arbitrary')) p2.traits.push('arbitrary');
             return { beat: 'öldü', title: 'Kan Durmadı', knell: true, text: `Cerrah bileğini bağladı, ağzını bağlayamadı. Sabaha kadar sürdü.\n\nBir dedikoduyu susturmak için bir can aldın. Bunu hesaplamamıştın.`, effects: [`<b>${r.name}</b> öldü`, '<b>Keyfî</b> damgası', 'Vassalların −18'] };
@@ -572,12 +577,12 @@ export const EVENTS = [
         },
         {
           key: 'refuse', label: 'Kapıyı göster.', detail: 'Kendi adamından bilgi satın alan bir efendinin adamı kalmaz.',
-          waitDays: 90, odds: 0.5,
+          waitDays: 90, odds: clampOdds(0.38 + skill(P(), 'diplomacy') * 0.022),
           stakes: [{ kind: STAKE.REPUTATION }],
           onCommit() { remember(spy.id, S.playerId, 'Bilgisini satın almadı.', -20, 20); },
           tells: [{ at: 0.6, text: () => `${spy.name} bu ay iki mektup yazdı. İkisi de senin mührünle gitmedi.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) { P().prestige += 40; return { beat: 'anladı', title: 'Bir Daha Denemedi', text: `Casusun ertesi gün her şeyi bedava anlattı. Kısa anlattı.\n\nBir adamı satın almazsan bazen sana kendini verir.`, effects: ['+40 itibar', `<b>${spy.name}</b> hizada`] }; }
+            if (ok) { P().prestige += 40; return { beat: 'anladı', title: 'Bir Daha Denemedi', text: `Casusun ertesi gün her şeyi bedava anlattı. Kısa anlattı, sonra kapıyı çekti.\n\nBir daha fiyat söylemedi. Bir daha da kapıyı arkasından kapatmadı.`, effects: ['+40 itibar', `<b>${spy.name}</b> hizada`] }; }
             remember(v.id, spy.id, 'Casus ona kendi efendisini sattı.', +40, 30);
             S.flags.spyTurned = spy.id;
             return { beat: 'sattı', title: 'Başkasına Sattı', text: `Bildiği şeyi ${dat(fullName(v))} götürdü. O ödedi.\n\nŞimdi iki adam bir şey biliyor. İkisi de sen değilsin.`, effects: [`<b>${spy.name}</b> artık ${v.name} ile`, 'Sarayında bir delik var'] };
@@ -727,7 +732,7 @@ export const EVENTS = [
           key: 'haggle', label: 'Fiyatı yükselt.', detail: 'Bir kız bir kaledir. Kale bedava verilmez.',
           cost: [{ kind: STAKE.PRESTIGE, value: 20 }],
           stakes: [{ kind: STAKE.KIN, who: girl.name }, { kind: STAKE.GOLD, value: 0 }],
-          waitDays: 120, odds: 0.5,
+          waitDays: 120, odds: clampOdds(0.32 + skill(P(), 'diplomacy') * 0.028),
           tells: [{ at: 0.6, text: 'Elçi üçüncü kez geldi. Bu sefer atından inmedi.', goodTone: 'good', badTone: 'bad' }],
           onResolve(d, ok) {
             if (ok) {
@@ -750,7 +755,7 @@ export const EVENTS = [
   id: 'heir_flaw', cat: 'veraset', weightHint: 0.7, cooldown: 9 * YEAR, chance: 0.3,
   valid() {
     const SOFT = ['craven', 'slow', 'frail', 'shy', 'content'];
-    const kids = livingChildren(P() || {}).filter((k) => k.sex === 'm' && age(k) >= 12
+    const kids = livingChildren(P() || {}).filter((k) => k.sex === 'm' && age(k) >= 10
       && (k.traits.some((t) => SOFT.includes(t)) || (k.prowess || 0) < 5));
     if (!kids.length) return false;
     const m = councilman('marshal');
@@ -799,7 +804,7 @@ export const EVENTS = [
           confirm: 'Kendi oğlunu mirastan çıkarmak mı?',
           cost: [{ kind: STAKE.PRESTIGE, value: 60 }],
           stakes: [{ kind: STAKE.KIN, who: heir.name }, { kind: STAKE.REPUTATION }],
-          waitDays: 150, odds: 0.5,
+          waitDays: 150, odds: clampOdds(0.34 + skill(P(), 'diplomacy') * 0.028),
           onCommit() { heir.disinherited = true; remember(heir.id, S.playerId, 'Onu mirastan çıkardı.', -80, 60); },
           tells: [{ at: 0.6, text: () => `${heir.name} üç haftadır sofraya oturmuyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -815,7 +820,7 @@ export const EVENTS = [
           onCommit() { courtHears('Zayıf oğlunu koruyor.', -10, 25); },
           tells: [{ at: 0.5, text: () => `Divanda ${gen(heir.name)} adı geçtiğinde kimse bir şey söylemiyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) { remember(heir.id, S.playerId, 'Yanında tuttu.', +55, 60); return { beat: 'öğrendi', title: 'Yavaş Öğreniyor', text: `Hâlâ üç kez soruyor. Ama artık doğru soruyu soruyor.\n\nBir baba bunu görecek kadar yaşarsa şanslıdır.`, effects: [`<b>${heir.name}</b> +55`, 'Vassalların −10'] }; }
+            if (ok) { remember(heir.id, S.playerId, 'Yanında tuttu.', +55, 60); return { beat: 'öğrendi', title: 'Yavaş Öğreniyor', text: `Hâlâ üç kez soruyor. Ama artık doğru soruyu soruyor.\n\nGeçen ay bir kavgayı sen karışmadan bitirdi. Bunu sana kimse söylemedi; kendin duydun.`, effects: [`<b>${heir.name}</b> +55`, 'Vassalların −10'] }; }
             S.flags.weakHeir = heir.id;
             courtHears('Zayıf bir oğula toprak bırakacak.', -18, 40);
             return { beat: 'değişmedi', title: 'Vassalların Sayıyor', text: `Kaç yılın kaldığını herkes hesaplıyor. Sen de.\n\nOğlun hâlâ attan inince kusuyor.`, effects: ['Tüm vassalların −18', 'Ölümünde taht kavgası olacak'] };
@@ -832,7 +837,8 @@ export const EVENTS = [
   valid() {
     const p = P();
     const sp = p?.spouseId ? ch(p.spouseId) : null;
-    return sp && sp.deathDay == null && (age(sp) > 40 || healthOf(sp) < 4.6) ? { sp } : false;
+    const sick = ['ill', 'pox', 'wounded', 'frail'].some((t) => sp?.traits?.includes(t));
+    return sp && sp.deathDay == null && (age(sp) > 40 || healthOf(sp) < 4.6 || sick) ? { sp } : false;
   },
   fire({ sp }) {
     const doc = keeper('physicianId', () => makeCharacter({ culture: 'greek', sex: 'm', skillMean: 9, traits: ['patient'] }));
@@ -846,7 +852,7 @@ export const EVENTS = [
           key: 'stay', label: 'Başında otur.',
           detail: 'Divan toplanmaz, vergi toplanmaz, sınır beklenmez. Sen orada olursun.',
           stakes: [{ kind: STAKE.KIN, who: sp.name }, { kind: STAKE.REPUTATION }],
-          waitDays: 60, odds: 0.4,
+          waitDays: 60, odds: clampOdds(0.26 + healthOf(sp) * 0.035),
           onCommit() { courtHears('Divanı bir mevsim topluyamadı.', -15, 20); P().gold = Math.max(0, P().gold - 25); },
           tells: [
             { at: 0.4, text: () => `${sp.name} bugün oturdu. Bir kâse çorba içti.`, goodTone: 'good', badTone: 'ambiguous' },
@@ -855,7 +861,7 @@ export const EVENTS = [
           onResolve(d, ok) {
             const p2 = P();
             if (ok) { sp.health += 1; remember(sp.id, S.playerId, 'Bir mevsim başında oturdu.', +70, 80);
-              return { beat: 'kalktı', title: 'Bahçeye Çıktı', text: `Nisanda kolunda bahçeye çıktı. Yavaş yürüyor.\n\nBir mevsim kaybettin. Ne kazandığını sayamıyorsun.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> +70`, 'Vassalların −15'] }; }
+              return { beat: 'kalktı', title: 'Bahçeye Çıktı', text: `Nisanda koluna girip bahçeye çıktı. Üç adımda bir duruyor.\n\nO mevsim divan toplanmadı, vergi eksik geldi, sınır bekçisiz kaldı. Sen oradaydın.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> +70`, 'Vassalların −15'] }; }
             kill(sp, 'illness'); S.stats.kin_lost++;
             p2.stress += 25;
             S.flags.satAtBedside = true;
@@ -867,7 +873,7 @@ export const EVENTS = [
           detail: 'Konstantinopolis’ten. Yol uzun. Fiyatı da uzun.',
           cost: [{ kind: STAKE.GOLD, value: 90 }],
           stakes: [{ kind: STAKE.GOLD, value: 90 }, { kind: STAKE.KIN, who: sp.name }],
-          waitDays: 45, odds: 0.5,
+          waitDays: 45, odds: clampOdds(0.30 + skill(doc, 'learning') * 0.02),
           disabled: (P()?.gold || 0) < 90, disabledWhy: 'doksan altının yok',
           tells: [
             { at: 0.5, text: 'Hekim yolda. Kar geçidi kapatmış.', goodTone: 'good', badTone: 'bad' },
@@ -883,14 +889,14 @@ export const EVENTS = [
           key: 'work', label: 'İşine bak.',
           detail: 'Defterler masada duruyor. Üç aydır açılmadı.',
           stakes: [{ kind: STAKE.KIN, who: sp.name }, { kind: STAKE.SOUL }],
-          waitDays: 60, odds: 0.4,
+          waitDays: 60, odds: 0.31,
           onCommit() { P().gold += 40; },
           tells: [{ at: 0.6, text: () => `Kâhya iki kez odaya çağırttı. İki kez gitmedin.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             const p2 = P();
             p2.piety = Math.max(0, p2.piety - 40);
             if (ok) { remember(sp.id, S.playerId, 'Hasta yatağında yanında olmadı.', -55, 70);
-              return { beat: 'kalktı', title: 'Kendi Kalktı', text: `Sensiz iyileşti. Bunu ikiniz de biliyorsunuz ve konuşmuyorsunuz.\n\nSofrada karşılıklı oturuyorsunuz. Kadeh kaldırılmıyor.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> −55`, '+40 altın', '−40 dindarlık'] }; }
+              return { beat: 'sensiz', title: 'Kendi Kalktı', text: `Sensiz iyileşti. Bunu ikiniz de biliyorsunuz ve konuşmuyorsunuz.\n\nSofrada karşılıklı oturuyorsunuz. Kadeh kaldırılmıyor.`, effects: [`<b>${sp.name}</b> iyileşti`, `<b>${sp.name}</b> −55`, '+40 altın', '−40 dindarlık'] }; }
             kill(sp, 'illness'); S.stats.kin_lost++;
             S.flags.wasNotThere = true;
             return { beat: 'yoktun', title: 'Haberi Divanda Aldın', knell: true, text: `Kâhya kapıda durdu ve bekledi. Cümleyi bitirmesine gerek kalmadı.\n\nO odada son kim vardı, hiç sormadın. Sormak istemiyorsun.`, effects: [`<b>${sp.name}</b> öldü`, '−40 dindarlık', 'Saray orada olmadığını gördü'] };
@@ -1004,11 +1010,11 @@ export const EVENTS = [
         {
           key: 'later', label: 'Gelecek yıla bırak.', detail: `${clericWord()} bunu dördüncü kez soruyor.`,
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 365, odds: 0.5,
+          waitDays: 365, odds: 0.44,
           onCommit() { remember(c.id, S.playerId, 'Mescidi yine erteledi.', -25, 30); },
           tells: [{ at: 0.6, text: () => `${c.name} bu cuma hutbede senin adını anmadı.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) return { beat: 'unutuldu', title: 'Kimse Sormadı', text: `Yıl geçti. Kimse ${accL(houseWord())} sormadı, kimse damı örtmedi.\n\nPara kesende. Bunu bir kazanç saymak zorundasın.`, effects: ['Altının duruyor', `<b>${c.name}</b> −25`] };
+            if (ok) return { beat: 'unutuldu', title: 'Kimse Sormadı', text: `Yıl geçti. Kimse ${accL(houseWord())} sormadı, kimse damı örtmedi.\n\nKışın yağmur içeri doldu. Cemaat ıslak kilimde durdu ve seni beklemedi.`, effects: ['Altının duruyor', `<b>${c.name}</b> −25`] };
             P().piety = Math.max(0, P().piety - 80);
             courtHears('Mescidin damını dört yıldır örtmüyor.', -12, 30);
             return { beat: 'konuşuluyor', title: 'Hutbede Adın Geçmiyor', text: `Cuma günü camide senin için dua edilmedi. Bunu duyman iki hafta sürdü.\n\nBir kubbe için çok ucuz bir düşmanlık satın aldın.`, effects: ['−80 dindarlık', 'Vassalların −12'] };
@@ -1018,7 +1024,7 @@ export const EVENTS = [
           key: 'seize', label: 'Vakfın gelirine el koy.',
           detail: 'Taş zaten duruyor. Sandık daha faydalı.',
           stakes: [{ kind: STAKE.SOUL }, { kind: STAKE.OATH }],
-          waitDays: 240, odds: 0.45,
+          waitDays: 240, odds: clampOdds(0.30 + intrigue() * 0.025),
           onCommit() { P().gold += 120; P().piety = Math.max(0, P().piety - 100); },
           tells: [{ at: 0.5, text: () => `${clericBare()} bu ay iki mektup yazdı. İkisi de şehir dışına gitti.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1054,7 +1060,7 @@ export const EVENTS = [
           confirm: 'Bir adamı halkın önünde yakmak mı?',
           cost: [{ kind: STAKE.PIETY, value: 20 }],
           stakes: [{ kind: STAKE.LIFE, who: gen(fullName(preacher)) }, { kind: STAKE.SOUL }],
-          waitDays: 100, odds: 0.5,
+          waitDays: 100, odds: clampOdds(0.32 + dread(P()) * 0.022),
           onCommit() { kill(preacher, 'execution', S.playerId); prov.unrest += 25; },
           tells: [
             { at: 0.4, text: 'Küllerin olduğu yere her sabah biri çiçek bırakıyor.', goodTone: 'ambiguous', badTone: 'bad' },
@@ -1074,7 +1080,7 @@ export const EVENTS = [
           key: 'listen', label: 'Onu divana çağır.', detail: 'Divanda konuşur. Divan da onu duyar.',
           cost: [{ kind: STAKE.PRESTIGE, value: 25 }],
           stakes: [{ kind: STAKE.REPUTATION }, { kind: STAKE.SOUL }],
-          waitDays: 180, odds: 0.5,
+          waitDays: 180, odds: clampOdds(0.26 + skill(P(), 'diplomacy') * 0.032),
           tells: [{ at: 0.5, text: () => `${preacher.name} sarayda kalıyor. Çarşıya inmiyor, çarşı ona geliyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             const p2 = P();
@@ -1093,7 +1099,7 @@ export const EVENTS = [
           key: 'exile', label: 'Sınır dışına çıkar.', detail: 'Sorunu komşuna hediye et. Komşun bunu unutmaz.',
           cost: [{ kind: STAKE.GOLD, value: 25 }],
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 200, odds: 0.6,
+          waitDays: 200, odds: 0.64,
           onCommit() { preacher.courtOf = null; },
           tells: [{ at: 0.6, text: 'Sınırın öte yakasında aynı sözler duyuluyormuş.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1181,7 +1187,7 @@ export const EVENTS = [
           detail: 'Sınırı geçmek savaş demek. Geçmemek de bir şey demek.',
           cost: [{ kind: STAKE.GOLD, value: 45 }],
           stakes: [{ kind: STAKE.LIFE, who: 'kendi adamlarının' }, { kind: STAKE.OATH }],
-          waitDays: 40, odds: clampOdds(0.35 + skill(P(), 'martial') * 0.035),
+          waitDays: 40, odds: clampOdds(0.26 + skill(P(), 'martial') * 0.042),
           tells: [
             { at: 0.5, text: 'İz kuzeye dönmüş. Kuzey senin toprağın değil.', goodTone: 'ambiguous', badTone: 'bad' },
           ],
@@ -1202,7 +1208,7 @@ export const EVENTS = [
           detail: 'Bir mektup, bir elçi, bir rakam. Cevabı bir mevsim sürer.',
           cost: [{ kind: STAKE.PRESTIGE, value: 15 }],
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 150, odds: clampOdds(0.35 + skill(P(), 'diplomacy') * 0.035),
+          waitDays: 150, odds: clampOdds(0.42 + skill(P(), 'diplomacy') * 0.028),
           tells: [{ at: 0.6, text: 'Elçin sınırda bekletiliyor. On gündür.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             if (ok) { P().gold += 80; remember(raider.id, S.playerId, 'Kan bedelini ödetti.', -20, 25);
@@ -1216,7 +1222,7 @@ export const EVENTS = [
           detail: 'Aynı gece. Aynı saatte. Aynı sayıda hane.',
           cost: [{ kind: STAKE.GOLD, value: 30 }],
           stakes: [{ kind: STAKE.LIFE, who: 'sınırın öte yakasındaki köylülerin' }, { kind: STAKE.SOUL }],
-          waitDays: 60, odds: 0.6,
+          waitDays: 60, odds: 0.58,
           onCommit() { P().piety = Math.max(0, P().piety - 45); },
           tells: [{ at: 0.6, text: 'Bu hafta sınırın iki yakasında da kimse tarlaya çıkmadı.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1231,7 +1237,7 @@ export const EVENTS = [
         {
           key: 'swallow', label: 'Yut.', detail: 'Değirmenci senin adamındı. Oğlu da öyleydi.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 220, odds: 0.4,
+          waitDays: 220, odds: 0.36,
           onCommit() { P().prestige -= 40; courtHears('Yanan değirmeni yuttu.', -14, 30); },
           tells: [{ at: 0.5, text: 'Bu ay sınırda iki sürü daha kayboldu.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1293,11 +1299,11 @@ export const EVENTS = [
         {
           key: 'wait', label: 'Haritayı kaldır.', detail: 'Marşalın haklı olabilir. Haklı olmak yetmez.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 400, odds: 0.5,
+          waitDays: 400, odds: clampOdds(0.42 + skill(P(), 'stewardship') * 0.022),
           onCommit() { remember(m.id, S.playerId, 'Haritayı katlayıp kaldırdı.', -25, 30); },
           tells: [{ at: 0.6, text: () => `${gen(target.name)} sınırında yeni bir kule yükseliyor.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) { P().gold += 60; return { beat: 'iyi ettin', title: 'O Kış Kimse Ölmedi', text: `Komşunun kayınbiraderi baharda ayaklandı ve kendi kalesinde öldü.\n\nSen o kış hazine saydın. İkisi de bir iş.`, effects: ['+60 altın', 'Adamların yerinde'] }; }
+            if (ok) { P().gold += 60; return { beat: 'iyi ettin', title: 'O Kış Kimse Ölmedi', text: `Komşunun kayınbiraderi baharda ayaklandı ve kendi kalesinde öldü. Kuşatmayı sen yapmadın.\n\nO kış senin köylerinde kimse yas tutmadı. Marşalın bunu saymıyor.`, effects: ['+60 altın', 'Adamların yerinde'] }; }
             remember(m.id, S.playerId, 'Fırsatı kaçırdı.', -35, 40);
             return { beat: 'kapandı', title: 'Kule Bitti', text: `Marşalın haritayı bir daha açmadı. Konu açıldığında da susuyor.\n\nO kapı kapandı. Hangi kapıydı, ikinizden başka bilen yok.`, effects: [`<b>${m.name}</b> −35`, 'Fırsat geçti'] };
           },
@@ -1325,7 +1331,7 @@ export const EVENTS = [
           key: 'hire', label: 'Peşini öde.', detail: 'Dört yüz atlı. Sadakat satın alınmaz, kiralanır.',
           cost: [{ kind: STAKE.GOLD, value: price }],
           stakes: [{ kind: STAKE.GOLD, value: price }, { kind: STAKE.REPUTATION }],
-          waitDays: 200, odds: 0.55,
+          waitDays: 200, odds: clampOdds(0.38 + skill(P(), 'martial') * 0.028),
           disabled: p.gold < price, disabledWhy: `${price} altının yok`,
           onCommit() { S.flags.mercenaries = capt.id; },
           tells: [
@@ -1336,20 +1342,20 @@ export const EVENTS = [
             const p2 = P();
             if (ok) { p2.prestige += 90; p2.bonus = { ...(p2.bonus || {}), martial: (p2.bonus?.martial || 0) + 2 };
               remember(capt.id, S.playerId, 'Parasını tam ödedi.', +40, 30);
-              return { beat: 'kaldılar', title: 'Kışı Çıkardılar', text: `Bir kış boyunca sınırda durdular ve kimse geçmedi.\n\nBaharda gittiler. Giderken kimseye zarar vermediler. Bu bile bir şey.`, effects: ['+90 itibar', '+2 askerlik', `${price} altın gitti`] }; }
+              return { beat: 'kaldılar', title: 'Kışı Çıkardılar', text: `Bir kış boyunca sınırda durdular ve kimse geçmedi.\n\nBaharda giderken bir tek ahırın samanını aldılar. Hesabı sordular, ödediler.`, effects: ['+90 itibar', '+2 askerlik', `${price} altın gitti`] }; }
             for (const t of myCounties().slice(0, 1)) { const pr = pv(t.provinceId); pr.unrest += 30; pr.development = Math.max(1, pr.development - 2); }
             remember(capt.id, S.playerId, 'Kışın ortasında bıraktı.', -10, 20);
-            return { beat: 'gittiler', title: 'Kışın Ortasında Gittiler', text: `Daha iyi bir teklif gelmiş. Sana söyleme nezaketini gösterdiler.\n\nGiderken iki köyü boşalttılar. Paranı geri istemeyi düşünmedin bile.`, effects: [`${price} altın gitti`, 'Bir kontluğunda huzursuzluk', 'Sınır açık'] };
+            return { beat: 'bıraktılar', title: 'Kışın Ortasında Gittiler', text: `Daha iyi bir teklif gelmiş. Sana söyleme nezaketini gösterdiler.\n\nGiderken iki köyü boşalttılar. Paranı geri istemeyi düşünmedin bile.`, effects: [`${price} altın gitti`, 'Bir kontluğunda huzursuzluk', 'Sınır açık'] };
           },
         },
         {
           key: 'send', label: 'Geri yolla.', detail: 'Dört yüz aç atlı. Kapının önünde ya da komşunun.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 180, odds: 0.55,
+          waitDays: 180, odds: 0.63,
           onCommit() { remember(capt.id, S.playerId, 'Kapıdan çevirdi.', -25, 25); },
           tells: [{ at: 0.6, text: 'Bölük sınırın öte yakasında konaklamış.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) return { beat: 'gittiler', title: 'Batıya Gittiler', text: `Üç gün tarlada beklediler, sonra atlarını çevirdiler.\n\nKesende paran duruyor. Bu kış kimsenin kapısı çalınmadı.`, effects: ['Altının duruyor'] };
+            if (ok) return { beat: 'çevirdiler', title: 'Batıya Gittiler', text: `Üç gün tarlada beklediler, sonra atlarını çevirdiler.\n\nKesende paran duruyor. Bu kış kimsenin kapısı çalınmadı.`, effects: ['Altının duruyor'] };
             const t = myCounties()[0]; const pr = t ? pv(t.provinceId) : null;
             if (pr) { pr.unrest += 25; pr.development = Math.max(1, pr.development - 1); }
             return { beat: 'döndüler', title: 'Komşun Tuttu', text: `Komşun onları tuttu. İlk gittikleri yer senin sınır köylerin oldu.\n\nAynı adamlar. Aynı yüzler. Bu sefer öbür taraftan.`, effects: [pr ? `${pr.name} yağmalandı` : 'Sınır köylerin yağmalandı', 'Komşunun dört yüz atlısı var'] };
@@ -1378,7 +1384,7 @@ export const EVENTS = [
           key: 'bridge', label: 'Köprüyü yap.', detail: 'Taş köprü. Yüz yıl durur. Bu kış kimseyi ısıtmaz.',
           cost: [{ kind: STAKE.GOLD, value: cost }],
           stakes: [{ kind: STAKE.GOLD, value: cost }, { kind: STAKE.REPUTATION }],
-          waitDays: 240, odds: 0.72,
+          waitDays: 240, odds: clampOdds(0.56 + skill(P(), 'stewardship') * 0.022),
           disabled: (P()?.gold || 0) < cost, disabledWhy: `${cost} altının yok`,
           tells: [{ at: 0.5, text: 'Köprü ayakları döküldü. Kırk hane hâlâ çadırda.', goodTone: 'good', badTone: 'ambiguous' }],
           onResolve(d, ok) {
@@ -1392,7 +1398,7 @@ export const EVENTS = [
           key: 'people', label: 'Haneleri barındır.', detail: 'Kırk hane. Kışı çıkarırlar, vergiyi baharda öderler.',
           cost: [{ kind: STAKE.GOLD, value: Math.round(cost * 0.6) }],
           stakes: [{ kind: STAKE.GOLD, value: Math.round(cost * 0.6) }],
-          waitDays: 180, odds: 0.7,
+          waitDays: 180, odds: 0.76,
           disabled: (P()?.gold || 0) < Math.round(cost * 0.6), disabledWhy: 'kesende o kadar yok',
           tells: [{ at: 0.5, text: 'Kilerdeki un ocak ayında bitti. Bir ay erken.', goodTone: 'good', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1405,7 +1411,7 @@ export const EVENTS = [
         {
           key: 'none', label: 'İkisini de yapma.', detail: 'Kâhyan rakamları masada bıraktı ve çıktı.',
           stakes: [{ kind: STAKE.REPUTATION }, { kind: STAKE.SOUL }],
-          waitDays: 200, odds: 0.35,
+          waitDays: 200, odds: 0.33,
           onCommit() { P().gold += 20; P().piety = Math.max(0, P().piety - 30); },
           tells: [{ at: 0.5, text: 'Kâhyan bu ay rakamları getirmedi. Getirmesine gerek kalmadı.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1459,7 +1465,7 @@ export const EVENTS = [
           key: 'archers', label: 'Okçuları çağır.',
           detail: 'Uzaktan. Ok domuzu bulur. Ya da bulmaz.',
           stakes: [{ kind: STAKE.LIFE, who: gen(fullName(friend)) }],
-          waitDays: 10, odds: 0.5,
+          waitDays: 10, odds: clampOdds(0.34 + skill(P(), 'martial') * 0.026),
           onCommit() { courtHears('Çalılığa okçuları yolladı.', -8, 20); },
           tells: [{ at: 0.5, text: 'Çalılıktan ses kesildi. İyi mi kötü mü, bilinmiyor.', goodTone: 'good', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1541,11 +1547,11 @@ export const EVENTS = [
         {
           key: 'turn', label: 'Kapıyı kapat.', detail: 'İçeri almazsan teslim de etmemiş olursun. Yarım bir temizlik.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 240, odds: 0.5,
+          waitDays: 240, odds: 0.46,
           onCommit() { P().piety = Math.max(0, P().piety - 25); },
           tells: [{ at: 0.6, text: 'Kapıda bekleyen adamın izleri kuzeye gidiyormuş.', goodTone: 'good', badTone: 'ambiguous' }],
           onResolve(d, ok) {
-            if (ok) return { beat: 'kayboldu', title: 'İz Kayboldu', text: `Nereye gittiğini kimse öğrenmedi. Peşindekiler de öğrenmedi.\n\nKimseye bir şey ödemedin. Kapını da açmadın.`, effects: ['−25 dindarlık', 'Kimse bir şey borçlu değil'] };
+            if (ok) return { beat: 'kayboldu', title: 'İz Kayboldu', text: `Nereye gittiğini kimse öğrenmedi. Peşindekiler de öğrenmedi.\n\nBir hafta sonra kapının önündeki kar eridi. Altında bir eyer vardı. Kimse almadı.`, effects: ['−25 dindarlık', 'Kimse bir şey borçlu değil'] };
             remember(guest.id, S.playerId, 'Kapısını yüzüne kapattı.', -70, 70);
             S.flags.turnedAwayGuest = guest.id;
             return { beat: 'yaşadı', title: 'Üç Yıl Sonra', text: `Toprağını geri aldı. Şimdi sınırının öte yakasında oturuyor.\n\nSenin adını hatırlıyor. Kapının hangi kapı olduğunu da.`, effects: [`<b>${guest.name}</b> artık komşun ve düşmanın`, '−25 dindarlık'] };
@@ -1595,14 +1601,14 @@ export const EVENTS = [
         },
         {
           key: 'send', label: 'Yolla gitsin.', detail: `${clericWord()} kapıda bekliyor. Cevabını duymak istiyor.`,
-          waitDays: 200, odds: 0.5,
+          waitDays: 200, odds: 0.68,
           stakes: [{ kind: STAKE.REPUTATION }],
           onCommit() { if (cap3) remember(cap3.id, S.playerId, 'Yabancıyı kapıdan çevirdi.', +25, 30); },
           tells: [{ at: 0.6, text: 'Adam komşu kalede kalıyormuş. İyi karşılanmış.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             const p2 = P();
-            if (ok) { p2.piety += 40; return { beat: 'temiz', title: 'Kimse Konuşmadı', text: `Kışı sessiz geçirdin. Kule odası boş kaldı.\n\nBir şey kaybetmedin. Bir şey de kazanmadın.`, effects: ['+40 dindarlık'] }; }
-            return { beat: 'komşuda', title: 'Komşun Aldı', text: `Aynı sandıklar iki vadi ötede açıldı. Komşunun oğlu artık Rumca okuyor.\n\nSeninki hâlâ ata biniyor. Bu da bir şeydir.`, effects: ['+40 dindarlık', 'Komşunun oğlu okumuş'] };
+            if (ok) { p2.piety += 40; return { beat: 'temiz', title: 'Kimse Konuşmadı', text: `Kule odasını ambar yaptılar. Kışın ortasında oraya arpa taşındı.\n\nSandıkların hangi kapıdan çıktığını görmedin. Bir daha da o kapıyı düşünmedin.`, effects: ['+40 dindarlık'] }; }
+            return { beat: 'komşuda', title: 'Komşun Aldı', text: `Aynı sandıklar iki vadi ötede açıldı. Komşunun oğlu artık Rumca yazışıyor.\n\nSeninkinin mührünü hâlâ kâhyan basıyor.`, effects: ['+40 dindarlık', 'Komşunun oğlu okumuş'] };
           },
         },
       ),
@@ -1629,13 +1635,13 @@ export const EVENTS = [
         {
           key: 'older', label: 'Eski kâğıda hükmet.', detail: 'Kanun eskidir. Eski olan bazen haklıdır.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 120, odds: 0.55,
+          waitDays: 120, odds: clampOdds(0.34 + skill(P(), 'stewardship') * 0.028),
           onCommit() { remember(a.id, S.playerId, 'Lehine hükmetti.', +45, 30); remember(b.id, S.playerId, 'Babasının mührünü hiçe saydı.', -50, 40); },
           tells: [{ at: 0.5, text: () => `${b.name} bu ay divana gelmedi.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             const p2 = P();
             if (ok) { p2.prestige += 50; courtHears('Kanuna göre hükmediyor.', +12, 30);
-              return { beat: 'kabullendi', title: 'İkisi de Sustu', text: `${b.name} kâğıdını katladı, cebine koydu ve oturdu.\n\nSalon bunu gördü. Bir hüküm bir mahkemeden fazlasıdır.`, effects: ['+50 itibar', 'Vassalların +12', `<b>${b.name}</b> −50`] }; }
+              return { beat: 'kabullendi', title: 'İkisi de Sustu', text: `${b.name} kâğıdını katladı, cebine koydu ve oturdu.\n\nO kış üç dava daha divanına geldi. Üçü de kâğıtla geldi, kılıçla değil.`, effects: ['+50 itibar', 'Vassalların +12', `<b>${b.name}</b> −50`] }; }
             b.faction = 'discontent';
             return { beat: 'kabullenmedi', title: 'Değirmeni Yaktı', text: `${b.name} kararı dinledi, teşekkür etti, sonra o gece değirmeni yaktı.\n\nKimse kanıtlayamadı. Kimse şaşırmadı da.`, effects: [`<b>${b.name}</b> hoşnutsuz`, 'Değirmen kül'] };
           },
@@ -1643,21 +1649,21 @@ export const EVENTS = [
         {
           key: 'seal', label: 'Babanın mührüne uy.', detail: 'Babanın imzasını çiğnersen kendi imzanı da çiğnetirsin.',
           stakes: [{ kind: STAKE.REPUTATION }],
-          waitDays: 120, odds: 0.55,
+          waitDays: 120, odds: clampOdds(0.42 + skill(P(), 'diplomacy') * 0.022),
           onCommit() { remember(b.id, S.playerId, 'Lehine hükmetti.', +45, 30); remember(a.id, S.playerId, 'Eski hakkını tanımadı.', -50, 40); },
           tells: [{ at: 0.5, text: () => `${a.name} bu ay vergisini eksik yolladı.`, goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
             if (ok) { P().prestige += 50; courtHears('Babasının mührüne saygı gösteriyor.', +12, 30);
-              return { beat: 'kabullendi', title: 'Mühür Tuttu', text: `${a.name} kâğıdını masada bıraktı ve almadan çıktı.\n\nMührün ağırlığı arttı. Bunu senden sonra da hatırlayacaklar.`, effects: ['+50 itibar', 'Vassalların +12', `<b>${a.name}</b> −50`] }; }
+              return { beat: 'boyun eğdi', title: 'Mühür Tuttu', text: `${a.name} kâğıdını masada bıraktı ve almadan çıktı.\n\nMührün ağırlığı arttı. Bunu senden sonra da hatırlayacaklar.`, effects: ['+50 itibar', 'Vassalların +12', `<b>${a.name}</b> −50`] }; }
             a.faction = 'discontent';
-            return { beat: 'kabullenmedi', title: 'Adamlarını Çekti', text: `${a.name} değirmeni bıraktı, sonra sınırdaki adamlarını da çekti.\n\nO geçit şimdi bekçisiz. Kim geçerse geçer.`, effects: [`<b>${a.name}</b> hoşnutsuz`, 'Bir geçit bekçisiz'] };
+            return { beat: 'çekildi', title: 'Adamlarını Çekti', text: `${a.name} değirmeni bıraktı, sonra sınırdaki adamlarını da çekti.\n\nO geçit şimdi bekçisiz. Kim geçerse geçer.`, effects: [`<b>${a.name}</b> hoşnutsuz`, 'Bir geçit bekçisiz'] };
           },
         },
         {
           key: 'take', label: 'Değirmeni sen al.', detail: 'İkisi de kaybeder. Kaybedenler birleşir.',
           cost: [{ kind: STAKE.PRESTIGE, value: 30 }],
           stakes: [{ kind: STAKE.REPUTATION }, { kind: STAKE.OATH }],
-          waitDays: 200, odds: 0.4,
+          waitDays: 200, odds: 0.33,
           onCommit() { P().gold += 50; remember(a.id, S.playerId, 'Değirmeni kendine aldı.', -55, 45); remember(b.id, S.playerId, 'Değirmeni kendine aldı.', -55, 45); },
           tells: [{ at: 0.5, text: 'İkisi bu ay aynı gün ava çıkmış. Aynı ormanda.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1726,7 +1732,7 @@ export const EVENTS = [
           onCommit() { remember(v.id, S.playerId, 'Vergisini bağışladı.', +35, 25); },
           tells: [{ at: 0.5, text: 'Bu ay bir vassalın daha vergisi eksik geldi.', goodTone: 'ambiguous', badTone: 'bad' }],
           onResolve(d, ok) {
-            if (ok) { P().gold += 40; return { beat: 'ödedi', title: 'Ertesi Yıl İki Katı', text: `Geçen yılın borcunu da yolladı. Yanında bir at, bir de özür.\n\nBazen bir adamı yalnız bırakmak yeter.`, effects: ['+40 altın', `<b>${v.name}</b> +35`] }; }
+            if (ok) { P().gold += 40; return { beat: 'iki katı', title: 'Ertesi Yıl İki Katı', text: `Geçen yılın borcunu da yolladı. Yanında bir at, bir de özür.\n\nBazen bir adamı yalnız bırakmak yeter.`, effects: ['+40 altın', `<b>${v.name}</b> +35`] }; }
             courtHears('Ödemeyeni affediyor.', -20, 35);
             return { beat: 'yayıldı', title: 'Defterde Üç Boş Satır', text: `Ertesi yıl üç vassalın vergisi gelmedi. Hiçbiri mazeret yollamadı.\n\nBir kez bağışlanan şey bir daha istenmiyor.`, effects: ['Vassalların −20', 'Gelirin düştü'] };
           },
@@ -1757,7 +1763,7 @@ export const EVENTS = [
         {
           key: 'confront', label: 'Yüzüne vur.', detail: 'Divanda, herkesin önünde. Ne diyeceğini bilmiyorsun.',
           stakes: [{ kind: STAKE.REPUTATION }, { kind: STAKE.OATH }],
-          waitDays: 60, odds: 0.5,
+          waitDays: 60, odds: clampOdds(0.34 + skill(P(), 'diplomacy') * 0.028),
           onCommit() { remember(traitor.id, S.playerId, 'Mektubu yüzüne vurdu.', -55, 45); },
           tells: [{ at: 0.6, text: () => `${traitor.name} odasından çıkmıyor. Yemek kapıya bırakılıyor.`, goodTone: 'good', badTone: 'bad' }],
           onResolve(d, ok) {
@@ -1777,7 +1783,7 @@ export const EVENTS = [
           detail: 'Konuşsun. Ne söylediğini sen yazacaksın.',
           cost: [{ kind: STAKE.GOLD, value: 40 }],
           stakes: [{ kind: STAKE.SECRET }, { kind: STAKE.OATH }],
-          waitDays: 300, odds: clampOdds(0.35 + intrigue() * 0.05),
+          waitDays: 300, odds: clampOdds(0.24 + intrigue() * 0.05),
           onCommit() { S.flags.doubleAgent = traitor.id; },
           tells: [
             { at: 0.35, text: () => `${traitor.name} bu ay iki mektup daha yazdı. İkisini de okudun.`, goodTone: 'good', badTone: 'ambiguous' },
@@ -1802,7 +1808,7 @@ export const EVENTS = [
           confirm: 'Kendi divan üyeni mi?',
           cost: [{ kind: STAKE.GOLD, value: 60 }],
           stakes: [{ kind: STAKE.LIFE, who: gen(fullName(traitor)) }, { kind: STAKE.SECRET }, { kind: STAKE.SOUL }],
-          waitDays: 45, odds: clampOdds(0.35 + intrigue() * 0.05),
+          waitDays: 45, odds: clampOdds(0.46 + intrigue() * 0.032),
           tells: [{ at: 0.6, text: () => `${traitor.name} bu hafta iki kez yemeğine bakıp yemedi.`, goodTone: 'good', badTone: 'bad' }],
           onResolve(d, ok) {
             const p2 = P();

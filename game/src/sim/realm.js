@@ -3,7 +3,7 @@
 
 import { S, newId, ch, ti, pv, rng, alive } from '../core/state.js';
 import { emit } from '../core/bus.js';
-import { fullName } from './characters.js';
+import { fullName, opinion } from './characters.js';
 
 export const TIER = { barony: 0, county: 1, duchy: 2, kingdom: 3, empire: 4 };
 export const TIER_NAME = ['Baronluk', 'Kontluk', 'Düklük', 'Krallık', 'İmparatorluk'];
@@ -107,7 +107,7 @@ export function incomeOf(charId) {
   // vassal tax scales with how much they like you
   for (const v of vassalsOf(charId)) {
     const vi = incomeOf(v.id);
-    const op = (v.opinions?.[charId] || 0);
+    const op = opinion(v.id, charId);
     inc += vi * Math.max(0.05, 0.25 + op / 400);
   }
   return Math.round(inc * 10) / 10;
@@ -121,12 +121,14 @@ export function levyOf(charId) {
     if (!p) continue;
     lv += 90 + p.development * 22 + (p.holdings || 1) * 45;
   }
+  // Volunteers and sworn retinues ride outside the county levy.
+  lv += Math.max(0, c.retinue || 0);
   return Math.round(lv);
 }
 export function realmLevy(charId) {
   let lv = levyOf(charId);
   for (const v of vassalsOf(charId)) {
-    const op = v.opinions?.[charId] || 0;
+    const op = opinion(v.id, charId);
     lv += realmLevy(v.id) * Math.max(0, 0.35 + op / 260);
   }
   return Math.round(lv);

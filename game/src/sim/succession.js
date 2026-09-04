@@ -50,7 +50,11 @@ export const LAW_ORDER = ['partition', 'primogeniture', 'seniority', 'elective']
 
 /** What a ruler was handed on their first day — so the eulogy can compare. */
 function seedOf(c) {
-  return { day: S.day, titles: (c?.titles || []).length, gold: Math.round(c?.gold || 0), prestige: Math.round(c?.prestige || 0) };
+  return {
+    day: S.day, titles: (c?.titles || []).length,
+    gold: Math.round(c?.gold || 0), prestige: Math.round(c?.prestige || 0),
+    stats: { ...(S.stats || {}) },
+  };
 }
 
 function suc() {
@@ -494,6 +498,11 @@ export function succeed(title) {
       style: plan.style, seatName: plan.seatName, seatLabel: plan.seatLabel,
       heldTitleIds: plan.heldTitleIds,
       seed: s.reignSeed || seedOf(dead),
+      // an edict still in the post when its author died
+      doomedLaw: s.pendingLaw ? { law: s.pendingLaw.law, prestige: s.pendingLaw.prestige,
+        left: Math.max(0, s.pendingLaw.doneDay - S.day) } : null,
+      dynastyLeft: Object.values(S.chars).filter((c) => c.deathDay == null && c.dynastyId === dead.dynastyId).length,
+      kidsLeft: livingChildren(dead).length,
     };
     S.pendingPlayer = heir.id;
     pause('death');
@@ -547,6 +556,18 @@ export function handoverPreview(deadId, heirId, apply = false) {
     const after = Math.max(-100, Math.min(100, opinion(v.id, heirId) + pen));
     out.vassals.push({ id: v.id, name: fullName(v), age: age(v), before, after, delta: after - before, why });
     if (apply) remember(v.id, heirId, why, pen, HANDOVER_LIFE);
+  }
+
+  // 1b. Your father's liege did not choose you either.
+  const liege = heir.liegeId ? ch(heir.liegeId) : null;
+  if (liege && liege.deathDay == null) {
+    const before = opinion(liege.id, deadId);
+    let pen = -14;
+    let why = 'Babanı tanıyordu. Seni divanda ilk kez görecek.';
+    if (age(heir) < 16) { pen -= 12; why = 'Bir çocuğun yeminini yemin saymıyor.'; }
+    const after = Math.max(-100, Math.min(100, opinion(liege.id, heir.id) + pen));
+    out.liege = { id: liege.id, name: fullName(liege), age: age(liege), before, after, delta: after - before, why };
+    if (apply) remember(liege.id, heir.id, why, pen, HANDOVER_LIFE);
   }
 
   // 2. Friendships were his, not yours. Feuds were his, and now they are yours.
@@ -629,7 +650,7 @@ export function assumeHeir() {
       day: S.day, kind: 'law', tone: 'bad',
       text: `${LAWS[s.pendingLaw.law].name} fermanı mühürlendiği yerde kaldı. Ödediğin itibar toprağa gitti.`,
     });
-    s.voidedLaw = { ...s.pendingLaw };
+    s.voidedLaw = { ...s.pendingLaw, voidedDay: S.day };
     s.pendingLaw = null;
   }
 

@@ -28,6 +28,9 @@ import { renderPortrait } from '../render/portrait.js';
 import { SFX, heart, resumeAudio } from '../audio/audio.js';
 import { esc } from './decision.js';
 import { whisper } from './wait.js';
+// Namespace import on purpose: P03 owns reveal.js and is editing it in parallel;
+// a named import of something not yet exported would blank the whole screen.
+import * as REVEAL from './reveal.js';
 import { css } from './_css.js';
 
 let chip, panel, stage;
@@ -439,15 +442,44 @@ function paintPortraits(root) {
 }
 
 function runDeath(deadId, heirId) {
-  const dead = ch(deadId), heir = ch(heirId);
+  const dead = ch(deadId);
   const last = lastSuccession() || {};
   const reign = Math.max(0, Math.round(((last.reignTo ?? S.day) - (last.reignFrom ?? 0)) / YEAR));
-  heart(0);
-  SFX.knell();
-
-  // ---- act I: the body -----------------------------------------------------
   const where = last.seatName || 'kendi yatağın';
-  const el1 = act(`
+  heart(0);
+
+  const effects = [
+    reign > 0 ? `<b>${reign} yıl</b> tahtta kaldın.` : 'Tahtta bir yıl bile duramadın.',
+    last.kidsLeft ? `Geriye <b>${last.kidsLeft}</b> çocuk ve <b>${last.dynastyLeft}</b> kişilik bir hanedan kaldı.`
+      : `Geriye <b>${last.dynastyLeft || 0}</b> kişilik bir hanedan kaldı; senden bir evlat kalmadı.`,
+    last.doomedLaw ? `Mühürlediğin <b>${esc(LAWS[last.doomedLaw.law].name)}</b> fermanı açılmadan kaldı.` : '',
+  ].filter(Boolean);
+
+  // P03 owns the game's death language (silence → breath → one word → the
+  // sentence → the cost, line by line, with the face going grey). Use it for
+  // the heaviest beat instead of inventing a second one; fall back to our own
+  // staging if that export is not there.
+  const spec = {
+    weight: 1, irreversible: true, targetId: deadId,
+    title: 'Öldün.',
+    outcome: {
+      success: false, knell: true, beat: 'bir ömür bitti', title: 'Öldün.',
+      // P03 prints paragraphs with textContent — pass raw text, not escaped.
+      text: `${fullName(dead)} · ${age(dead)} yaşında · ${last.style || styleOf(dead)}\n\n`
+        + `Son nefesini ${where}'de verdin. Kimse odaya girmiyor; dışarıda birileri çoktan konuşuyor.`,
+      effects,
+    },
+  };
+  let p = null;
+  try { if (typeof REVEAL.stageMoment === 'function') p = REVEAL.stageMoment(spec); } catch (e) { p = null; }
+  if (p && typeof p.then === 'function') { p.then(() => act2()).catch(() => act2()); return; }
+  act1Local(dead, last, reign, where);
+}
+
+/** Fallback for the first beat if P03's staging is unavailable. */
+function act1Local(dead, last, reign, where) {
+  SFX.knell();
+  const el = act(`
     <div class="p08kick">${fmtDate(S.day)} · ${esc(causeLabel(dead.deathCause || 'natural'))}</div>
     ${portraitBlock(dead)}
     <h1>Öldün.</h1>
@@ -455,32 +487,43 @@ function runDeath(deadId, heirId) {
     <p>${reign > 0 ? `${reign} yıl tahtta kaldın.` : 'Tahtta bir yıl bile duramadın.'} Son nefesini ${esc(where)}'de verdin.</p>
     <p class="dim">Kimse odaya girmiyor. Dışarıda birileri çoktan konuşuyor.</p>
   `, () => act2(), { label: 'geriye ne kaldı', wait: 2600 });
-  paintPortraits(el1);
+  paintPortraits(el);
 }
 
 function act2() {
   const last = lastSuccession() || {};
   const dead = ch(last.deadId);
-  const mems = (S.memories || []).slice(-3).reverse();
+  const seed = last.seed || {};
   const st = S.stats || {};
+  const s0 = seed.stats || {};
+  const d = (k) => Math.max(0, (st[k] || 0) - (s0[k] || 0));
   const lands = (last.heldTitleIds || []).length;
-  const seed = last.seed || { titles: lands, gold: 0 };
   const dLand = lands - (seed.titles || 0);
+
+  // The ledger is a global one; other rulers write in it too. A eulogy that
+  // lists a Byzantine's land grab is not a eulogy.
+  const all = S.memories || [];
+  const mine = all.filter((m) => (m.decisionId || m.kind === 'law' || m.kind === 'succession' ||
+    m.targetId === last.deadId) && m.day >= (last.reignFrom ?? 0));
+  const mems = (mine.length ? mine : []).slice(-3).reverse();
+
+  const from = fmtDate(last.reignFrom ?? 0), to = fmtDate(last.reignTo ?? S.day);
   const el = act(`
-    <div class="p08kick">geriye kalanlar</div>
+    <div class="p08kick">${esc(from)} — ${esc(to)}</div>
     <h1 class="small">${esc(fullName(dead))}'in defteri</h1>
     <div class="p08grid">
-      <div><b>${st.decisionsMade || 0}</b><span>verdiğin karar</span></div>
-      <div><b>${st.irreversible || 0}</b><span>geri dönüşü olmayan</span></div>
+      <div><b>${d('decisionsMade')}</b><span>verdiğin karar</span></div>
+      <div><b class="${d('irreversible') ? 'no' : ''}">${d('irreversible')}</b><span>geri dönüşü olmayan</span></div>
       <div><b class="${dLand < 0 ? 'no' : dLand > 0 ? 'yes' : ''}">${lands}</b><span>${
-        dLand === 0 ? 'unvan — aldığın kadar' : dLand > 0 ? `unvan · ${dLand} tanesini sen aldın` : `unvan · ${-dLand} tanesini kaybettin`}</span></div>
-      <div><b>${Math.floor(dead?.gold || 0)}</b><span>altın</span></div>
+        dLand === 0 ? 'unvan — devraldığın kadar' : dLand > 0 ? `unvan · ${dLand} tanesi senin` : `unvan · ${-dLand} tanesini kaybettin`}</span></div>
+      <div><b>${last.dynastyLeft ?? '—'}</b><span>ardında kalan hanedan</span></div>
     </div>
     ${mems.length ? `<div class="p08mem">${mems.map((m) => `
         <div><i>${fmtDate(m.day)}</i>${esc(m.text)}</div>`).join('')}</div>`
-      : `<p class="dim">Vakayiname senin adına bir şey yazmadı. Adından başka bir şey bırakmadın.</p>`}
-    ${st.kin_lost ? `<p class="bad">Kendi kanından ${st.kin_lost} kişi senin yüzünden gitti.</p>` : ''}
-    ${st.oaths_broken ? `<p class="bad">${st.oaths_broken} yeminini bozdun. Onlar hatırlıyor.</p>` : ''}
+      : `<p class="dim">Vakayiname senin adına tek satır yazmadı. Adından başka bir şey bırakmadın.</p>`}
+    ${d('kin_lost') ? `<p class="bad">Kendi kanından ${d('kin_lost')} kişi senin yüzünden gitti.</p>` : ''}
+    ${d('oaths_broken') ? `<p class="bad">${d('oaths_broken')} yeminini bozdun. Onlar hatırlıyor.</p>` : ''}
+    ${last.kidsLeft ? `<p class="dim">${last.kidsLeft} çocuğun sağ. Biri tahtı alacak, diğerleri seyredecek.</p>` : ''}
   `, () => act3(), { label: 'kim geliyor', wait: 1800 });
   paintPortraits(el);
 }
@@ -489,7 +532,8 @@ function act3() {
   const last = lastSuccession() || {};
   const dead = ch(last.deadId), heir = ch(last.heirId);
   const hv = handoverPreview(last.deadId, last.heirId, false);
-  const worst = hv.vassals.slice().sort((a, b) => a.delta - b.delta).slice(0, 4);
+  const worst = hv.vassals.slice().sort((a, b) => a.delta - b.delta).slice(0, 3);
+  const bows = hv.liege ? [hv.liege, ...worst] : worst;
   const tr = (heir.traits || []).slice(0, 3).map((t) => TRAITS[t]?.name || t);
   const dropped = hv.skills.filter((s) => s.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 2);
   const risen = hv.skills.filter((s) => s.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 2);
@@ -502,24 +546,26 @@ function act3() {
     <p>${heirSentence(heir, dead)}</p>
     <div class="p08cost">
       <div class="ch">Devrin bedeli</div>
-      ${worst.length ? worst.map((v) => `
-        <div class="cl"><span>${esc(v.name)} (${v.age})</span>
-          <b>${v.before > 0 ? '+' : ''}${v.before} → <em>${v.after > 0 ? '+' : ''}${v.after}</em></b>
+      ${bows.length ? bows.map((v, i) => `
+        <div class="cl"><span>${i === 0 && hv.liege ? 'Efendin ' : ''}${esc(v.name)} (${v.age})</span>
+          <b>${v.before > 0 ? '+' : ''}${v.before} → <em class="${v.delta < 0 ? 'no' : 'yes'}">${v.after > 0 ? '+' : ''}${v.after}</em></b>
           <i>${esc(v.why)}</i></div>`).join('')
-        : `<div class="cl none">Sana bağlı kimse yok. Kaybedecek sadakatin de yok.</div>`}
+        : `<div class="cl none">Sana diz çöken kimse yok. Kaybedecek sadakatin de yok.</div>`}
+      ${last.doomedLaw ? `<div class="cl"><span>${esc(LAWS[last.doomedLaw.law].name)} fermanı</span>
+          <b class="no">mühürde kaldı</b>
+          <i>Baban ${last.doomedLaw.prestige} itibar ödedi, ${years(last.doomedLaw.left)} kalmıştı. Kanun onunla gömüldü.</i></div>` : ''}
       ${hv.allies.length ? `<div class="cl"><span>Babanın dostları</span><b class="no">bitti</b>
-          <i>${hv.allies.slice(0, 3).map((a) => esc(a.name)).join(', ')} ona borçluydu, sana değil.</i></div>` : ''}
+          <i>${hv.allies.slice(0, 3).map((a) => esc(a.name)).join(', ')} — ${hv.allies.length > 1 ? 'hepsi babana' : 'babana'} borçluydu, sana değil.</i></div>` : ''}
       ${hv.feuds.length ? `<div class="cl"><span>Babanın düşmanları</span><b class="no">sende</b>
-          <i>${hv.feuds.slice(0, 3).map((f) => esc(f.name)).join(', ')} hesabı senden soracak.</i></div>` : ''}
+          <i>${hv.feuds.slice(0, 3).map((f) => `${esc(f.name)} (${f.age})`).join(', ')} hesabı senden soracak.</i></div>` : ''}
       ${last.disinherited?.length ? `<div class="cl"><span>Mirastan çıkanlar</span><b class="no">hak iddia ediyor</b>
-          <i>${last.disinherited.slice(0, 3).map((d) => esc(fullName(ch(d)))).join(', ')} toprağın üstünde iddia sahibi.</i></div>` : ''}
+          <i>${last.disinherited.slice(0, 3).map((d) => `${esc(fullName(ch(d)))} (${age(ch(d))})`).join(', ')} toprağın üstünde iddia sahibi.</i></div>` : ''}
       ${last.fragments > 1 ? `<div class="cl"><span>Ülke</span><b class="no">${last.fragments} parça</b>
           <i>Babanın kurduğu şey bugün bölündü.</i></div>` : ''}
-      <div class="cl"><span>Kasa ve itibar</span>
-        <b>${hv.gold.inherited} altın · ${hv.prestige.inherited} itibar</b>
-        <i>Gerisini cenaze ve borçlar aldı.</i></div>
-      ${dropped.length ? `<div class="cl"><span>Zayıfladığın yer</span><b class="no">${dropped.map((d) => `${d.label} ${d.delta}`).join(', ')}</b><i>Babanın elinden çıkan işler artık sende.</i></div>` : ''}
-      ${risen.length ? `<div class="cl"><span>Güçlendiğin yer</span><b class="yes">${risen.map((d) => `${d.label} +${d.delta}`).join(', ')}</b><i>Bir şeyi ondan iyi yapıyorsun.</i></div>` : ''}
+      <div class="cl tightrow"><span>Kasa ve itibar — gerisini cenaze aldı</span>
+        <b>${hv.gold.inherited} altın · ${hv.prestige.inherited} itibar</b></div>
+      ${dropped.length ? `<div class="cl tightrow"><span>Onun elinden geldiği kadar gelmiyor</span><b class="no">${dropped.map((d) => `${d.label} ${d.delta}`).join(', ')}</b></div>` : ''}
+      ${risen.length ? `<div class="cl tightrow"><span>Ondan iyi olduğun yer</span><b class="yes">${risen.map((d) => `${d.label} +${d.delta}`).join(', ')}</b></div>` : ''}
     </div>
   `, () => finish(), { label: 'devral', wait: 2000, tight: true });
   paintPortraits(el);
@@ -733,11 +779,15 @@ body.staged #p08chip{opacity:.10;pointer-events:none;transition:opacity .6s}
 #p08death.gone{opacity:0;transition:opacity .9s ease}
 @keyframes p08fade{from{opacity:0}to{opacity:1}}
 .p08act{max-width:720px;margin:0 auto;min-height:calc(100vh - 52px);display:flex;flex-direction:column;
-  justify-content:center;text-align:center;animation:p08rise 1.4s cubic-bezier(.16,1,.3,1) both}
-.p08act.tight{justify-content:flex-start;padding-top:14px}
+  align-items:center;justify-content:center;text-align:center;animation:p08rise 1.4s cubic-bezier(.16,1,.3,1) both}
+.p08act.tight{justify-content:center;gap:0}
+.p08act.tight h1.small{font-size:27px;margin-bottom:6px}
+.p08act.tight .p08name{margin-bottom:12px}
+.p08act.tight p{font-size:15px;margin-bottom:8px}
+.p08act.tight .p08next{margin-top:16px}
 @keyframes p08rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .p08act .p08kick{margin-bottom:20px}
-.p08big.small{width:118px;height:118px;margin-bottom:12px}
+.p08big.small{width:96px;height:96px;margin-bottom:10px}
 .p08big{width:170px;height:170px;margin:0 auto 18px;border:1px solid rgba(201,163,78,.34);overflow:hidden;
   background:#120d09;box-shadow:0 0 60px rgba(0,0,0,.9), inset 0 0 40px rgba(0,0,0,.7);
   filter:grayscale(.55) contrast(1.05);animation:p08lift 2.6s ease both}
@@ -752,28 +802,31 @@ body.staged #p08chip{opacity:.10;pointer-events:none;transition:opacity .6s}
 .p08act p{font-size:17px;line-height:1.85;color:#cfc2a6;margin:0 0 12px}
 .p08act p.dim{font-size:14.5px;color:#8a7a58;font-style:italic}
 .p08act p.bad{color:#d08a7a;font-size:15px}
-.p08grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 18px}
+.p08grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0 18px;width:100%}
 .p08grid div{padding:10px 6px;background:rgba(0,0,0,.4);border:1px solid rgba(201,163,78,.14)}
 .p08grid b{display:block;font-size:26px;color:#e8c877;font-weight:400;font-variant-numeric:tabular-nums}
 .p08grid b.no{color:#c9705e}
 .p08grid b.yes{color:#9dc07e}
 .p08grid span{font-size:10.5px;color:#8a7a58;letter-spacing:.6px}
-.p08mem{text-align:left;margin:16px auto 6px;max-width:620px;border-top:1px solid rgba(201,163,78,.14);padding-top:12px}
+.p08mem{text-align:left;margin:16px auto 6px;max-width:620px;width:100%;border-top:1px solid rgba(201,163,78,.14);padding-top:12px}
 .p08mem div{font-size:13.5px;color:#bdae90;padding:5px 0;line-height:1.6}
 .p08mem i{display:inline-block;min-width:118px;color:#7a6a52;font-style:normal;font-size:11.5px}
-.p08cost{text-align:left;margin:18px auto 4px;max-width:640px}
+.p08cost{text-align:left;margin:14px auto 4px;max-width:640px;width:100%;max-height:44vh;overflow-y:auto;
+  padding-right:4px;scrollbar-width:thin}
 .p08cost .ch{font-size:10px;letter-spacing:2.4px;text-transform:uppercase;color:#8a7a58;
   border-bottom:1px solid rgba(201,163,78,.14);padding-bottom:6px;margin-bottom:8px}
-.p08cost .cl{display:grid;grid-template-columns:1fr auto;gap:4px 14px;padding:7px 0;
+.p08cost .cl{display:grid;grid-template-columns:1fr auto;gap:3px 14px;padding:6px 0;
   border-bottom:1px solid rgba(201,163,78,.07);font-size:13px;color:#cfc2a6}
+.p08cost .cl.tightrow{padding:5px 0}
 .p08cost .cl span{color:#a8987a}
 .p08cost .cl b{font-weight:500;color:#e8dcc6;font-variant-numeric:tabular-nums;text-align:right}
 .p08cost .cl b em{font-style:normal;color:#d08a7a}
+.p08cost .cl b em.yes{color:#9dc07e}
 .p08cost .cl b.no{color:#d08a7a}
 .p08cost .cl b.yes{color:#9dc07e}
 .p08cost .cl i{grid-column:1/-1;font-size:11.5px;color:#7a6a52;font-style:italic;line-height:1.5}
 .p08cost .cl.none{color:#8a7a58}
-.p08next{margin-top:30px;padding:11px 44px;background:rgba(201,163,78,.10);border:1px solid rgba(201,163,78,.34);
+.p08next{align-self:center;margin-top:26px;padding:11px 44px;background:rgba(201,163,78,.10);border:1px solid rgba(201,163,78,.34);
   color:#e8c877;font-family:inherit;font-size:14px;letter-spacing:2.6px;text-transform:lowercase;cursor:pointer;
   transition:opacity 1.2s ease,background .2s}
 .p08next:hover{background:rgba(201,163,78,.24)}

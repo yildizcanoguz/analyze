@@ -15,14 +15,17 @@ export const M = {
   idField: null,          // supersampled province raster, see buildIdField()
 };
 
+// Albedos, in linear light. They are deliberately far apart in *value* as well
+// as hue: forest is a fifth as bright as desert, so the terrains stay apart
+// even in a grey winter or under a political wash.
 const BIOME_COLOR = {
-  plains:    [0.25, 0.32, 0.13],
-  steppe:    [0.36, 0.32, 0.15],
-  forest:    [0.11, 0.20, 0.10],
-  hills:     [0.25, 0.25, 0.14],
-  mountains: [0.27, 0.26, 0.24],
-  drylands:  [0.40, 0.31, 0.17],
-  desert:    [0.53, 0.45, 0.26],
+  plains:    [0.19, 0.29, 0.09],
+  steppe:    [0.40, 0.34, 0.13],
+  forest:    [0.06, 0.14, 0.06],
+  hills:     [0.22, 0.21, 0.10],
+  mountains: [0.26, 0.25, 0.26],
+  drylands:  [0.44, 0.28, 0.13],
+  desert:    [0.62, 0.52, 0.28],
   sea:       [0.02, 0.05, 0.09],
 };
 const BIOME_KEYS = ['plains','steppe','forest','hills','mountains','drylands','desert','sea'];
@@ -177,8 +180,8 @@ export function buildMap(map) {
       uBorderInk: { value: new THREE.Color(0x21160c) },
       uSeason: { value: 0.0 },           // 0 summer .. 1 winter (snow line)
       uYScale: { value: M.yScale },
-      uFogColor: { value: new THREE.Color(0x6d87a2) },
-      uFogDensity: { value: 0.00026 },
+      uFogColor: { value: new THREE.Color(0x7d8a97) },
+      uFogDensity: { value: 0.00022 },
     },
     vertexShader: /* glsl */`
       attribute float aBiome;
@@ -211,6 +214,7 @@ export function buildMap(map) {
       float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
       float fbm(vec2 p){ float a=0.5,s=0.0; for(int i=0;i<5;i++){ s+=a*vnoise(p); p*=2.03; a*=0.5;} return s; }
+      float fbm3(vec2 p){ float a=0.5,s=0.0; for(int i=0;i<3;i++){ s+=a*vnoise(p); p*=2.11; a*=0.5;} return s; }
 
       // Bilinear arg-max over the province raster. Each of the four surrounding
       // texels votes with its bilinear weight; the province with most votes owns
@@ -256,44 +260,64 @@ export function buildMap(map) {
         float coast = (id < -1.5 || rival < -1.5) ? 1.0 : 0.0;
         b *= mix(1.0, 0.34, coast);
 
+        vec4 pc = id < 0.0 ? vec4(0.0) : palAt(id);
+        float dist = length(vWorld - cameraPosition);
+        vec3 N = normalize(vNormal);
+        vec2 wp = vWorld.xz;
+
         // --- terrain colour --------------------------------------------------
         int bi = int(vBiome + 0.5);
         vec3 base = uBiome[0];
         for (int k=0;k<8;k++) if (k==bi) base = uBiome[k];
-        float g = fbm(vUv*uCell*0.55);
-        base *= 0.82 + g*0.40;
-        // rock exposure on steep slopes
-        float slope = 1.0 - clamp(vNormal.y, 0.0, 1.0);
-        base = mix(base, vec3(0.22,0.20,0.185), smoothstep(0.25,0.65,slope));
-        // snow
+        base *= 0.80 + fbm3(wp*0.011)*0.44;
+
+        // Altitude does more work than the biome map: valleys stay green, the
+        // uplands dry to straw, the tops go to bare rock. That is the ramp that
+        // makes relief readable from any height.
+        float alt = clamp(vH / (uYScale*1.10), 0.0, 1.0);
+        base = mix(base, base*vec3(1.16,0.98,0.70), smoothstep(0.20,0.56,alt));
+        base = mix(base, vec3(0.21,0.20,0.19), smoothstep(0.56,0.94,alt)*0.85);
+
+        float slope = 1.0 - clamp(N.y, 0.0, 1.0);
+        base = mix(base, vec3(0.20,0.18,0.165), smoothstep(0.22,0.58,slope));
+
         float snowLine = mix(1.24, 0.66, uSeason) * uYScale;
         float snow = smoothstep(snowLine, snowLine+9.0, vH) * (1.0 - smoothstep(0.5,0.85,slope));
         base = mix(base, vec3(0.68,0.72,0.80), snow);
 
-        // --- political colour -------------------------------------------------
-        vec4 pc = id < 0.0 ? vec4(0.0) : palAt(id);
-        vec3 polit = pc.rgb;
+        vec3 terr = mix(base, pc.rgb*0.55, 0.34*pc.a);
 
-        // parchment look for the zoomed-out political map
-        float paper = fbm(vUv*uCell*0.30)*0.5 + fbm(vUv*uCell*1.7)*0.25;
-        vec3 parch = mix(vec3(0.58,0.50,0.36), vec3(0.44,0.36,0.25), paper);
-        parch = mix(parch, polit, 0.55*pc.a);
-        parch *= 0.92 + 0.16*fbm(vUv*uCell*4.0);
-
-        vec3 terr = mix(base, polit*0.55, 0.34*pc.a);
+        // --- parchment --------------------------------------------------------
+        vec3 parch = terr;
+        if (uParchment > 0.004) {
+          float paper = fbm(wp*0.006)*0.5 + fbm(wp*0.034)*0.25;
+          parch = mix(vec3(0.58,0.50,0.36), vec3(0.44,0.36,0.25), paper);
+          parch = mix(parch, pc.rgb, 0.55*pc.a);
+          parch *= 0.92 + 0.16*fbm3(wp*0.08);
+        }
         vec3 col = mix(terr, parch, uParchment);
 
         // --- lighting ---------------------------------------------------------
-        // A warm key, a cool sky fill and a little bounce off the ground. The
-        // wrapped term keeps north-facing slopes readable instead of black.
-        vec3 N = normalize(vNormal);
+        // A hard warm key with only a little fill. Ambient that is too generous
+        // is what flattens a heightfield into a painted sheet.
         vec3 L = normalize(uSunDir);
-        float ndl = dot(N, L);
+        vec3 Nd = N;
+        float detail = (1.0 - uParchment) * (1.0 - smoothstep(260.0, 820.0, dist));
+        if (detail > 0.01) {
+          // finite-differenced noise: a hillside keeps its texture up close,
+          // where the 7-unit mesh has nothing left to say
+          float e = 2.4;
+          float n0 = fbm3(wp*0.052);
+          float nx = fbm3((wp + vec2(e,0.0))*0.052);
+          float nz = fbm3((wp + vec2(0.0,e))*0.052);
+          Nd = normalize(N + vec3(n0-nx, 0.0, n0-nz) * 4.2 * detail);
+        }
+        float ndl = dot(Nd, L);
         float key = clamp(ndl, 0.0, 1.0);
-        float soft = clamp(ndl*0.5 + 0.5, 0.0, 1.0);
-        vec3 lightSum = uSunColor * (key*0.42 + soft*0.20)
-                      + uSkyColor * (0.26 + 0.20*N.y)
-                      + uGroundColor * 0.10;
+        float soft = clamp(dot(N,L)*0.5 + 0.5, 0.0, 1.0);
+        vec3 lightSum = uSunColor * (key*0.86 + soft*0.10)
+                      + uSkyColor * (0.135 + 0.115*N.y)
+                      + uGroundColor * 0.06;
         vec3 lit = col * lightSum;
         // parchment is lit flatly: it is a document, not a landscape
         col = mix(lit, col * (0.95 + 0.10*ndl), uParchment);
@@ -308,12 +332,10 @@ export function buildMap(map) {
           if (b > 0.35) col = mix(col, vec3(1.0,0.90,0.60), 0.85);
         }
 
-        // --- coast darkening ----------------------------------------------------
         col *= 1.0 - smoothstep(2.0, 0.0, vH) * 0.10;
 
-        float depth = length(vWorld - cameraPosition);
-        float fogF = 1.0 - exp(-uFogDensity*uFogDensity*depth*depth);
-        col = mix(col, uFogColor, min(fogF, 0.58) * (1.0 - uParchment*0.85));
+        float fogF = 1.0 - exp(-uFogDensity*uFogDensity*dist*dist);
+        col = mix(col, uFogColor, min(fogF, 0.45) * (1.0 - uParchment*0.85));
 
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>

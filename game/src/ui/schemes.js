@@ -27,6 +27,7 @@ import {
   launchTargets, canLaunch, launchScheme, abortScheme, setMode,
   candidates, readOf, invite, roleFilled, rolePending,
   oddsOf, oddsBand, daysLeft, humanDays, secrecyWord, progressRate, heatRate,
+  spiteRead, askCost, sorestPoint,
 } from '../sim/schemes.js';
 import * as Wait from './wait.js';
 import * as Audio from '../audio/audio.js';
@@ -107,43 +108,102 @@ export function initSchemeUI() {
 }
 
 // ---------------------------------------------------------------------------
-// the rail
+// the rail — the thing you cannot look at the map without seeing
 // ---------------------------------------------------------------------------
 function buildRail() {
   rail = document.createElement('section');
   rail.id = 'p06rail';
   document.body.appendChild(rail);
+  addEventListener('resize', placeRail);
+}
+
+/**
+ * Twenty-one pieces share one screen. Rather than nail this strip to a
+ * coordinate and hope, it docks itself under whatever else is already living in
+ * the right-hand column. Reads other pieces' geometry; writes none of it.
+ */
+function placeRail() {
+  if (!rail) return;
+  let y = 86;
+  for (const el of document.body.children) {
+    if (el === rail || el === board) continue;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || el.hidden) continue;
+    if (cs.pointerEvents === 'none') continue;                 // tooltips and washes
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    if (r.width > innerWidth * 0.5 && r.height > 160) continue; // full-screen overlays
+    if (r.right < innerWidth - 70) continue;                    // not in my column
+    if (r.top > innerHeight * 0.55) continue;                   // bottom-anchored: sits under me
+    y = Math.max(y, r.bottom + 10);
+  }
+  rail.style.top = `${Math.min(y, Math.round(innerHeight * 0.5))}px`;
 }
 
 function refresh() {
   if (!rail) return;
   const mine = mySchemes(), th = threats();
+  const idle = !mine.length && !th.length;
+  rail.classList.toggle('idle', idle);
   rail.innerHTML = `
-    <button class="p06tab${mine.length || th.length ? ' live' : ''}">
+    <button class="p06tab${idle ? '' : ' live'}">
       <span class="tk">gölgede</span>
-      <span class="tn">${mine.length ? `${mine.length} iş` : 'entrika'}</span>
+      <span class="tn">${mine.length ? `${mine.length} iş yürüyor` : 'hiçbir şey çevirmiyorsun'}</span>
       ${th.length ? `<span class="tw">${th.length}</span>` : ''}
     </button>
+    ${idle ? idleCard() : ''}
     ${mine.map(railCard).join('')}
     ${th.map(threatCard).join('')}`;
   rail.querySelector('.p06tab').onclick = () => { sfx('page'); toggleBoard(!openBoard); };
   for (const el of rail.querySelectorAll('[data-sk]')) {
     el.onclick = () => { sfx('click'); sel = el.dataset.sk; flow = null; toggleBoard(true); };
   }
-  if (openBoard) drawBoard();
+  const idleEl = rail.querySelector('.p06idle');
+  if (idleEl) idleEl.onclick = () => { sfx('page'); flow = { step: 'type' }; sel = null; toggleBoard(true); };
+  paintFaces(rail);
+  placeRail();
+}
+
+/** An empty panel teaches nothing. Name the man who likes you least. */
+function idleCard() {
+  const sore = sorestPoint();
+  if (!sore) return '';
+  const c = ch(sore.id);
+  if (!c) return '';
+  return `<div class="p06c p06idle">
+    <div class="p06row">
+      <div class="pf small"><canvas width="88" height="88" data-face="${c.id}"></canvas></div>
+      <div class="p06id">
+        <b>${esc(fullName(c))}</b>
+        <i>${esc(sore.why)} · ${age(c)} yaşında</i>
+        <i class="bad">sana ${sore.op > 0 ? '+' : ''}${sore.op} bakıyor</i>
+      </div>
+    </div>
+    <div class="p06sub">Gölgede hiçbir şey yürümüyor. <b>E</b> — bir iş aç.</div>
+  </div>`;
 }
 
 function railCard(sc) {
   const t = schemeType(sc.typeId);
   const tg = ch(sc.targetId);
   const ripe = sc.state === 'ripe' || sc.progress >= 100;
-  return `<div class="p06c${ripe ? ' ripe' : ''}${sc.secrecy < 34 ? ' hot' : ''}" data-sk="${sc.id}">
-    <div class="p06top"><span class="ic">${t.icon}</span><b>${esc(t.name)}</b><i>${esc(tg ? tg.name : '—')}</i></div>
+  const sec = pct(sc.secrecy);
+  const lvl = sec > 62 ? '' : sec > 34 ? ' warn' : ' danger';
+  return `<div class="p06c${ripe ? ' ripe' : ''}${sec < 34 ? ' hot' : ''}" data-sk="${sc.id}">
+    <div class="p06row">
+      <div class="pf"><canvas width="96" height="96" data-face="${sc.targetId}"></canvas></div>
+      <div class="p06id">
+        <b>${t.icon} ${esc(t.name)}</b>
+        <i>${esc(tg ? fullName(tg) : '—')}</i>
+        <i class="dim">${ripe ? 'bu gece olabilir' : `${humanDays(daysLeft(sc))} kaldı · ${sc.partners.length} ortak`}</i>
+      </div>
+    </div>
     <div class="p06bars">
       <div class="bl">plan</div><div class="bar prog"><i style="width:${pct(sc.progress)}%"></i></div><div class="bv">%${pct(sc.progress)}</div>
-      <div class="bl">gizlilik</div><div class="bar sec"><i style="width:${pct(sc.secrecy)}%"></i></div><div class="bv">%${pct(sc.secrecy)}</div>
+      <div class="bl">gizlilik</div><div class="bar sec${lvl}"><i style="width:${sec}%"></i></div><div class="bv${lvl}">%${sec}</div>
     </div>
-    <div class="p06sub">${ripe ? '<b class="rp">hazır — sözünü bekliyor</b>' : `${humanDays(daysLeft(sc))} · ${sc.partners.length} ortak · ${esc(secrecyWord(sc.secrecy))}`}</div>
+    <div class="p06sub${lvl}">${ripe ? '<b class="rp">hazır — sözünü bekliyor</b>'
+      : `${esc(secrecyWord(sc.secrecy))}${sc.discovery >= 1 ? ' · <b class="bad">şüpheleniyor</b>' : ''}`}</div>
   </div>`;
 }
 
@@ -152,8 +212,14 @@ function threatCard(sc) {
   const tg = ch(sc.targetId), o = ch(sc.ownerId);
   const named = sc.discovery >= 2;
   return `<div class="p06c threat" data-sk="${sc.id}">
-    <div class="p06top"><span class="ic">👁</span><b>${named ? esc(t.name) : 'Bir şeyler dönüyor'}</b><i>${named && o ? esc(o.name) : 'isim yok'}</i></div>
-    <div class="p06sub">${named ? `hedef: <b>${esc(tg ? fullName(tg) : '—')}</b>` : 'casusun bir şey duydu, adını getiremedi'}</div>
+    <div class="p06row">
+      <div class="pf">${named ? `<canvas width="96" height="96" data-face="${sc.ownerId}"></canvas>` : '<div class="noface">?</div>'}</div>
+      <div class="p06id">
+        <b>👁 ${named ? esc(t.name) : 'Bir şeyler dönüyor'}</b>
+        <i>${named && o ? esc(fullName(o)) : 'casusun isim getiremedi'}</i>
+        <i class="bad">${named ? `hedef: ${esc(tg ? fullName(tg) : '—')}` : 'ne kadar ilerlediğini bilmiyorsun'}</i>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -334,34 +400,36 @@ function openInvite(sc, roleId) {
   const t = schemeType(sc.typeId);
   const role = t.roles.find((r) => r.id === roleId);
   const p = ch(S.playerId);
+  const tg = ch(sc.targetId);
+  const cost = askCost(sc);
   const cands = candidates(sc);
   const modal = document.createElement('div');
   modal.className = 'p06modal';
   modal.innerHTML = `<div class="mbg"></div><div class="mbox">
     <div class="mhead"><h3>${esc(role.name)} arıyorsun</h3><div class="sub">${esc(role.hint)}</div></div>
-    <div class="mwarn">Sorduğun her insan, cevabı ne olursa olsun bir şey öğrenir. Reddeden biri seni ihbar edebilir.</div>
+    <div class="mwarn">
+      Kimi seçersen seç, ona <b>${esc(fullName(tg))}</b> için ne planladığını söylemek zorundasın.
+      Sorman <b>−${cost} gizlilik</b>. Reddederse daha fazlası. Reddedip konuşursa hepsi.
+    </div>
     <div class="mrows">
       ${cands.length ? cands.map((cd) => {
         const c = ch(cd.id);
         const r0 = readOf(sc, cd.id, roleId, 0);
-        const r1 = readOf(sc, cd.id, roleId, 20);
-        const r2 = readOf(sc, cd.id, roleId, 50);
+        const sp = spiteRead(sc, cd.id);
         const op = opinion(c.id, p.id);
         const opT = opinion(c.id, sc.targetId);
-        return `<div class="mrow">
+        return `<button class="mrow" data-pick="${c.id}">
           <div class="mface"><canvas width="88" height="88" data-face="${c.id}"></canvas></div>
           <div class="mwho">
             <b>${esc(fullName(c))}</b>
             <i>${age(c)} yaşında · ${esc(relation(p.id, c.id))} · ${esc(SKILL_LABEL[role.skill])} ${skill(c, role.skill)}</i>
             <i class="dim">sana ${op > 0 ? '+' : ''}${op} · hedefe ${opT > 0 ? '+' : ''}${opT}</i>
           </div>
-          <div class="mask">
-            <div class="guess ${r0.word === 'hevesli' ? 'good' : r0.word === 'asla' || r0.word === 'zor' ? 'bad' : ''}">${esc(r0.word)}</div>
-            <button data-ask="${c.id}" data-bribe="0">bedava sor</button>
-            <button data-ask="${c.id}" data-bribe="20" ${p.gold < 20 ? 'disabled' : ''}>20 altınla <i>${esc(r1.word)}</i></button>
-            <button data-ask="${c.id}" data-bribe="50" ${p.gold < 50 ? 'disabled' : ''}>50 altınla <i>${esc(r2.word)}</i></button>
+          <div class="mreads">
+            <div class="rd"><span>kabul</span><b class="${r0.word === 'hevesli' ? 'good' : (r0.word === 'asla' || r0.word === 'zor') ? 'bad' : ''}">${esc(r0.word)}</b></div>
+            <div class="rd"><span>reddederse</span><b class="${sp.hot ? 'bad' : ''}">${esc(sp.word)}</b></div>
           </div>
-        </div>`;
+        </button>`;
       }).join('') : '<div class="lempty">Çağırabileceğin kimse kalmadı.</div>'}
     </div>
     <button class="mclose">kapat</button>
@@ -370,10 +438,56 @@ function openInvite(sc, roleId) {
   paintFaces(modal);
   modal.querySelector('.mbg').onclick = () => modal.remove();
   modal.querySelector('.mclose').onclick = () => modal.remove();
-  for (const b of modal.querySelectorAll('[data-ask]')) {
+  for (const b of modal.querySelectorAll('[data-pick]')) {
+    b.onclick = () => { sfx('click'); askRoom(modal, sc, roleId, b.dataset.pick); };
+  }
+}
+
+/**
+ * The second beat: one man, one face, one sentence you cannot unsay. Asking is
+ * the risk — so it gets its own room rather than a row in a list.
+ */
+function askRoom(modal, sc, roleId, charId) {
+  const t = schemeType(sc.typeId);
+  const role = t.roles.find((r) => r.id === roleId);
+  const c = ch(charId), p = ch(S.playerId), tg = ch(sc.targetId);
+  const sp = spiteRead(sc, charId);
+  const cost = askCost(sc);
+  const line = t.lethal
+    ? `«${fullName(tg)} ölsün istiyorum. Bana yardım eder misin?»`
+    : `«${fullName(tg)} için bir işim var. Sen varsın diye düşündüm.»`;
+  const box = modal.querySelector('.mbox');
+  box.classList.add('room');
+  box.innerHTML = `
+    <div class="askhead">
+      <div class="askface"><canvas width="160" height="160" data-face="${c.id}"></canvas></div>
+      <div>
+        <div class="askkick">${esc(role.name)} · ${esc(t.name)}</div>
+        <h3>${esc(fullName(c))}</h3>
+        <div class="sub">${esc(styleOf(c))} · ${age(c)} yaşında · ${esc(relation(p.id, c.id))}</div>
+      </div>
+    </div>
+    <p class="askline">${esc(line)}</p>
+    <p class="asknote">Bunu söyledikten sonra, kabul etse de etmese de, bu adam bilecek.
+      ${sp.hot ? `Kâhyan diyor ki <b class="bad">${esc(sp.word)}</b> — reddederse ${esc(tg.name)}'in kapısını çalabilir.`
+               : `Kâhyanın kanaati: reddederse <b>${esc(sp.word)}</b>. Kâhyan bazen yanılır.`}</p>
+    <div class="askcost">
+      <div><b>−${cost}</b><span>gizlilik, sorman yeter</span></div>
+      <div><b>+%${Math.round(role.succ * 100)}</b><span>kabul ederse ihtimal</span></div>
+      <div><b>+${role.heat.toFixed(1)}</b><span>ağız, her gün konuşur</span></div>
+    </div>
+    <div class="askbtns">
+      <button data-ask="0">Bedava sor</button>
+      <button data-ask="20" ${p.gold < 20 ? 'disabled' : ''}>20 altınla sor<i>ikna eder, iz bırakır</i></button>
+      <button data-ask="50" ${p.gold < 50 ? 'disabled' : ''}>50 altınla sor<i>çoğu adamı eder</i></button>
+    </div>
+    <button class="mclose">vazgeç — kimse bir şey duymadı</button>`;
+  paintFaces(box);
+  box.querySelector('.mclose').onclick = () => modal.remove();
+  for (const b of box.querySelectorAll('[data-ask]')) {
     b.onclick = () => {
       sfx('commit');
-      invite(sc.id, b.dataset.ask, roleId, Number(b.dataset.bribe));
+      invite(sc.id, charId, roleId, Number(b.dataset.ask));
       modal.remove();
       drawBoard();
     };
@@ -534,10 +648,11 @@ function wireHold(btn, need, done) {
 // ---------------------------------------------------------------------------
 function injectCss() {
   css('p06-schemes', `
-/* Right edge, vertical middle: the one strip of screen no other piece claims.
-   #pending sits above it, the bottom bar below it. */
-#p06rail{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:23;width:286px;
-  display:flex;flex-direction:column;gap:7px;max-height:58vh;overflow-y:auto;overflow-x:hidden}
+/* Docks itself under whatever else occupies the right column (see placeRail). */
+#p06rail{position:fixed;right:14px;top:86px;z-index:23;width:300px;
+  display:flex;flex-direction:column;gap:7px;max-height:calc(100vh - 160px);overflow-y:auto;overflow-x:hidden}
+#p06rail.idle{opacity:.86}
+#p06rail.idle:hover{opacity:1}
 body.staged #p06rail{opacity:.10;pointer-events:none;transition:opacity .6s}
 .p06tab{display:flex;align-items:center;gap:9px;background:linear-gradient(160deg,rgba(28,20,13,.94),rgba(16,11,8,.94));
   border:1px solid var(--edge-2);border-left:3px solid #5a4a2a;color:var(--txt-dim);padding:7px 12px;cursor:pointer;
@@ -558,10 +673,19 @@ body.staged #p06rail{opacity:.10;pointer-events:none;transition:opacity .6s}
 @keyframes p06glow{0%,100%{box-shadow:var(--shadow)}50%{box-shadow:var(--shadow),0 0 20px rgba(201,163,78,.5)}}
 .p06c.hot{border-left-color:var(--blood-2)}
 .p06c.threat{border-left-color:var(--blood-2);background:linear-gradient(160deg,rgba(38,16,13,.95),rgba(15,9,8,.95))}
-.p06top{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
-.p06top .ic{font-size:13px;filter:grayscale(.35)}
-.p06top b{font-size:12.5px;color:var(--gold-2);font-weight:500;letter-spacing:.3px}
-.p06top i{font-size:11.5px;color:var(--txt-dim);font-style:normal;margin-left:auto}
+.p06row{display:flex;gap:10px;align-items:center;margin-bottom:7px}
+.pf{width:44px;height:44px;flex:0 0 44px;border:1px solid var(--edge-2);overflow:hidden;background:#140f0a}
+.pf.small{width:36px;height:36px;flex:0 0 36px}
+.pf canvas{width:100%;height:100%;display:block}
+.pf .noface{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px;color:#5a4a34}
+.p06id{min-width:0;flex:1}
+.p06id b{display:block;font-size:12.5px;color:var(--gold-2);font-weight:500;letter-spacing:.3px}
+.p06id i{display:block;font-size:11px;color:var(--txt-dim);font-style:normal;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p06id i.dim{color:#7a6a52}
+.p06id i.bad{color:#c9836f}
+.p06idle{cursor:pointer;border-left-color:#4a3c28}
+.p06idle:hover{border-left-color:var(--gold)}
 .p06bars{display:grid;grid-template-columns:46px 1fr 34px;gap:3px 6px;align-items:center}
 .p06bars .bl{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:#7a6a52}
 .p06bars .bv{font-size:10.5px;color:var(--txt-dim);text-align:right;font-variant-numeric:tabular-nums}
@@ -569,10 +693,17 @@ body.staged #p06rail{opacity:.10;pointer-events:none;transition:opacity .6s}
 .bar i{position:absolute;inset:0 auto 0 0;transition:width .5s linear}
 .bar.prog i{background:linear-gradient(90deg,#8a7a3a,var(--gold-2))}
 .bar.sec i{background:linear-gradient(90deg,#3d5a3a,#7fa860)}
+.bar.sec.warn i{background:linear-gradient(90deg,#8a6a2a,#d8a84e)}
 .bar.sec.danger i{background:linear-gradient(90deg,#7a1f1a,#d05a48)}
+.p06bars .bv.warn{color:#d8a84e}
+.p06bars .bv.danger{color:#d08a7a}
 .bar.big{height:7px}
 .p06sub{margin-top:7px;font-size:10.5px;color:#8a7a5c;letter-spacing:.2px}
+.p06sub.warn{color:#c9a34e}
+.p06sub.danger{color:#d08a7a}
 .p06sub .rp{color:var(--gold-2)}
+.p06sub .bad{color:#d08a7a}
+.p06tab .tn{font-size:12.5px;letter-spacing:.3px;line-height:1.35}
 
 /* ---------- board ---------- */
 #p06board{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -734,15 +865,38 @@ body.staged #p06rail{opacity:.10;pointer-events:none;transition:opacity .6s}
 .mwarn{font-size:11.5px;color:#dfae9f;background:rgba(122,31,26,.18);border-left:2px solid var(--blood-2);padding:7px 11px;margin-bottom:12px;line-height:1.6}
 .mtxt{font-size:13px;color:var(--txt);line-height:1.7;margin:6px 0 18px}
 .mrows{display:flex;flex-direction:column;gap:6px}
-.mrow{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,.25);border:1px solid var(--edge-2);padding:8px 12px}
-.mask{margin-left:auto;display:flex;align-items:center;gap:6px}
-.guess{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7a5c;min-width:74px;text-align:right}
-.guess.good{color:#9dc07e}.guess.bad{color:#d08a7a}
-.mask button{background:rgba(0,0,0,.35);border:1px solid var(--edge-2);color:var(--txt-dim);font-family:var(--serif);
-  font-size:11px;padding:5px 9px;cursor:pointer;transition:all .15s;line-height:1.3}
-.mask button i{display:block;font-style:normal;font-size:9.5px;color:#7a6a52}
-.mask button:hover:not(:disabled){border-color:var(--gold);color:var(--gold-2)}
-.mask button:disabled{opacity:.35;cursor:not-allowed}
+.mrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:rgba(0,0,0,.25);
+  border:1px solid var(--edge-2);padding:8px 12px;font-family:var(--serif);color:var(--txt);cursor:pointer;transition:all .15s}
+.mrow:hover{border-color:var(--gold);background:rgba(201,163,78,.09)}
+.mreads{margin-left:auto;display:flex;gap:16px;text-align:right}
+.mreads .rd span{display:block;font-size:9px;letter-spacing:1.6px;text-transform:uppercase;color:#6a5a44}
+.mreads .rd b{display:block;font-size:11.5px;font-weight:400;color:#a8987a;letter-spacing:.6px}
+.mreads .rd b.good{color:#9dc07e}
+.mreads .rd b.bad{color:#d08a7a}
+
+.mbox.room{width:min(560px,90%)}
+.askhead{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.askface{width:88px;height:88px;flex:0 0 88px;border:1px solid var(--edge);overflow:hidden;background:#140f0a}
+.askface canvas{width:100%;height:100%;display:block}
+.askkick{font-size:9.5px;letter-spacing:2.2px;text-transform:uppercase;color:#8a7a58}
+.askhead h3{margin:2px 0 2px;font-size:21px;color:var(--vellum);font-weight:400}
+.askhead .sub{font-size:12px;color:var(--txt-dim)}
+.askline{font-size:16px;color:var(--gold-2);line-height:1.6;margin:14px 0 10px;padding-left:12px;
+  border-left:2px solid var(--edge);font-style:italic}
+.asknote{font-size:12.5px;color:#a8987a;line-height:1.7;margin:0 0 14px}
+.asknote b{color:var(--vellum)}
+.asknote b.bad{color:#d08a7a}
+.askcost{display:flex;gap:22px;padding:10px 0;margin-bottom:14px;
+  border-top:1px solid var(--edge-2);border-bottom:1px solid var(--edge-2)}
+.askcost div{display:flex;flex-direction:column;gap:1px}
+.askcost b{font-size:15px;color:var(--gold-2);font-variant-numeric:tabular-nums}
+.askcost span{font-size:10px;color:#7a6a52}
+.askbtns{display:flex;gap:8px;flex-wrap:wrap}
+.askbtns button{flex:1 1 140px;background:rgba(122,31,26,.20);border:1px solid rgba(168,48,40,.45);color:#e8c8bd;
+  font-family:var(--serif);font-size:12.5px;padding:9px 12px;cursor:pointer;transition:all .15s;line-height:1.35}
+.askbtns button i{display:block;font-style:normal;font-size:10px;color:#a8887a;margin-top:2px}
+.askbtns button:hover:not(:disabled){background:rgba(168,48,40,.34);border-color:#d05a48}
+.askbtns button:disabled{opacity:.35;cursor:not-allowed}
 .mclose{display:block;margin:14px auto 0;background:none;border:1px solid var(--edge-2);color:var(--txt-dim);
   font-family:var(--serif);font-size:12px;padding:5px 16px;cursor:pointer}
 .mclose:hover{color:var(--gold-2);border-color:var(--edge)}

@@ -456,13 +456,9 @@ export function resolve(d) {
 }
 
 /** Pull a memory back up so an old sin can bite. Used by AI and event triggers. */
-export function recallMemory(pred) {
-  const hits = S.memories.filter(pred);
-  if (!hits.length) return null;
-  const m = rng.weighted(hits, (x) => x.weight * 10 + 1);
-  m.recalls++;
-  return m;
-}
+// Memory recall lives in sim/memory.js, which weighs age, maturity and how
+// recently a memory was last used. Re-exporting it from here would close an
+// import cycle, so callers import it from the ledger directly.
 
 export function openDecisions() { return S.decisions.filter((d) => d.state === 'open'); }
 export function pendingDecisions() { return S.decisions.filter((d) => d.state === 'pending'); }

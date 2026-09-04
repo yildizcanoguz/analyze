@@ -5,7 +5,6 @@ import { on, emit } from './core/bus.js';
 import { advance, resume, pause } from './core/clock.js';
 import { generateWorld, loadMap, MAP } from './sim/world.js';
 import { tickDay } from './sim/tick.js';
-import { assumeHeir } from './sim/succession.js';
 import { fullName, age } from './sim/characters.js';
 import { initScene, renderFrame, onFrame, R } from './render/scene.js';
 import { buildMap, tickMap, provinceAtWorld, setHover, worldOfProvince, M } from './render/mapmesh.js';
@@ -44,7 +43,7 @@ async function start() {
   // Critics need to reach year 1080 without sitting through it.
   window.__advance = (days = 365) => {
     for (let i = 0; i < days; i++) {
-      if (S.decisions.some((d) => d.state === 'open') || S.pendingPlayer) break;
+      if (S.decisions.some((d) => d.state === 'open') || S.pendingPlayer || S.gameOver) break;
       S.day++; tickDay(S.day);
     }
     refreshTop(); return S.day;
@@ -77,8 +76,8 @@ async function start() {
   initProps(map); initLabels(map); initArmies();
   initMusic();
   initIntro();
+  wireWhispers();
   wirePicking();
-  wireDeath();
 
   onFrame((dt) => { tickCamera(dt); tickMap(dt); tickProps(dt); tickLabels(dt); tickArmies(dt); });
   requestAnimationFrame(loop);
@@ -134,41 +133,18 @@ function wirePicking() {
   });
 }
 
-// ---------------------------------------------------------------- your death
-function overlayBusy() {
-  return !!document.querySelector('#decisionRoot .dec') || !!document.querySelector('#revealRoot .reveal, #revealRoot .breath');
-}
-function whenClear(fn) {
-  if (!overlayBusy()) return fn();
-  const t = setInterval(() => { if (!overlayBusy()) { clearInterval(t); fn(); } }, 250);
-}
-
-function wireDeath() {
-  on('player:died', (payload) => { pause('death'); whenClear(() => showDeath(payload)); });
-}
-function showDeath({ deadId, heirId }) {
-  {
-    pause('death');
-    const dead = ch(deadId), heir = ch(heirId);
-    SFX.knell();
-    const r = document.getElementById('revealRoot');
-    r.classList.add('breathing');
-    document.body.classList.add('staged');
-    r.innerHTML = `<div class="reveal">
-      <div class="beat">bir ömür bitti</div>
-      <h1 class="bad">${fullName(dead)} Öldü</h1>
-      <p>${age(dead)} yıl yaşadı. Geriye ${S.memories.length} karar, ${S.stats.irreversible} geri dönüşü olmayan hamle ve bir isim bıraktı.</p>
-      ${S.memories.length ? `<p style="font-size:14px;color:#9a8a6a">Son olarak: ${S.memories[S.memories.length - 1].text}</p>` : ''}
-      <p>Şimdi taht <b>${fullName(heir)}</b>'in. ${age(heir)} yaşında. Senin verdiğin kararların faturasını o ödeyecek.</p>
-      <button class="ok">devral</button></div>`;
-    r.querySelector('.ok').onclick = () => {
-      r.innerHTML = ''; r.classList.remove('breathing');
-      document.body.classList.remove('staged');
-      assumeHeir();
-      refreshTop();
-      resume();
-    };
-  }
+// The world remembers out loud: echoes from sim/memory.js and rumours the AI
+// leaks both surface as whispers, otherwise they only ever reach a panel nobody
+// has open.
+function wireWhispers() {
+  on('memory:echo', ({ text, tone }) => { if (text) whisper(text, tone || 'ambiguous'); });
+  let seen = S.chronicle.length;
+  on('clock:day', () => {
+    for (; seen < S.chronicle.length; seen++) {
+      const e = S.chronicle[seen];
+      if (e && e.kind === 'rumor' && e.text) whisper(e.text, e.tone || 'ambiguous');
+    }
+  });
 }
 
 start().catch((e) => { console.error(e); bootmsg.textContent = 'Hata: ' + e.message; });

@@ -359,6 +359,41 @@ export function readOf(sc, charId, roleId, bribe = 0) {
   return { seen, word, sure: fog < 0.14 };
 }
 
+/**
+ * If he says no, does he go and tell? This is the number that makes asking for
+ * help a gamble instead of a menu.
+ */
+export function spiteChance(sc, charId) {
+  const t = schemeType(sc.typeId);
+  const c = ch(charId), o = ch(sc.ownerId), tg = ch(sc.targetId);
+  if (!t || !c || !o || !tg) return 0;
+  return clamp01(0.08 + t.danger * 0.20
+    + Math.max(0, opinion(c.id, tg.id)) / 300
+    - opinion(c.id, o.id) / 320
+    + (c.traits?.includes('honest') ? 0.16 : 0)
+    + (c.traits?.includes('just') ? 0.10 : 0)
+    + (c.traits?.includes('vengeful') ? 0.08 : 0)
+    - (c.traits?.includes('craven') ? 0.10 : 0)
+    - (c.traits?.includes('deceitful') ? 0.06 : 0));
+}
+
+/** What your own read of that man's mouth looks like. Wrong often enough. */
+export function spiteRead(sc, charId) {
+  const o = ch(sc.ownerId);
+  const real = spiteChance(sc, charId);
+  const fog = clamp(0.30 - skill(o, 'intrigue') * 0.020, 0.04, 0.30);
+  const noise = (streamed(S.seed, `spite${sc.id}${charId}`)() - 0.5) * 2 * fog;
+  const seen = clamp01(real + noise);
+  const word = seen > 0.42 ? 'seni satar' : seen > 0.28 ? 'ağzı gevşek' : seen > 0.15 ? 'belki konuşur' : 'konuşmaz';
+  return { seen, word, hot: seen > 0.28 };
+}
+
+/** What asking will cost you in secrecy, whatever the answer is. */
+export function askCost(sc) {
+  const t = schemeType(sc.typeId);
+  return t ? Math.round(3 + t.danger * 5) : 3;
+}
+
 export function invite(schemeId, charId, roleId, bribe = 0) {
   const sc = list().find((x) => x.id === schemeId);
   if (!sc || !live(sc)) return null;
@@ -396,13 +431,7 @@ function answerInvite(sc, inv) {
     sc.secrecy = Math.max(0, sc.secrecy - (5 + t.danger * 7));
     remember(c.id, o.id, 'Ona ağzına alınmayacak bir şey teklif etti.', -18, 35);
     // Will he talk? That is the whole price of asking.
-    const spite = clamp01(0.08 + t.danger * 0.20
-      + Math.max(0, opinion(c.id, tg.id)) / 300
-      - opinion(c.id, o.id) / 320
-      + (c.traits?.includes('honest') ? 0.16 : 0)
-      + (c.traits?.includes('just') ? 0.10 : 0)
-      - (c.traits?.includes('craven') ? 0.10 : 0));
-    const betrays = rng.chance(spite);
+    const betrays = rng.chance(spiteChance(sc, inv.id));
     sc.refusals.push({ id: inv.id, day: S.day, betrayed: betrays });
     if (!sc.byAI) sign(sc, rng.pick(betrays ? INVITE_NO_ANGRY : INVITE_NO)(c, sc, tg), 'bad');
     emit('scheme:partner', { sc, charId: inv.id, joined: false });
@@ -1247,3 +1276,20 @@ export function hiddenThreats() {
   return list().filter((sc) => live(sc) && sc.byAI && fam.has(sc.targetId));
 }
 export function schemeById(id) { return list().find((x) => x.id === id) || null; }
+
+/**
+ * The person closest to you who likes you least. The idle board names him,
+ * because an empty panel teaches nothing and a name is an itch.
+ */
+export function sorestPoint() {
+  const p = P();
+  if (!p) return null;
+  let best = null;
+  for (const r of launchTargets('murder')) {
+    const c = ch(r.id);
+    if (!c) continue;
+    const op = opinion(c.id, p.id);
+    if (!best || op < best.op) best = { id: c.id, why: r.why, op };
+  }
+  return best;
+}

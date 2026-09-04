@@ -2,7 +2,7 @@
 
 | parça | dosya | istenen | gerekçe |
 |---|---|---|---|
-| P04 | `docs/ARCHITECTURE.md` | Olay tablosuna satır ekle: `memory:echo` \| `{day, text, tone, memoryId?, years?, secretId?, charId?}` \| `sim/memory.js` | Dünyanın hatırladığını duyurmanın tek kanalı; sim→ui tek yön korunuyor. |
+| ~~P04~~ done | `docs/ARCHITECTURE.md` | Olay tablosuna satır ekle: `memory:echo` \| `{day, text, tone, memoryId?, years?, secretId?, charId?}` \| `sim/memory.js` | Dünyanın hatırladığını duyurmanın tek kanalı; sim→ui tek yön korunuyor. |
 | P04 | `ui/wait.js` veya `ui/shell.js` | `on('memory:echo', ({text, tone}) => whisper(text, tone))` | Yıldönümü mırıltıları ve sır sızıntıları şu an sadece `S.chronicle`'a düşüyor; ekranda görünmüyor. |
 | P04 | `ui/decision.js` | `kicker()` haritasına `echo:'Yankı'` ekle | Yankı olayları geçmişten geldiklerini kicker'da söylesin; şu an "Karar" yazıyor. |
 | P04 | `ui/shell.js` | Karakter panelindeki yerel `memoryLines(c,p)` yerine `sim/memory.js`'ten `memoryLines(charId)` kullan; ayrıca `secretLines()` ve `memorySummary()` için bir "Hafıza" paneli | Saf fonksiyonlar hazır: tarih (`when`/`exact`/`ago`), ton, ağırlık, kim, nerede alanlarını döner. Sırların yaşı ve bugünkü şantaj fiyatı `secretLines()`'ta. |
@@ -22,4 +22,22 @@
 | P19 | `sim/decision.js` | `offer()` seçenek eşlemesine `confirm: o.confirm \|\| null` ekle | `ui/decision.js` kapıda `o.confirm`'e bakıyor ama `offer()` alanı kopyalamıyor; yazılmış onay cümleleri ("Kendi kardeşini zincire mi vuracaksın?") ekrana hiç çıkmıyor, jenerik metne düşüyor. |
 | P19 | `sim/decision.js` | `offer()` seçenek eşlemesine `hiddenMod: o.hiddenMod \|\| 0` ekle | `commit()` zaten `opt.hiddenMod` okuyor ama alan kopyalanmadığı için hep 0. Gösterilen ihtimalin yalan söyleyebilmesi (işaretlerin yanıltması) buna bağlı. |
 | P17 | `ui/shell.js` | Karakter panelinde "Sana bakışı" satırının altına `import { aiIntent } from '../sim/ai.js'` ile bir "Niyeti" satırı: `aiIntent(c.id)` null değilse göster ("senin toprağını istiyor", "seni tartıyor", "bir defter tutuyor"…) | Komşuların bir gündemi var ama oyuncu onu yalnızca ültimatom geldiğinde öğreniyor. Casus becerisiyle zaten sızdırılan bilgi panelde de okunabilmeli; aksi hâlde 81 hükümdar hâlâ mobilya gibi duruyor. |
-| P17 | `ui/wait.js` | `clock:day` dinleyicisinde `S.chronicle`'ın son elemanı `kind==='rumor'` ise `whisper(text, tone)` çağrılsın (son gösterilen indeks `ui/wait.js` içinde tutulur) | AI'ın sızdırdığı söylentiler şu an yalnızca Vakayiname panelinde duruyor; oyuncu paneli açmadan sınırdaki hazırlığı hiç görmüyor. `decision:tell` P02'nin kanalı olduğu için sim tarafından kullanılmadı. |
+| P17 | (yapıldı — `main.js` `wireWhispers`) | Söylenti fısıltısı için ayrıca bir şey gerekmiyor; `sim/ai.js` yine de `ai:rumor`/`ai:news` yayınlıyor, dinleyen olursa vakayiname taramasına gerek kalmaz. | — |
+| P17 | `docs/ARCHITECTURE.md` | Olay tablosuna iki satır: `ai:rumor` \| `{day, text, tone, actorId?, targetId?}` \| `sim/ai.js` — ve `ai:news` \| `{day, text, tone, actorId?, targetId?}` \| `sim/ai.js` | Söylenti (casus süzgecinden geçen) ve açık haber (toprak el değiştirdi) sim→ui tek yönlü kanaldan geçiyor; tablo eksik kalmasın. |
+
+## Entegrasyon durumu (koordinatör)
+
+Yapıldı:
+- `sim/decision.js` — `confirm` ve `hiddenMod` zaten P01 tarafından eklenmişti; doğrulandı.
+- `sim/realm.js` — `incomeOf`/`realmLevy` artık `opinion()` kullanıyor: hatıralar vergiyi ve askeri gerçekten etkiliyor. `c.retinue` askere ekleniyor.
+- `sim/tick.js` — `tickSuccession(day)` her gün çağrılıyor; mühürlü ferman UI olmadan da yürürlüğe giriyor.
+- `main.js` — `wireDeath`/`showDeath` kaldırıldı; ölüm sahnesi tamamen `ui/succession.js`'in. `__advance` artık `S.gameOver`'da duruyor.
+- `main.js` — `memory:echo` ve `kind:'rumor'` vakayiname satırları artık fısıltıya dönüyor (`wireWhispers`).
+- `sim/world.js` — oyuncuya kendi düklüğü ve en az iki vassalı veriliyor; fraksiyon sistemi artık oyuncuya karşı da çalışabilir.
+- `ui/shell.js` — "Tebaa" düğmesi `ui/realm.js`'in `openScreen()`'ini açıyor; karakter panelinde `aiIntent` "Niyeti" satırı; hafıza/sır listesi `sim/memory.js`'ten.
+- `docs/ARCHITECTURE.md` — olay tablosuna `memory:echo`, `dynasty:extinct`, `succession:law`, `faction:*` eklendi.
+
+Sahibi çalışırken bekletilenler (ilgili parçaya iletildi):
+- `ui/decision.js` — `kicker()`'a `echo:'Yankı'`; açığa çıkış sahnelenirken kararın beklemesi. (P01/P03)
+- `ui/wait.js` — söylenti fısıltıları artık `main.js` üzerinden geliyor; P02'nin ayrıca yapması gerekmiyor.
+- `ui/succession.js` — ölüm sahnesi için P03'ün `stageMoment()`'ini kullanma önerisi. (P08)

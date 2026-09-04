@@ -234,6 +234,35 @@ function openingSituation(you) {
   remember(you.id, creditor.id, 'Babanın cenazesini o ödedi.', +20, 60);
   situ.creditorId = creditor.id;
 
+  // 4b. Vassals of your own. A ruler nobody has sworn to cannot be betrayed,
+  // and half the pressure in this game comes from people who owe you something
+  // and are starting to resent it.
+  const own = directCountiesOf(you.id)[0];
+  const myDuchy = own?.dejureLiege ? ti(own.dejureLiege) : null;
+  if (myDuchy && (!myDuchy.holderId || myDuchy.holderId === you.id)) {
+    grantTitle(myDuchy.id, you.id, 'inherit');
+  }
+  recomputeVassalage();
+  let sworn = Object.values(S.chars).filter((c) => c.deathDay == null && c.liegeId === you.id && c.titles?.length);
+  if (sworn.length < 2 && myDuchy) {
+    // Hand two of the duchy's counties to men who did not choose you.
+    const spare = (myDuchy.dejureVassals || [])
+      .map((tid) => ti(tid))
+      .filter((t) => t && t.id !== own?.id)
+      .slice(0, 2);
+    for (const t of spare) {
+      const holder = t.holderId ? ch(t.holderId) : null;
+      const v = holder && holder.deathDay == null ? holder
+        : makeCharacter({ culture: you.culture, faith: you.faith, birthDay: -rng.int(26, 52) * YEAR, skillMean: 7 });
+      if (!t.holderId) grantTitle(t.id, v.id, 'inherit');
+      v.liegeId = you.id;
+      remember(v.id, you.id, 'Sana yemin etmeyi o seçmedi; babası seçti.', -18, 999);
+    }
+    recomputeVassalage();
+    sworn = Object.values(S.chars).filter((c) => c.deathDay == null && c.liegeId === you.id && c.titles?.length);
+  }
+  situ.vassalIds = sworn.map((v) => v.id);
+
   // 5. A child young enough to lose.
   let kid = livingChildren(you)[0];
   if (!kid) {

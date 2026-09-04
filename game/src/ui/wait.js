@@ -28,7 +28,10 @@ export function initWait() {
   injectCss();
   initTells();
   ensureFx();
-  on('decision:tell', ({ d, text, tone }) => { whisper(text, tone); SFX.whisper(tone); flashCard(d); });
+  on('decision:tell', ({ d, text, tone }) => {
+    whisper(text, tone); SFX.whisper(tone); flashCard(d);
+    if (d && d.state === 'pending' && d.weight > 0.24) announce(text, tone);
+  });
   on('decision:closing', (d) => slowTheWorld(d));
   on('decision:committed', () => { renderPending(); tickWait(true); });
   on('decision:resolved', (d) => { cards.get(d.id)?.el.remove(); cards.delete(d.id); hideTip(); renderPending(); tickWait(true); });
@@ -45,7 +48,14 @@ let FX = null;
 function ensureFx() {
   if (FX && document.body.contains(FX.edge)) return FX;
   const mk = (cls) => { const e = document.createElement('div'); e.className = `p02fx ${cls}`; document.body.appendChild(e); return e; };
-  FX = { drain: mk('fx-drain'), vig: mk('fx-vig'), edge: mk('fx-edge') };
+  FX = { drain: mk('fx-drain'), vig: mk('fx-vig'), edge: mk('fx-edge'), grain: mk('fx-grain') };
+  FX.beat = mk('fx-beat');
+  FX.beat.innerHTML = '<i></i>';
+  FX.ghost = document.createElement('div');
+  FX.ghost.id = 'p02ghost';
+  FX.ghost.hidden = true;
+  FX.ghost.innerHTML = '<b></b><span></span>';
+  document.body.appendChild(FX.ghost);
   return FX;
 }
 const V = (k, v) => document.documentElement.style.setProperty(k, v);
@@ -78,6 +88,7 @@ export function tickWait(force = false) {
     document.body.style.removeProperty('--p02-after');
     if (lastRate !== 0) { heart(0); lastRate = 0; }
     if (lastQuiet !== false) { setTension(0); lastQuiet = false; }
+    FX.ghost.hidden = true;
     return;
   }
 
@@ -101,6 +112,17 @@ export function tickWait(force = false) {
   const quiet = prog > 0.93 && d.weight > 0.34;
   if (force || quiet !== lastQuiet) { setTension(quiet ? 0 : clamp01(d.weight)); lastQuiet = quiet; }
 
+  // In the last days the count stops hiding in the corner and stands in the
+  // middle of the map, faint and enormous, beating.
+  const ghostOn = left <= 7 && d.weight > 0.28;
+  FX.ghost.hidden = !ghostOn;
+  if (ghostOn) {
+    const [gn, gu] = countdown(left);
+    FX.ghost.firstChild.textContent = gn;
+    FX.ghost.lastChild.textContent = left <= 0 ? 'öğreneceksin' : `${gu} kaldı`;
+    FX.ghost.classList.toggle('hot', d.weight > 0.45 || !!d.irreversible);
+  }
+
   // The date stops being a date and becomes a countdown.
   const near = left <= 30 && d.weight > 0.28;
   document.body.classList.toggle('p02-close', near);
@@ -121,6 +143,19 @@ function slowTheWorld(d) {
 const cards = new Map();   // decisionId -> {el, refs}
 let moreEl = null, tipEl = null;
 
+/**
+ * The ribbon owns the top-right band and nothing else. It grows DOWN to a
+ * ceiling measured against whatever piece is using the middle of the right
+ * edge, then wraps LEFT into a second column. It never walks down the screen
+ * into someone else's lane.
+ */
+function ribbonCeiling() {
+  const rail = document.getElementById('p06rail');
+  const r = rail && rail.getClientRects().length ? rail.getBoundingClientRect() : null;
+  const limit = r && r.height > 4 ? r.top - 14 : window.innerHeight * 0.54;
+  return Math.max(96, Math.min(window.innerHeight * 0.54, limit) - 86);
+}
+
 export function renderPending() {
   const host = document.getElementById('pending');
   if (!host) return;
@@ -129,24 +164,28 @@ export function renderPending() {
   for (const [id, c] of cards) if (!live.has(id)) { c.el.remove(); cards.delete(id); }
   if (!moreEl) { moreEl = document.createElement('div'); moreEl.className = 'pmore'; }
 
+  const cap = ribbonCeiling();
+  const tight = cap < 170;                 // not even room for one full card
+  host.style.setProperty('--p02cap', `${Math.round(cap)}px`);
+
   for (const [i, d] of list.entries()) {
     let c = cards.get(d.id);
     if (!c) { c = buildCard(d); cards.set(d.id, c); }
-    host.appendChild(c.el);                       // re-append = re-order: soonest on top
+    host.appendChild(c.el);                // re-append = re-order: soonest on top
     c.el.hidden = false;
-    c.el.classList.toggle('lead', i === 0);
+    c.el.classList.toggle('lead', i === 0 && !tight);
     updateCard(c, d);
   }
   host.appendChild(moreEl);
 
-  // Never grow into the strip of screen the next piece along is using, and
-  // never let a stack of five cards flatten the one that lands tomorrow.
-  const cap = Math.max(170, window.innerHeight * 0.5 - 108);
+  // Two columns of room, no more — a stack of five must not flatten the one
+  // that lands tomorrow.
+  const budget = cap * 2 - 40;
   let used = 0, hidden = 0;
   for (const [i, d] of list.entries()) {
     const c = cards.get(d.id);
     const h = c.el.offsetHeight + 10;
-    if (i > 0 && used + h > cap) { c.el.hidden = true; hidden++; }
+    if (i > 0 && used + h > budget) { c.el.hidden = true; hidden++; }
     else used += h;
   }
   moreEl.textContent = hidden ? `+${hidden} karar daha yolda` : '';
@@ -269,6 +308,27 @@ function flashCard(d) {
   updateCard(c, d);
 }
 
+/** A sign lands across the middle of the screen before it settles into the log. */
+let newsEl = null, newsTimer = null;
+function announce(text, tone) {
+  if (document.body.classList.contains('staged')) return;
+  if (!newsEl || !document.body.contains(newsEl)) {
+    newsEl = document.createElement('div');
+    newsEl.id = 'p02news';
+    document.body.appendChild(newsEl);
+  }
+  newsEl.className = tone || 'ambiguous';
+  newsEl.innerHTML = `<em>beklerken bir haber geldi</em><p>${esc(text)}</p>`;
+  newsEl.hidden = false;
+  void newsEl.offsetWidth;
+  newsEl.classList.add('in');
+  clearTimeout(newsTimer);
+  newsTimer = setTimeout(() => {
+    newsEl.classList.remove('in');
+    setTimeout(() => { if (newsEl) newsEl.hidden = true; }, 900);
+  }, 4200);
+}
+
 export function recomputeHeart() { tickWait(true); }
 
 // ================================================================== whispers
@@ -296,12 +356,51 @@ body.staged .p02fx{opacity:0 !important;transition:opacity .4s ease}
 /* the room narrows */
 .fx-vig{background:radial-gradient(ellipse at 50% 46%, transparent 24%, rgba(8,5,4,.46) 66%, rgba(3,2,2,.88) 100%);
   opacity:calc(var(--wt) * .95)}
-/* the edges breathe on your pulse and tremble when it is close */
+/* the edges close in, and never sit perfectly still */
 .fx-edge{box-shadow:inset 0 0 150px 38px rgba(78,16,12,.80), inset 0 0 0 1px rgba(168,48,40,.22);
-  opacity:calc(var(--wt) * var(--wt) * .9);animation:p02beat var(--beat) ease-in-out infinite;will-change:transform}
-@keyframes p02beat{0%,100%{transform:scale(1)}12%{transform:scale(1.014)}26%{transform:scale(1)}}
-body.p02-closing .fx-edge{animation:p02beat var(--beat) ease-in-out infinite, p02tremor .1s steps(2,end) infinite}
-@keyframes p02tremor{0%{margin:0}50%{margin:-1px 0 0 1px}100%{margin:1px 0 0 -1px}}
+  opacity:calc(var(--wt) * var(--wt) * .9);animation:p02drift 9s ease-in-out infinite;will-change:transform}
+@keyframes p02drift{0%,100%{transform:translate3d(0,0,0)}33%{transform:translate3d(-2px,1px,0)}66%{transform:translate3d(2px,-1px,0)}}
+body.p02-closing .fx-edge{animation:p02drift 9s ease-in-out infinite, p02tremor .1s steps(2,end) infinite}
+@keyframes p02tremor{0%{margin:0}50%{margin:-2px 0 0 2px}100%{margin:2px 0 0 -2px}}
+
+/* your own pulse, drawn on the frame of the screen: lub — dub — silence */
+.fx-beat{opacity:calc(var(--wt) * .95)}
+.fx-beat i{position:absolute;inset:0;display:block;
+  box-shadow:inset 0 0 110px 16px rgba(158,28,20,.62), inset 0 0 0 2px rgba(196,60,44,.30);
+  animation:p02pulse var(--beat) linear infinite;will-change:opacity}
+@keyframes p02pulse{0%{opacity:.95}7%{opacity:.22}15%{opacity:.72}28%{opacity:.05}100%{opacity:.05}}
+
+/* candlelight is never steady, and neither are you */
+.fx-grain{inset:-8%;opacity:calc(var(--wt) * .30);will-change:transform;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.55'/></svg>");
+  animation:p02grain .42s steps(1,end) infinite}
+@keyframes p02grain{0%{transform:translate3d(0,0,0)}25%{transform:translate3d(-9px,6px,0)}
+  50%{transform:translate3d(7px,-8px,0)}75%{transform:translate3d(-5px,-4px,0)}100%{transform:translate3d(6px,7px,0)}}
+
+/* the last days, written across the map so you cannot look away from them */
+#p02ghost{position:fixed;inset:0;z-index:7;pointer-events:none;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;animation:p02ghostin 1.2s ease both}
+body.staged #p02ghost{opacity:0;transition:opacity .4s ease}
+@keyframes p02ghostin{from{opacity:0;letter-spacing:40px}to{opacity:1;letter-spacing:0}}
+#p02ghost b{font-size:min(30vh,240px);line-height:.9;font-weight:400;color:rgba(216,197,138,.13);
+  font-variant-numeric:tabular-nums;animation:p02ghostbeat var(--beat) ease-out infinite}
+#p02ghost span{font-size:15px;letter-spacing:9px;text-transform:uppercase;color:rgba(216,197,138,.24)}
+#p02ghost.hot b{color:rgba(196,70,54,.17)}
+#p02ghost.hot span{color:rgba(214,130,112,.34)}
+@keyframes p02ghostbeat{0%{transform:scale(1.018)}16%{transform:scale(1)}100%{transform:scale(1)}}
+
+/* a sign does not scroll past in the corner; it lands in front of you */
+#p02news{position:fixed;left:50%;top:27%;transform:translate(-50%,-8px);z-index:25;pointer-events:none;
+  width:min(620px,72vw);text-align:center;opacity:0;transition:opacity .5s ease,transform .5s cubic-bezier(.16,1,.3,1)}
+#p02news.in{opacity:1;transform:translate(-50%,0)}
+body.staged #p02news{opacity:0}
+#p02news em{display:block;font-style:normal;font-size:10px;letter-spacing:4.5px;text-transform:uppercase;
+  color:#8a7248;margin-bottom:9px}
+#p02news p{margin:0;font-size:21px;line-height:1.55;color:#e2d6b6;letter-spacing:.2px;
+  text-shadow:0 2px 26px rgba(0,0,0,.95),0 0 60px rgba(0,0,0,.8)}
+#p02news.bad p{color:#e8b0a0}
+#p02news.good p{color:#c3d8ac}
+#p02news.ambiguous p{color:#dcccA4;font-style:italic}
 
 /* the date becomes a countdown */
 body.p02-close .date{color:#e79a88;text-shadow:0 0 22px rgba(168,48,40,.55);animation:p02datebeat var(--beat) ease-in-out infinite}
@@ -309,8 +408,9 @@ body.p02-close #dateLabel::after{content:var(--p02-after,"");color:#c9705e;lette
 @keyframes p02datebeat{0%,100%{opacity:1}55%{opacity:.62}}
 
 /* ---------- the letter you cannot recall ---------- */
-#pending{position:fixed;right:14px;top:86px;z-index:22;display:flex;flex-direction:column;gap:10px;width:330px}
-.pend{position:relative;cursor:default;padding:0;overflow:visible;
+#pending{position:fixed;right:14px;top:86px;z-index:22;display:flex;flex-flow:column wrap-reverse;
+  align-content:flex-start;gap:10px;width:auto;max-width:min(700px,58vw);max-height:var(--p02cap,240px)}
+.pend{position:relative;cursor:default;padding:0;overflow:visible;width:330px;flex:0 0 auto;
   background:linear-gradient(158deg, rgba(32,23,15,.975), rgba(15,11,8,.975));
   border:1px solid var(--edge);border-left:3px solid var(--gold);
   box-shadow:0 16px 44px rgba(0,0,0,.7);animation:pendIn .55s cubic-bezier(.16,1,.3,1)}
@@ -320,7 +420,7 @@ body.p02-close #dateLabel::after{content:var(--p02-after,"");color:#c9705e;lette
   box-shadow:inset 0 0 16px rgba(0,0,0,.75)}
 .pend .pface canvas{width:100%;height:100%;display:block}
 .pend .pface.none{display:flex;align-items:center;justify-content:center;color:#6b5a3c;font-size:20px}
-.pmore{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7248;text-align:right;padding:2px 4px 0}
+.pmore{width:330px;flex:0 0 auto;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7248;text-align:right;padding:2px 4px 0}
 .pend.lead{border-left-width:4px}
 .pend:not(.lead) .pgrid{grid-template-columns:30px 1fr auto;padding:7px 11px 4px;gap:9px}
 .pend:not(.lead) .pface{width:30px;height:30px}

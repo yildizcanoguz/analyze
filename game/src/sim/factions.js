@@ -199,6 +199,7 @@ function brew(day) {
       const gain = d * MOOD_GAIN * (1 + (S.charter.autonomy || 0) * 0.30) - (d < 0.12 ? 5 : 0);
       const next = Math.max(0, Math.min(150, cur + gain));
       S.factionMood[v.id] = next;
+      leakPatience(v, liegeId, cur, next, vs, day);
       if (next < MOOD_TO_FOUND) continue;
       if (factionOf(v.id)) continue;
       const existing = factionsAgainst(liegeId);
@@ -209,6 +210,70 @@ function brew(day) {
       S.factionMood[v.id] = 40;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// The leak, before there is anything to leak.
+// A faction that announces itself the day it is founded is a jump scare. What
+// the player must get, months earlier, is a man behaving oddly with another
+// man — and the job of joining those two facts is the player's, not the game's.
+// ---------------------------------------------------------------------------
+const PATIENCE_MARKS = [30, 55, 80];
+
+function leakPatience(v, liegeId, before, after, peers, day) {
+  const mark = PATIENCE_MARKS.find((m) => before < m && after >= m);
+  if (mark == null) return;
+  const seen = ch(liegeId);
+  const isPlayers = liegeId === S.playerId;
+  // his liege's other malcontents: the man he would be sitting with
+  const partner = peers
+    .filter((x) => x.id !== v.id && x.deathDay == null && (S.factionMood[x.id] || 0) > 20)
+    .sort((a, b) => (S.factionMood[b.id] || 0) - (S.factionMood[a.id] || 0))[0];
+  const text = patienceLine(mark, v, partner, seen);
+  if (!text) return;
+  S.chronicle.push({ day, kind: 'unrest', tone: 'ambiguous', text, charId: v.id });
+  if (isPlayers) emit('faction:signal', { factionId: null, text, tone: 'ambiguous', charId: v.id });
+  else if (ch(S.playerId)?.liegeId === liegeId && rng.chance(0.5)) {
+    emit('faction:signal', { factionId: null, text, tone: 'ambiguous', charId: v.id });
+  }
+}
+
+/** Three stages: he withdraws, he is seen with someone, he starts buying iron. */
+function patienceLine(mark, v, partner, liege) {
+  const n = v.name;
+  if (mark === PATIENCE_MARKS[0]) {
+    return rng.pick([
+      `${n} bu kış divana gelmedi. Hastaymış — ama aynı hafta avdaymış.`,
+      `${gen(n)} vergisi tam geldi, mektubu gelmedi. Yirmi yıldır her keseyle bir mektup gelirdi.`,
+      `${n} sofrada senin sağına oturmayı bıraktı. Kimse yerini değiştirmesini istemedi.`,
+      `${gen(n)} kâhyası bu ay iki kez senin kâtibine sordu: "Kanun tam olarak ne diyor?"`,
+      `${n} bir mektubu senin ulağınla değil, kendi adamıyla yolladı. Yol aynı yol.`,
+    ]);
+  }
+  if (mark === PATIENCE_MARKS[1]) {
+    if (!partner) {
+      return rng.pick([
+        `${n} bu ay üç kez sınırı geçti. Nereye gittiğini söyleyen yok.`,
+        `${gen(n)} kalesinde bu hafta beş at fazla vardı. Beş at, beş misafir demektir.`,
+        `${n} kızını uzaktaki bir beyle nişanladı. Sana danışılmadı, haber bile geç geldi.`,
+      ]);
+    }
+    const q = partner.name;
+    return rng.pick([
+      `${n} bu ay üç kez ${gen(q)} kalesine gitti. Dördüncüsünde geceyi orada geçirdi.`,
+      `${n} ile ${q} aynı gece aynı handa kaldı. Han sahibi kimseyi hatırlamıyor.`,
+      `${gen(q)} düğününde ${n} baş köşede oturdu. Sen çağrılmadın.`,
+      `${gen(n)} oğlu ${gen(q)} yanına "terbiye görmeye" gönderildi. Bunu sana kimse sormadı.`,
+      `${n} ile ${q} kışın ortasında aynı gün ava çıkmış. İkisi de av getirmemiş.`,
+    ]);
+  }
+  return rng.pick([
+    `${gen(v.name)} demircisi bu ay kırk mızrak demiri ısmarlamış. Sipariş senin defterine düşmedi.`,
+    `${gen(v.name)} ambarları dolu. Kışa daha çok var, hasada da.`,
+    `${v.name} kalesinin surunda üç gündür taşçı çalışıyor. Duvar sağlamdı.`,
+    `${gen(v.name)} adamları bu ay iki kez teçhizatlı geçtiler. Kimse kimseye bakmadı.`,
+    `${v.name} bu sabah sana selam verdi — önce verdi, eğilmeden. Fark ettin.`,
+  ]);
 }
 
 /** Only lieges that can matter to the player: him, and everyone above him. */
