@@ -205,12 +205,44 @@ function rebuildIndex(day) {
     day,
     rulers: Object.keys(counties).sort(),
     strength, own, income, counties, nbr: nbrArr, ownerOf, provOf, vassals,
-    lord: null, playerCounties: [],
+    lord: null, playerCounties: [], playerProvs: [],
   };
+
   const pid = S.playerId;
   if (pid) {
     IDX.lord = overlordOf(pid);
     IDX.playerCounties = (counties[pid] || []).slice();
+
+    // A duke whose counties are all held by his vassals owns no province
+    // directly, and used to therefore have no border at all -- so no neighbour
+    // ever noticed him. Your frontier is your realm's frontier, not your
+    // demesne's.
+    const realm = new Set([pid]);
+    let frontier = [pid];
+    for (let depth = 0; depth < 4 && frontier.length; depth++) {
+      const next = [];
+      for (const id of frontier) {
+        for (const v of vassals[id] || []) if (!realm.has(v)) { realm.add(v); next.push(v); }
+      }
+      frontier = next;
+    }
+    const realmProvs = [];
+    for (const provId of Object.keys(ownerOf)) if (realm.has(ownerOf[provId])) realmProvs.push(provId);
+    IDX.playerProvs = realmProvs;
+    if (!(provOf[pid] || []).length) provOf[pid] = realmProvs.slice();
+
+    const border = new Set();
+    for (const provId of realmProvs) {
+      for (const n of pv(provId)?.neighbors || []) {
+        const other = ownerOf[n];
+        if (other && !realm.has(other)) border.add(other);
+      }
+    }
+    if (border.size) nbrArr[pid] = Array.from(border);
+    for (const other of border) {
+      if (!nbrArr[other]) nbrArr[other] = [];
+      if (!nbrArr[other].includes(pid)) nbrArr[other].push(pid);
+    }
   }
 }
 const vassalIds = (id) => IDX.vassals?.[id] || [];
