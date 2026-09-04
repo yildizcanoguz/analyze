@@ -47,3 +47,12 @@ Bitirdiğinde şunu raporla, fazlasını değil:
 - Hâlâ zayıf olan tek şey
 
 **Commit atma.** Entegrasyonu koordinatör yapacak.
+
+## Hızlı bağlantı kontrolü
+Tarayıcı açmadan, saniyeler içinde tüm modüllerin ayrıştığını ve birbirine
+bağlandığını doğrula:
+```bash
+node /home/user/analyze/game/tools/syntax.mjs
+```
+`inspect` çalıştırmadan önce bunu çalıştır — bir import hatası için 90 saniyelik
+tarayıcı turu beklemenin anlamı yok. Teslimden önce çıktı temiz olmalı.
