@@ -154,8 +154,8 @@ let moreEl = null, tipEl = null;
 function ribbonCeiling() {
   const rail = document.getElementById('p06rail');
   const r = rail && rail.getClientRects().length ? rail.getBoundingClientRect() : null;
-  const limit = r && r.height > 4 ? r.top - 14 : window.innerHeight * 0.54;
-  return Math.max(96, Math.min(window.innerHeight * 0.54, limit) - 86);
+  const limit = r && r.height > 4 ? r.top - 12 : window.innerHeight * 0.54;
+  return Math.max(0, Math.min(window.innerHeight * 0.54, limit) - 86);
 }
 
 export function renderPending() {
@@ -166,9 +166,14 @@ export function renderPending() {
   for (const [id, c] of cards) if (!live.has(id)) { c.el.remove(); cards.delete(id); }
   if (!moreEl) { moreEl = document.createElement('div'); moreEl.className = 'pmore'; }
 
+  // Three shapes, decided by how much of the top-right band is actually free:
+  // a full card stack, a compact stack, or a single row of chips laid leftward.
   const cap = ribbonCeiling();
-  const tight = cap < 170;                 // not even room for one full card
-  host.style.setProperty('--p02cap', `${Math.round(cap)}px`);
+  const tight = cap < 170;
+  const row = cap < 132;
+  host.style.setProperty('--p02cap', `${Math.round(Math.max(58, cap))}px`);
+  host.classList.toggle('tight', tight);
+  host.classList.toggle('row', row);
 
   for (const [i, d] of list.entries()) {
     let c = cards.get(d.id);
@@ -181,16 +186,16 @@ export function renderPending() {
   host.appendChild(moreEl);
 
   // Two columns of room, no more — a stack of five must not flatten the one
-  // that lands tomorrow.
-  const budget = cap * 2 - 40;
+  // that lands tomorrow. In row shape the budget is horizontal instead.
+  const budget = row ? Math.min(760, window.innerWidth * 0.64) - 30 : Math.max(120, cap) * 2 - 40;
   let used = 0, hidden = 0;
   for (const [i, d] of list.entries()) {
     const c = cards.get(d.id);
-    const h = c.el.offsetHeight + 10;
+    const h = (row ? c.el.offsetWidth : c.el.offsetHeight) + 10;
     if (i > 0 && used + h > budget) { c.el.hidden = true; hidden++; }
     else used += h;
   }
-  moreEl.textContent = hidden ? `+${hidden} karar daha yolda` : '';
+  moreEl.textContent = hidden ? (row ? `+${hidden}` : `+${hidden} karar daha yolda`) : '';
   moreEl.hidden = !hidden;
 }
 
@@ -410,6 +415,20 @@ body.p02-close .date{color:#e79a88;text-shadow:0 0 22px rgba(168,48,40,.55);anim
 body.p02-close #dateLabel::after{content:var(--p02-after,"");color:#c9705e;letter-spacing:.6px}
 @keyframes p02datebeat{0%,100%{opacity:1}55%{opacity:.62}}
 
+/* when the right edge gets crowded the ribbon lies down instead of pushing in */
+#pending.row{flex-flow:row-reverse nowrap;max-height:none;max-width:min(760px,64vw);gap:8px;align-items:flex-start}
+#pending.row .pend{width:174px}
+#pending.row .pend .pgrid{grid-template-columns:26px 1fr;gap:8px;padding:7px 9px 3px}
+#pending.row .pend .pface{width:26px;height:26px}
+#pending.row .pend .pnum{grid-column:2;text-align:left;padding:0}
+#pending.row .pend .pnum b{display:inline;font-size:15px}
+#pending.row .pend .pnum span{margin-left:4px}
+#pending.row .pend .ptitle{font-size:11.5px;line-height:1.2}
+#pending.row .pend .pstakes,#pending.row .pend .pwho{display:none}
+#pending.row .pend .pfoot{padding:3px 9px 5px;font-size:9px}
+#pending.row .pend .podds{display:none}
+#pending.row .pmore{width:auto;font-size:11px;padding:14px 2px 0}
+
 /* ---------- the letter you cannot recall ---------- */
 #pending{position:fixed;right:14px;top:86px;z-index:22;display:flex;flex-flow:column wrap-reverse;
   align-content:flex-start;gap:10px;width:auto;max-width:min(700px,58vw);max-height:var(--p02cap,240px)}
@@ -423,7 +442,7 @@ body.p02-close #dateLabel::after{content:var(--p02-after,"");color:#c9705e;lette
   box-shadow:inset 0 0 16px rgba(0,0,0,.75)}
 .pend .pface canvas{width:100%;height:100%;display:block}
 .pend .pface.none{display:flex;align-items:center;justify-content:center;color:#6b5a3c;font-size:20px}
-.pmore{width:330px;flex:0 0 auto;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7248;text-align:right;padding:2px 4px 0}
+.pmore{width:330px;flex:0 0 auto;align-self:flex-end;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#8a7248;text-align:right;padding:2px 4px 0}
 .pend.lead{border-left-width:4px}
 .pend:not(.lead) .pgrid{grid-template-columns:30px 1fr auto;padding:7px 11px 4px;gap:9px}
 .pend:not(.lead) .pface{width:30px;height:30px}

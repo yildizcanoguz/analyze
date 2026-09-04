@@ -705,7 +705,9 @@ function announceGrowth(c, a) {
 /** Is this ruler close enough to the player to want anything from them? */
 function playerRelation(c, pid) {
   const near = neighborsOf(c.id).includes(pid) || (ch(pid)?.courtOf === c.id)
-    || (!neighborsOf(pid).length && (c.titles || []).some((t) => (ti(t)?.claims || []).some((x) => x.charId === pid)));
+    || (!neighborsOf(pid).length && (
+      (c.titles || []).some((t) => (ti(t)?.claims || []).some((x) => x.charId === pid))
+      || (ch(pid)?.memoriesOf?.[c.id] || []).some((m) => m.delta <= -40)));
   const isLiege = overlordOf(pid) === c.id || S.ai?.tribute?.toId === c.id;
   const isVassal = overlordOf(c.id) === pid;
   if (!near && !isLiege && !isVassal) return null;
@@ -1880,6 +1882,16 @@ function updatePressure(day) {
       if (!t.holderId || t.holderId === pid) continue;
       if ((t.claims || []).some((x) => x.charId === pid)) list.push(t.holderId);
       if (list.length >= 3) break;
+    }
+  }
+  if (!list.length) {
+    // last resort: the people you have the worst blood with still think of you
+    const me = ch(pid);
+    for (const [otherId, ms] of Object.entries(me?.memoriesOf || {})) {
+      if (!alive(otherId) || otherId === pid) continue;
+      if (!ms.some((m) => m.delta <= -40)) continue;
+      list.push(otherId);
+      if (list.length >= 2) break;
     }
   }
   for (const id of list) {

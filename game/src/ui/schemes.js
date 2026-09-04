@@ -162,6 +162,18 @@ function refresh() {
   if (idleEl) idleEl.onclick = () => { sfx('page'); flow = { step: 'type' }; sel = null; toggleBoard(true); };
   paintFaces(rail);
   placeRail();
+  if (openBoard && canRedraw()) drawBoard();
+}
+
+/**
+ * A day passing must never rebuild something the player is in the middle of:
+ * a hold gate, an open room, or the choice of a target.
+ */
+function canRedraw() {
+  if (holdActive) return false;
+  if (board.querySelector('.p06modal')) return false;
+  if (flow) return false;
+  return true;
 }
 
 /** An empty panel teaches nothing. Name the man who likes you least. */
@@ -626,23 +638,42 @@ function confirmDrop(sc) {
   wireHold(modal.querySelector('.holdb'), 1200, () => { abortScheme(sc.id); modal.remove(); sel = null; drawBoard(); });
 }
 
-/** Your own hand has to stay on it. Same grammar as the decision gate. */
+/**
+ * Your own hand has to stay on it. Driven by a wall-clock interval rather than
+ * requestAnimationFrame: this page renders a software-rasterised 3D scene, and
+ * on a slow frame budget a rAF-driven gate can sit at zero for two seconds and
+ * then reset when you let go. A gate that punishes a slow machine is not a
+ * gate, it is a bug.
+ */
+let holdActive = false;
 function wireHold(btn, need, done) {
   const fill = btn.querySelector('i'), span = btn.querySelector('span');
-  let raf = null, t0 = 0;
-  const step = (ts) => {
-    if (!t0) t0 = ts;
-    const q = Math.min(1, (ts - t0) / need);
+  let timer = null, t0 = 0;
+  const tick = () => {
+    const q = Math.min(1, (performance.now() - t0) / need);
     fill.style.width = `${q * 100}%`;
     span.textContent = q < 1 ? `bırakma…  ${Math.ceil((1 - q) * need / 1000)}` : 'tamam';
-    if (q < 1) raf = requestAnimationFrame(step);
-    else { stop(); done(); }
+    if (q >= 1) { stop(); done(); }
   };
-  const stop = () => { if (raf) cancelAnimationFrame(raf); raf = null; t0 = 0; fill.style.width = '0%'; span.textContent = 'basılı tut'; };
-  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); t0 = 0; raf = requestAnimationFrame(step); });
-  btn.addEventListener('pointerup', stop);
-  btn.addEventListener('pointerleave', stop);
-  btn.addEventListener('pointercancel', stop);
+  const start = (e) => {
+    if (e) e.preventDefault();
+    if (timer) return;
+    holdActive = true;
+    t0 = performance.now();
+    tick();
+    timer = setInterval(tick, 40);
+  };
+  const stop = () => {
+    if (timer) clearInterval(timer);
+    timer = null; holdActive = false;
+    fill.style.width = '0%'; span.textContent = 'basılı tut';
+  };
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('touchstart', start, { passive: false });
+  for (const ev of ['pointerup', 'mouseup', 'pointerleave', 'mouseleave', 'pointercancel', 'touchend']) {
+    btn.addEventListener(ev, stop);
+  }
 }
 
 // ---------------------------------------------------------------------------
