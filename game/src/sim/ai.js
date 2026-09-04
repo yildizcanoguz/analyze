@@ -704,7 +704,8 @@ function announceGrowth(c, a) {
 
 /** Is this ruler close enough to the player to want anything from them? */
 function playerRelation(c, pid) {
-  const near = neighborsOf(c.id).includes(pid) || (ch(pid)?.courtOf === c.id);
+  const near = neighborsOf(c.id).includes(pid) || (ch(pid)?.courtOf === c.id)
+    || (!neighborsOf(pid).length && (c.titles || []).some((t) => (ti(t)?.claims || []).some((x) => x.charId === pid)));
   const isLiege = overlordOf(pid) === c.id || S.ai?.tribute?.toId === c.id;
   const isVassal = overlordOf(c.id) === pid;
   if (!near && !isLiege && !isVassal) return null;
@@ -1872,6 +1873,15 @@ function updatePressure(day) {
   if (IDX.lord) list.push(IDX.lord);
   if (S.ai?.tribute?.toId) list.push(S.ai.tribute.toId);
   for (const id of vassalIds(pid)) list.push(id);
+  // A ruler who has lost every province has no border, and a world with no
+  // border has nothing to say. Fall back to the people who hold what was his.
+  if (!list.length) {
+    for (const t of Object.values(S.titles)) {
+      if (!t.holderId || t.holderId === pid) continue;
+      if ((t.claims || []).some((x) => x.charId === pid)) list.push(t.holderId);
+      if (list.length >= 3) break;
+    }
+  }
   for (const id of list) {
     if (id === pid || seen.has(id)) continue;
     seen.add(id);

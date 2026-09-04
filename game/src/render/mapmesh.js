@@ -215,6 +215,11 @@ export function buildMap(map) {
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
       float fbm(vec2 p){ float a=0.5,s=0.0; for(int i=0;i<5;i++){ s+=a*vnoise(p); p*=2.03; a*=0.5;} return s; }
       float fbm3(vec2 p){ float a=0.5,s=0.0; for(int i=0;i<3;i++){ s+=a*vnoise(p); p*=2.11; a*=0.5;} return s; }
+      const vec3 LUM = vec3(0.2126, 0.7152, 0.0722);
+      // Repaint a colour at a given brightness. A realm's colour should change
+      // the land's *hue*, never flatten a black forest into the same khaki as a
+      // desert — that is what turns a map into a smear.
+      vec3 atLuma(vec3 c, float l){ return c * (l / max(dot(c, LUM), 0.03)); }
 
       // Bilinear arg-max over the province raster. Each of the four surrounding
       // texels votes with its bilinear weight; the province with most votes owns
@@ -270,6 +275,7 @@ export function buildMap(map) {
         vec3 base = uBiome[0];
         for (int k=0;k<8;k++) if (k==bi) base = uBiome[k];
         base *= 0.80 + fbm3(wp*0.011)*0.44;
+        base *= 1.0 + (vnoise(wp*0.26) - 0.5) * 0.30 * (1.0 - smoothstep(140.0, 520.0, dist));
 
         // Altitude does more work than the biome map: valleys stay green, the
         // uplands dry to straw, the tops go to bare rock. That is the ramp that
@@ -285,7 +291,10 @@ export function buildMap(map) {
         float snow = smoothstep(snowLine, snowLine+9.0, vH) * (1.0 - smoothstep(0.5,0.85,slope));
         base = mix(base, vec3(0.68,0.72,0.80), snow);
 
-        vec3 terr = mix(base, pc.rgb*0.55, 0.34*pc.a);
+        float lum = dot(base, LUM);
+        vec3 pol = atLuma(pc.rgb, lum);
+        pol = clamp(mix(vec3(lum), pol, 1.40), 0.0, 1.4);     // push near-neighbours apart
+        vec3 terr = mix(base, pol, mix(0.46, 0.62, uParchment) * pc.a);
 
         // --- parchment --------------------------------------------------------
         vec3 parch = terr;
@@ -303,6 +312,7 @@ export function buildMap(map) {
         vec3 L = normalize(uSunDir);
         vec3 Nd = N;
         float detail = (1.0 - uParchment) * (1.0 - smoothstep(500.0, 1700.0, dist));
+        float near = (1.0 - uParchment) * (1.0 - smoothstep(110.0, 420.0, dist));
         if (detail > 0.01) {
           // finite-differenced noise: a hillside keeps its texture up close,
           // where the 7-unit mesh has nothing left to say
@@ -310,7 +320,16 @@ export function buildMap(map) {
           float n0 = fbm3(wp*0.052);
           float nx = fbm3((wp + vec2(e,0.0))*0.052);
           float nz = fbm3((wp + vec2(0.0,e))*0.052);
-          Nd = normalize(N + vec3(n0-nx, 0.0, n0-nz) * 4.2 * detail);
+          vec2 gr = vec2(n0-nx, n0-nz) * 4.2 * detail;
+          if (near > 0.01) {
+            // and a second, much finer layer for when you are standing on it
+            float e2 = 0.5;
+            float m0 = vnoise(wp*0.34);
+            float mx = vnoise((wp + vec2(e2,0.0))*0.34);
+            float mz = vnoise((wp + vec2(0.0,e2))*0.34);
+            gr += vec2(m0-mx, m0-mz) * 2.6 * near;
+          }
+          Nd = normalize(N + vec3(gr.x, 0.0, gr.y));
         }
         float ndl = dot(Nd, L);
         float key = clamp(ndl, 0.0, 1.0);
