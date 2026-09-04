@@ -26,7 +26,7 @@ import {
   directCountiesOf, grantTitle, TIER, topLiege,
 } from './realm.js';
 import { offer, STAKE, openDecisions } from './decision.js';
-import { opinionOf, discontent, discontentReason, topGrievance } from './opinion.js';
+import { opinionOf, discontent, discontentReason, topGrievance, grievanceSentence } from './opinion.js';
 
 // --------------------------------------------------------------------- tuning
 const MOOD_TO_FOUND = 100;      // ~18 months of grievance before anyone acts
@@ -297,7 +297,7 @@ function found(founder, liegeId, day) {
     pretenderId: kind.pretenderId || null,
     demandTitleId: kind.demandTitleId || null,
     memberIds: [founder.id],
-    joinLog: [{ day, charId: founder.id, text: `${fullName(founder)} ilk mührü bastı.` }],
+    joinLog: [{ day, charId: founder.id, founder: true, text: `${fullName(founder)} ilk mührü bastı.` }],
     founded: day,
     known: false,
     knownDay: null,
@@ -824,7 +824,7 @@ function tryDeliverInvite(f, day) {
   if (!p || !liege || !led || !isLive(f)) { f.pendingInvite = false; return; }
   f.pendingInvite = false;
   const members = f.memberIds.map(ch).filter(Boolean);
-  const grievance = topGrievance(S.playerId, f.targetId);
+  const grievance = grievanceSentence(S.playerId, f.targetId);
   const believeOdds = Math.min(0.9, 0.28 + skill(p, 'diplomacy') * 0.03 + Math.max(0, opinionOf(f.targetId, S.playerId)) / 200);
 
   offer({
@@ -834,7 +834,7 @@ function tryDeliverInvite(f, day) {
     framing: `${fullName(led)} kendi gelmedi — kardeşini yolladı. Adam yemek yemedi, oturmadı, adını söylemedi.`,
     body: `"${gen(led.name)} sofrasında bir yer var," dedi. "${members.length} mühür bastı bile. ` +
       `${gen(fullName(liege))} seni ne kadar sevdiğini biliyorsun."\n\n` +
-      (grievance ? `Doğru söylüyor. Aklından geçen şey şu: ${grievance.label}\n\n` : '') +
+      (grievance ? `Doğru söylüyor. Sen de bunu düşünüyorsun: ${grievance}.\n\n` : '') +
       `Kâğıdı masaya bıraktı. Mum yanıyor. Adam kapıda bekliyor, sırtı sana dönük.`,
     options: [
       {

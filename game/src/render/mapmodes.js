@@ -17,18 +17,43 @@ let issued = 0;
 const GOLDEN = 0.61803398875;
 const LIGHT_BANDS = [0.38, 0.52, 0.64];
 const SAT_BANDS = [0.62, 0.54, 0.58];
+// Below this RGB distance two realms read as the same colour on a lit map.
+const MIN_SEPARATION = 0.22;
+
+function dist(a, b) { return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b); }
 
 function colorForKey(key, sat = null, light = null) {
   if (cache.has(key)) return cache.get(key);
   const n = issued++;
-  // start the walk from the key so a given realm keeps its colour across reloads
-  const h = ((hashStr(String(key)) % 1000) / 1000 * 0.15 + n * GOLDEN) % 1;
-  const band = n % 3;
-  const c = hsl(h, sat ?? SAT_BANDS[band], light ?? LIGHT_BANDS[band]);
-  cache.set(key, c);
-  return c;
+  // Walking the golden angle spreads hues, but it does not guarantee the result
+  // is far enough from every colour already on the map. Propose, measure, and
+  // keep walking until the new realm is separable from all of its predecessors.
+  const start = (hashStr(String(key)) % 1000) / 1000 * 0.15;
+  let best = null, bestGap = -1;
+  for (let step = 0; step < 24; step++) {
+    const h = (start + (n + step * 0.37) * GOLDEN) % 1;
+    const band = (n + step) % 3;
+    const c = hsl(h, sat ?? SAT_BANDS[band], light ?? LIGHT_BANDS[band]);
+    let gap = 1;
+    for (const prev of cache.values()) gap = Math.min(gap, dist(c, prev));
+    if (gap > bestGap) { bestGap = gap; best = c; }
+    if (gap >= MIN_SEPARATION) break;
+  }
+  cache.set(key, best);
+  return best;
 }
+
 export function resetPalette() { cache.clear(); issued = 0; }
+
+/** HSL -> linear-ish RGB in 0..1, the form setPalette() wants. */
+function hsl(h, s, l) {
+  const f = (n) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+  };
+  return { r: f(0), g: f(8), b: f(4), a: 1 };
+}
 
 const CULTURE_COL = { turkish:{r:.62,g:.34,b:.20,a:1}, greek:{r:.36,g:.30,b:.58,a:1}, armenian:{r:.72,g:.55,b:.20,a:1}, kurdish:{r:.30,g:.48,b:.34,a:1}, bulgar:{r:.55,g:.24,b:.32,a:1} };
 const FAITH_COL   = { sunni:{r:.20,g:.48,b:.36,a:1}, orthodox:{r:.30,g:.34,b:.62,a:1}, miaphysite:{r:.62,g:.42,b:.22,a:1}, catholic:{r:.66,g:.62,b:.32,a:1} };

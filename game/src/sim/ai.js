@@ -673,7 +673,7 @@ function announceGrowth(c, a) {
 /** Is this ruler close enough to the player to want anything from them? */
 function playerRelation(c, pid) {
   const near = neighborsOf(c.id).includes(pid) || (ch(pid)?.courtOf === c.id);
-  const isLiege = overlordOf(pid) === c.id;
+  const isLiege = overlordOf(pid) === c.id || S.ai?.tribute?.toId === c.id;
   const isVassal = overlordOf(c.id) === pid;
   if (!near && !isLiege && !isVassal) return null;
   return { near, isLiege, isVassal };
@@ -691,6 +691,7 @@ function wantOf(c, a, pid, rel) {
   if (a.gold > 0.5) w += 10;
   if (rel.isLiege) w += 24;
   if (rel.isVassal) w += 8;
+  if (S.ai?.tribute?.toId === c.id) w += 20;   // a leash in hand is an appetite
   for (const tid of IDX.playerCounties) if (hasClaim(c.id, tid)) { w += 28; break; }
   const op = opinion(c.id, pid);
   w -= Math.max(0, op) * 0.45;
@@ -961,7 +962,8 @@ function pressurePlayer(day) {
 
   // A world that has stayed quiet too long is a broken world, so the bar drops
   // the longer nobody has bothered you.
-  const bar = day - A.lastOfferDay > 6 * YEAR ? 34 : 52;
+  if (day < (A.deferUntil || 0)) return;
+  const bar = day - A.lastOfferDay > 5 * YEAR ? 32 : 52;
   const lordId = overlordOf(pid);
   const cands = [];
   for (const id of IDX.rulers) {
@@ -994,7 +996,10 @@ function pressurePlayer(day) {
   if (badVassal && badVassal.o < -30 && badVassal.v.id !== c.id) menu.push({ k: 'vassal', w: 4 });
   // A count with one county still has a knee to bend and a road through his land.
   if (!A.tribute && strengthOf(c.id) > strengthOf(pid) * 1.5) menu.push({ k: 'oath', w: 5 + a.land * 5 });
-  if (A.tribute && A.tribute.toId === c.id && day - A.tribute.sinceDay > 3 * YEAR) menu.push({ k: 'free', w: 9 });
+  if (A.tribute && A.tribute.toId === c.id) {
+    if (day - A.tribute.sinceDay > 3 * YEAR) menu.push({ k: 'free', w: 9 });
+    menu.push({ k: 'liege', w: 7 });          // the man you pay also gives orders
+  }
   if (neighborsOf(c.id).length > 1) menu.push({ k: 'pass', w: 4 + a.risk * 4 });
   if (!menu.length) menu.push({ k: 'tribute', w: 1 });
 
@@ -1011,7 +1016,7 @@ function pressurePlayer(day) {
   }
   const live = menu.filter((m) => m.w > 0.001);
   // Better a quiet season than the same letter twice: the cooldown will lapse.
-  if (!live.length) { A.lastOfferDay = day - OFFER_COOLDOWN + 120; return; }
+  if (!live.length) { A.deferUntil = day + 150; return; }   // never touch lastOfferDay here
   const kind = rng.weighted(live).k;
   A.lastKinds = [kind, ...recent].slice(0, 3);
   A.kindDay[kind] = day;
@@ -1833,6 +1838,7 @@ function updatePressure(day) {
   const seen = new Set();
   const list = neighborsOf(pid).slice();
   if (IDX.lord) list.push(IDX.lord);
+  if (S.ai?.tribute?.toId) list.push(S.ai.tribute.toId);
   for (const id of vassalIds(pid)) list.push(id);
   for (const id of list) {
     if (id === pid || seen.has(id)) continue;

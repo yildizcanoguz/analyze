@@ -41,3 +41,4 @@ Sahibi çalışırken bekletilenler (ilgili parçaya iletildi):
 - `ui/decision.js` — `kicker()`'a `echo:'Yankı'`; açığa çıkış sahnelenirken kararın beklemesi. (P01/P03)
 - `ui/wait.js` — söylenti fısıltıları artık `main.js` üzerinden geliyor; P02'nin ayrıca yapması gerekmiyor.
 - `ui/succession.js` — ölüm sahnesi için P03'ün `stageMoment()`'ini kullanma önerisi. (P08)
+| P19 | `render/mapmodes.js` | `hsl` tanımlı değil — 27. satır `colorForKey()` içinde çağrılıyor ama dosyada ne tanımı ne de import'u var | Açılışta `ReferenceError: hsl is not defined` konsola düşüyor ve harita paleti kurulamıyor; `applyMapMode` → `setPalette` zinciri kırık. P19'un koşturduğu her `inspect` turunda tek konsol hatası bu. (P19 dosyası değil, sahibine bildiriliyor.) |

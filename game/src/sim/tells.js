@@ -275,14 +275,22 @@ export function planTells(d) {
     // Roughly a third of the signs are the target's own nature showing through.
     let text = null;
     if (t && rng.chance(0.34)) {
-      const leaks = (t.traits || []).filter((k) => TRAIT_LEAKS[k] && k !== 'paranoid');
+      const leaks = (t.traits || []).filter((k) => TRAIT_LEAKS[k] && k !== 'paranoid' && !recentlyUsed(TRAIT_LEAKS[k](ctx)));
       if (leaks.length) { text = TRAIT_LEAKS[rng.pick(leaks)](ctx); tone = 'ambiguous'; }
     }
     if (!text) {
       const pool = usable(bank[tone] || bank.ambiguous, ctx);
-      text = (pool.length ? rng.pick(pool) : rng.pick(usable(LINES.none.ambiguous, ctx))).f(ctx);
+      const all = pool.length ? pool : usable(LINES.none.ambiguous, ctx);
+      const fresh = all.filter((l) => !recentlyUsed(l.f(ctx)));
+      text = rng.pick(fresh.length ? fresh : all).f(ctx);
     }
-    if (i === 0 && ctx.W && rng.chance(0.6)) text = `${abl(ctx.W)} haber: ${lower(text)}`;
+    if (text && recentlyUsed(text)) {
+      // a line you have just heard is noise, not a sign — try once more
+      const alt = usable(LINES.none.ambiguous, ctx).filter((l) => !recentlyUsed(l.f(ctx)));
+      if (alt.length) text = rng.pick(alt).f(ctx);
+    }
+    markUsed(text);
+    if (i === 0 && ctx.W && rng.chance(0.6)) text = `${abl(ctx.W)} haber: ${text}`;
 
     out.push({ at, day: d.committedDay + Math.max(1, Math.round(span * at)), text, tone, honest, kind: 'auto', fired: false });
   }
@@ -290,7 +298,11 @@ export function planTells(d) {
   d.autoTells = out.sort((a, b) => a.day - b.day);
 }
 
-function lower(s) { return s.charAt(0).toLocaleLowerCase('tr') + s.slice(1); }
+/** The last two dozen signs, so the world does not repeat itself at you. */
+function usedList() { return (S.flags.p02tells ||= []); }
+function recentlyUsed(txt) { return usedList().includes(txt); }
+function markUsed(txt) { const u = usedList(); u.push(txt); while (u.length > 26) u.shift(); }
+
 /** Only offer a line if the world can fill in the names it asks for. */
 function usable(pool, ctx) { return (pool || []).filter((l) => (!l.t || ctx.T) && (!l.p || ctx.P)); }
 /** A place to hang a rumour on: where the decision is happening, else your seat. */

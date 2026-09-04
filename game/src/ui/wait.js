@@ -76,10 +76,12 @@ function pressureNow() {
   return lead;
 }
 
-let lastPump = -1;
+let lastPump = -1, lastCeil = -1;
 export function tickWait(force = false) {
   ensureFx();
-  if (S.day !== lastPump) { lastPump = S.day; pumpTells(S.day); }
+  const ceil = ribbonCeiling();
+  const moved = Math.abs(ceil - lastCeil) > 8;
+  if (S.day !== lastPump || moved) { lastPump = S.day; lastCeil = ceil; pumpTells(S.day); renderPending(); }
   const lead = pressureNow();
 
   if (!lead) {

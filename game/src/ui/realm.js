@@ -308,6 +308,7 @@ function factionCard(f, p, isMine) {
   const members = f.memberIds.map(ch).filter(Boolean);
   const pre = f.pretenderId ? ch(f.pretenderId) : null;
   const signals = f.joinLog.slice(-3).reverse();
+  const hints = f.joinLog.filter((x) => !x.founder).slice(-3).reverse();
 
   // Until it has a name you get the trail, not the conclusion. Joining the dots
   // is the player's job; a game that does it for him has taken the tension away.
@@ -322,7 +323,7 @@ function factionCard(f, p, isMine) {
         </div>
         <div class="p09facAge">${yrs} yıl<span>süredir</span></div>
       </div>
-      ${signals.length ? `<div class="p09signals">${signals.map((x) => `<div>“${esc(x.text)}”<span>${fmtDate(x.day)}</span></div>`).join('')}</div>` : ''}
+      ${hints.length ? `<div class="p09signals">${hints.map((x) => `<div>“${esc(x.text)}”<span>${fmtDate(x.day)}</span></div>`).join('')}</div>` : ''}
       <div class="p09gnum"><span>Casusun daha fazlasını söyleyemiyor. Bekle ve izle.</span></div>
     </div>`;
   }
@@ -348,7 +349,9 @@ function factionCard(f, p, isMine) {
       <div class="p09gnum">
         <span><b>${factionPower(f)}</b> asker tarafta</span>
         <span><b>${loyalPower(f)}</b> asker sende</span>
-        <span class="${th > 0.7 ? 'bad' : ''}">${f.state === 'brewing' ? `eşiğe <b>${swordsToThreshold(f)}</b> asker kaldı` : 'eşik aşıldı'}</span>
+        <span class="${th > 0.7 ? 'bad' : ''}">${f.state !== 'brewing' ? 'eşik aşıldı'
+          : swordsToThreshold(f) > 0 ? `eşiğe <b>${swordsToThreshold(f)}</b> asker kaldı`
+          : '<b>asker yeter</b> — günü bekliyorlar'}</span>
         ${f.state === 'brewing' ? `<span class="${daysUntilReady(f) ? '' : 'bad'}">${daysUntilReady(f)
           ? `ferman en erken <b>${fmtDate(earliestDemandDay(f))}</b>`
           : (factionRatio(f) >= 0.45 ? '<b>ferman yazıldı bile</b>' : 'ferman için asker yetmiyor — <b>henüz</b>')}</span>` : ''}
@@ -420,6 +423,16 @@ function patienceTip(v, p, mood, f) {
   return `${discontentReason(v.id, p.id)} — bu gidişle ${months > 240 ? 'hiçbir zaman' : `yaklaşık ${months} ay içinde`} birileriyle oturur.`;
 }
 
+const MAX_LINES = 9;
+function foldLines(lines) {
+  if (lines.length <= MAX_LINES + 1) return lines.map(lineRow).join('');
+  const head = lines.slice(0, MAX_LINES);
+  const tail = lines.slice(MAX_LINES);
+  const rest = Math.round(tail.reduce((s2, l) => s2 + l.value, 0));
+  return head.map(lineRow).join('') +
+    `<div class="p09line rest"><span>${tail.length} küçük kayıt daha</span><b class="${rest < 0 ? 'neg' : 'pos'}">${rest > 0 ? '+' : ''}${rest}</b></div>`;
+}
+
 function vassalDetail(v, p, o) {
   const lines = opinionBreakdown(v.id, p.id);
   const in10 = opinionInYears(v.id, p.id, 10);
@@ -428,7 +441,7 @@ function vassalDetail(v, p, o) {
   return `<div class="p09detail">
     <div class="p09why">
       <div class="p09whyHead">Neden böyle bakıyor</div>
-      ${lines.map(lineRow).join('') || '<div class="p09line"><span>Hiçbir şey. Sadece kayıtsız.</span></div>'}
+      ${foldLines(lines) || '<div class="p09line"><span>Hiçbir şey. Sadece kayıtsız.</span></div>'}
       <div class="p09line total"><span>Toplam</span><b class="${opClass(o)}">${o > 0 ? '+' : ''}${o}</b></div>
       <div class="p09line drift"><span>On yıl sonra, hiçbir şey yapmazsan</span><b class="${opClass(in10)}">${in10 > 0 ? '+' : ''}${in10}</b></div>
     </div>
@@ -443,10 +456,11 @@ function vassalDetail(v, p, o) {
 
 function lineRow(l) {
   const cls = l.value < 0 ? 'neg' : 'pos';
+  const times = l.count > 1 ? ` <u>×${l.count}</u>` : '';
   const tail = l.kind === LINE.MEMORY
     ? (l.decaying ? `<em>${l.yearsLeft < 1 ? 'son yılı' : `${Math.round(l.yearsLeft)} yıl kaldı`}</em>` : '<em>hiç geçmez</em>')
     : (l.kind === LINE.CLAMP ? '<em>tavan</em>' : '');
-  return `<div class="p09line"><span>${esc(l.label)}</span>${tail}<b class="${cls}">${l.value > 0 ? '+' : ''}${Math.round(l.value)}</b></div>`;
+  return `<div class="p09line"><span>${esc(l.label)}${times}</span>${tail}<b class="${cls}">${l.value > 0 ? '+' : ''}${Math.round(l.value)}</b></div>`;
 }
 
 // ------------------------------------------------------------------- the trail
@@ -558,7 +572,7 @@ function showTip(fromId, toId, e) {
   if (!from || !to) return;
   const tot = opinionOf(fromId, toId);
   tipEl.innerHTML = `<div class="p09tipHead">${esc(fullName(from))} → ${esc(toId === S.playerId ? 'sen' : fullName(to))}</div>` +
-    lines.map(lineRow).join('') +
+    foldLines(lines) +
     `<div class="p09line total"><span>Toplam</span><b class="${opClass(tot)}">${tot > 0 ? '+' : ''}${tot}</b></div>`;
   tipEl.classList.remove('hidden');
   moveTip(e);
@@ -724,6 +738,8 @@ body.staged #p09banner{opacity:.10;pointer-events:none;transition:opacity .5s}
 .p09line.total{margin-top:5px;border-top:1px solid var(--edge-2);border-bottom:none;padding-top:6px}
 .p09line.total span{color:var(--gold-2);letter-spacing:.5px}
 .p09line.total b{font-size:15px}
+.p09line u{text-decoration:none;color:#8a7a58;font-size:11px}
+.p09line.rest span{color:var(--txt-dim);font-style:italic}
 .p09line.drift{border-bottom:none;opacity:.72}
 .p09line.drift span{color:var(--txt-dim);font-style:italic}
 .p09line b.neg2{color:#d0705e}.p09line b.pos2{color:#8fc06e}.p09line b.mid{color:#a8987a}

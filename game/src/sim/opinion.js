@@ -50,7 +50,7 @@ const RELATION_LINE = {
  */
 export function opinionBreakdown(fromId, toId, opts = {}) {
   const a = ch(fromId), b = ch(toId);
-  const lines = [];
+  let lines = [];
   if (!a || !b) return lines;
   if (fromId === toId) return [{ label: 'Kendine bakış', value: 100, kind: LINE.BASE }];
 
@@ -115,6 +115,20 @@ export function opinionBreakdown(fromId, toId, opts = {}) {
     });
   }
 
+  // The same deed remembered four times is one grudge, not four lines.
+  const merged = [];
+  const byLabel = new Map();
+  for (const l of lines) {
+    if (l.kind !== LINE.MEMORY) { merged.push(l); continue; }
+    const hit = byLabel.get(l.label);
+    if (!hit) { byLabel.set(l.label, l); l.count = 1; merged.push(l); continue; }
+    hit.value += l.value;
+    hit.full = (hit.full || 0) + (l.full || 0);
+    hit.yearsLeft = Math.max(hit.yearsLeft || 0, l.yearsLeft || 0);
+    hit.life = Math.max(hit.life || 25, l.life || 25);
+    hit.count = (hit.count || 1) + 1;
+  }
+  lines = merged;
   lines.sort((x, y) => Math.abs(y.value) - Math.abs(x.value));
 
   // 7. the ceiling — if it bit, say so instead of silently swallowing 40 points
@@ -178,6 +192,24 @@ export function discontent(charId, liegeId) {
   d -= Math.max(0, traitAi(c, 'forgive')) * 0.35;
   if (c.imprisonedBy) d *= 0.2;
   return Math.max(0, Math.min(1, d));
+}
+
+/**
+ * The same reason, but shaped to sit inside a sentence. A modifier label like
+ * "Şüpheci ↔ Mutaassıp" is fine in a ledger and reads like a debug string in
+ * prose, so prose asks for this instead.
+ */
+export function grievanceSentence(fromId, toId) {
+  const lines = opinionBreakdown(fromId, toId).filter((l) => l.value < 0 && l.kind !== LINE.CLAMP);
+  const mem = lines.find((l) => l.kind === LINE.MEMORY);
+  if (mem) return mem.label.replace(/\.$/, '');
+  const l = lines[0];
+  if (!l) return 'ona borçlu olmadığın hiçbir şey yok — ve bu da bir sebep';
+  if (l.kind === LINE.FAITH) return 'aynı Tanrı\'ya aynı şekilde inanmıyorsunuz';
+  if (l.kind === LINE.CULTURE) return 'onun evinde senin dilin konuşulmuyor';
+  if (l.kind === LINE.BRAND) return 'taşıdığın damgayı herkes biliyor';
+  if (l.kind === LINE.BASE) return 'aranızda kapanmamış eski bir hesap var';
+  return 'huyunuz tutmuyor, hiç tutmadı';
 }
 
 /** A one-line reason this person would ride against his liege. Never generic. */
