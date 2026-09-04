@@ -12,6 +12,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createServer as netServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -21,7 +22,15 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, arr) => {
 }, []));
 
 const OUT = resolve(args.out || './inspect-out');
-const PORT = Number(args.port || 8123);
+// Parallel agents each need their own server; grab a free port unless told otherwise.
+async function freePort() {
+  return new Promise((res, rej) => {
+    const s = netServer();
+    s.listen(0, () => { const p = s.address().port; s.close(() => res(p)); });
+    s.on('error', rej);
+  });
+}
+const PORT = Number(args.port || await freePort());
 const SEED = args.seed || 1066;
 const W = Number(args.w || 1600), H = Number(args.h || 900);
 mkdirSync(OUT, { recursive: true });
@@ -116,14 +125,18 @@ if (args.script && existsSync(resolve(args.script))) {
   await page.waitForTimeout(1200); await shot('close');
   // click a province
   await page.mouse.click(W * 0.5, H * 0.55); await page.waitForTimeout(600); await shot('province');
-  // let the sim run until a decision shows up
-  await page.keyboard.press('Space');
-  for (let i = 0; i < 40; i++) {
-    const has = await page.evaluate(() => !!document.querySelector('.dec'));
-    if (has) break;
-    await page.waitForTimeout(500);
+  // fast-forward until the world puts a decision in front of us
+  for (let i = 0; i < 30 && !(await page.evaluate(() => !!document.querySelector('.dec'))); i++) {
+    await page.evaluate(() => window.__advance?.(120));
+    await page.waitForTimeout(220);
   }
-  if (await page.evaluate(() => !!document.querySelector('.dec'))) await shot('decision');
+  if (await page.evaluate(() => !!document.querySelector('.dec'))) {
+    await page.waitForTimeout(1400);
+    await shot('decision');
+    // open the hold-to-commit gate on the heaviest option, if there is one
+    const irrev = await page.$('.opt.irrev');
+    if (irrev) { await irrev.click(); await page.waitForTimeout(900); await shot('gate'); }
+  } else report.notes.push('no decision appeared after 3600 simulated days');
 }
 
 report.state = await page.evaluate(() => window.__state?.());

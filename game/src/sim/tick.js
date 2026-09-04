@@ -9,11 +9,25 @@ import { incomeOf, realmLevy, vassalsOf, primaryTitle, grantTitle, recomputeVass
 import { tickDecisions } from './decision.js';
 import { tryFireEvents } from '../content/events.js';
 import { succeed } from './succession.js';
+import { tickSchemes } from './schemes.js';
+import { tickCouncil } from './council.js';
+import { tickFactions } from './factions.js';
+import { tickWar } from './war.js';
+import { tickEconomy } from './economy.js';
+import { tickAI } from './ai.js';
+import { tickEchoes } from './memory.js';
 
 let lastYear = null, lastMonth = null;
 
 export function tickDay(day) {
   tickDecisions(day);
+  tickSchemes(day);
+  tickCouncil(day);
+  tickFactions(day);
+  tickWar(day);
+  tickEconomy(day);
+  tickAI(day);
+  tickEchoes(day);
   const { y, m } = fromDay(day);
   if (m !== lastMonth) { lastMonth = m; monthly(day); }
   if (y !== lastYear) { lastYear = y; yearly(day, y); }

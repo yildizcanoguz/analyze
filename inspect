@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Run the game and look at it. Works from any directory.
+#   ./inspect --out /tmp/mydir [--script path.mjs] [--seed N] [--port N]
+cd "$(dirname "$(readlink -f "$0")")"
+exec node game/tools/inspect.mjs "$@"

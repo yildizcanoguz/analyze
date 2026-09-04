@@ -14,7 +14,20 @@ import { applyMapMode } from './render/mapmodes.js';
 import { setSeason } from './render/mapmesh.js';
 import { seasonOf, fromDay } from './core/date.js';
 import { initShell, showProvince, hideProvince, showChar, refreshTop } from './ui/shell.js';
-import { initDecisionUI, renderPending, whisper } from './ui/decision.js';
+import { initDecisionUI } from './ui/decision.js';
+import { initWait, renderPending, whisper } from './ui/wait.js';
+import { initSchemeUI } from './ui/schemes.js';
+import { initCourtUI } from './ui/court.js';
+import { initSuccessionUI } from './ui/succession.js';
+import { initRealmUI } from './ui/realm.js';
+import { initWarUI } from './ui/war.js';
+import { initHoldingUI } from './ui/holding.js';
+import { initTooltips } from './ui/tooltip.js';
+import { initIntro } from './ui/intro.js';
+import { initProps, tickProps } from './render/props.js';
+import { initLabels, tickLabels } from './render/labels.js';
+import { initArmies, tickArmies } from './render/armies.js';
+import { initMusic } from './audio/music.js';
 import { initReveal } from './ui/reveal.js';
 import { initAudio, resumeAudio, SFX, heart } from './audio/audio.js';
 
@@ -27,6 +40,9 @@ async function start() {
   const map = await loadMap();
   S.mapMeta = map;
   window.__S = S;   // read-only handle for the inspection harness
+  // Test affordance: run the simulation forward without waiting on wall clock.
+  // Critics need to reach year 1080 without sitting through it.
+  window.__advance = (days = 365) => { for (let i = 0; i < days; i++) { S.day++; tickDay(S.day); } refreshTop(); return S.day; };
   await generateWorld(seed);
 
   bootmsg.textContent = 'Sahne hazırlanıyor…';
@@ -48,11 +64,17 @@ async function start() {
   initAudio();
   initShell();
   initDecisionUI();
+  initWait();
   initReveal();
+  initTooltips();
+  initSchemeUI(); initCourtUI(); initSuccessionUI(); initRealmUI(); initWarUI(); initHoldingUI();
+  initProps(map); initLabels(map); initArmies();
+  initMusic();
+  initIntro();
   wirePicking();
   wireDeath();
 
-  onFrame((dt) => { tickCamera(dt); tickMap(dt); });
+  onFrame((dt) => { tickCamera(dt); tickMap(dt); tickProps(dt); tickLabels(dt); tickArmies(dt); });
   requestAnimationFrame(loop);
 
   bootmsg.textContent = '';
