@@ -275,6 +275,7 @@ export function buildMap(map) {
 
         vec4 pc = ownCol;
         float dist = length(vWorld - cameraPosition);
+        float closeup = 1.0 - smoothstep(70.0, 300.0, dist);
         vec3 N = normalize(vNormal);
         vec2 wp = vWorld.xz;
 
@@ -284,6 +285,7 @@ export function buildMap(map) {
         for (int k=0;k<8;k++) if (k==bi) base = uBiome[k];
         base *= 0.80 + fbm3(wp*0.011)*0.44;
         base *= 1.0 + (vnoise(wp*0.26) - 0.5) * 0.30 * (1.0 - smoothstep(140.0, 520.0, dist));
+        base *= 1.0 + (fbm3(wp*0.62) - 0.44) * 0.38 * closeup;
 
         // Altitude does more work than the biome map: valleys stay green, the
         // uplands dry to straw, the tops go to bare rock. That is the ramp that
@@ -307,16 +309,23 @@ export function buildMap(map) {
         // gold, dark red stays dark red, and the hills still read underneath.
         float shade = clamp(lum / 0.20, 0.42, 1.55);
         vec3 pol = politLin * shade * (0.94 + 0.12*fbm3(wp*0.018));
-        float ps = clamp(mix(uPoliticalMix, uPoliticalMix + 0.22, uParchment), 0.0, 1.0) * pc.a;
+        // Right down on the ground the wash lifts: at that height you are
+        // looking at a hillside, not at a claim.
+        float ps = clamp(mix(uPoliticalMix, uPoliticalMix + 0.22, uParchment), 0.0, 1.0)
+                 * pc.a * (0.28 + 0.72*(1.0 - closeup));
         vec3 terr = mix(base, pol, ps);
 
         // --- parchment --------------------------------------------------------
         vec3 parch = terr;
         if (uParchment > 0.004) {
-          float paper = fbm(wp*0.006)*0.5 + fbm(wp*0.034)*0.25;
-          parch = mix(vec3(0.58,0.50,0.36), vec3(0.44,0.36,0.25), paper);
-          parch = mix(parch, pc.rgb, 0.55*pc.a);
-          parch *= 0.92 + 0.16*fbm3(wp*0.08);
+          // rag paper: long fibre, short tooth, and an aged blotch over both
+          float fib = fbm(wp*0.0055)*0.55 + fbm(wp*0.042)*0.30;
+          parch = mix(vec3(0.63,0.545,0.385), vec3(0.45,0.365,0.245), fib);
+          parch *= 0.93 + 0.15*fbm3(wp*0.24);
+          // the realm goes on as a thin wash over the paper, never as a fill
+          vec3 wash = mix(parch, politLin, 0.80) * (0.86 + 0.28*fib);
+          parch = mix(parch, wash, clamp(0.36 + 0.50*uPoliticalMix, 0.0, 1.0) * pc.a);
+          parch *= 0.90 + 0.17*fbm3(wp*0.010);
         }
         vec3 col = mix(terr, parch, uParchment);
 
@@ -326,7 +335,7 @@ export function buildMap(map) {
         vec3 L = normalize(uSunDir);
         vec3 Nd = N;
         float detail = (1.0 - uParchment) * (1.0 - smoothstep(500.0, 1700.0, dist));
-        float near = (1.0 - uParchment) * (1.0 - smoothstep(110.0, 420.0, dist));
+        float near = (1.0 - uParchment) * closeup;
         if (detail > 0.01) {
           // finite-differenced noise: a hillside keeps its texture up close,
           // where the 7-unit mesh has nothing left to say
@@ -337,11 +346,11 @@ export function buildMap(map) {
           vec2 gr = vec2(n0-nx, n0-nz) * 4.2 * detail;
           if (near > 0.01) {
             // and a second, much finer layer for when you are standing on it
-            float e2 = 0.5;
-            float m0 = vnoise(wp*0.34);
-            float mx = vnoise((wp + vec2(e2,0.0))*0.34);
-            float mz = vnoise((wp + vec2(0.0,e2))*0.34);
-            gr += vec2(m0-mx, m0-mz) * 2.6 * near;
+            float e2 = 0.3;
+            float m0 = vnoise(wp*0.85);
+            float mx = vnoise((wp + vec2(e2,0.0))*0.85);
+            float mz = vnoise((wp + vec2(0.0,e2))*0.85);
+            gr += vec2(m0-mx, m0-mz) * 3.4 * near;
           }
           Nd = normalize(N + vec3(gr.x, 0.0, gr.y));
         }
@@ -443,7 +452,7 @@ function buildWater(map) {
       uCellSx: { value: sx },
       uDeep: { value: new THREE.Color(0x0a2036) },
       uMid: { value: new THREE.Color(0x14536e) },
-      uShallow: { value: new THREE.Color(0x2e93a0) },
+      uShallow: { value: new THREE.Color(0x27798a) },
       uSun: { value: new THREE.Vector3(-0.52, 0.74, 0.42).normalize() },
       uSunColor: { value: new THREE.Color(0xfff0d2) },
       uSkyColor: { value: new THREE.Color(0x9fbcdd) },
@@ -498,7 +507,7 @@ function buildWater(map) {
         vec3 Hv = normalize(normalize(uSun) + V);
         float spec = pow(max(dot(Nw,Hv), 0.0), 110.0);
         float fres = pow(1.0 - max(dot(Nw,V), 0.0), 4.0);
-        col = mix(col, uSkyColor*0.55, clamp(fres,0.0,1.0)*0.40);
+        col = mix(col, uSkyColor*0.50, clamp(fres,0.0,1.0)*0.30);
         col += uSunColor * spec * 0.75;
 
         // --- surf: a lace of foam that only lives on the last few cells -------
@@ -514,8 +523,14 @@ function buildWater(map) {
 
         // parchment sea: hatched lines, like an old chart
         if (uParchment > 0.004) {
-          float hatch = smoothstep(0.45,0.55, fract((vW.x+vW.z)*0.035 + n(vW.xz*0.036)*0.6));
-          vec3 paper = mix(uPaper*1.06, uPaper*0.86, hatch*0.55);
+          // An old chart: warm paper, and pen hatching that crowds the coast
+          // and thins out into open water.
+          float fib = n(vW.xz*0.0055)*0.6 + n(vW.xz*0.048)*0.3;
+          vec3 paper = mix(vec3(0.60,0.515,0.360), vec3(0.49,0.410,0.278), fib);
+          float dens = mix(0.70, 0.10, smoothstep(0.02, 0.55, shore));
+          float hl = fract((vW.x + vW.z*0.85)*0.055 + n(vW.xz*0.03)*1.2);
+          float hatch = (1.0 - smoothstep(0.12, 0.36, abs(hl-0.5)*2.0)) * dens;
+          paper = mix(paper, vec3(0.245,0.200,0.145), clamp(hatch, 0.0, 1.0));
           col = mix(col, paper, uParchment);
         }
         gl_FragColor = vec4(col, 1.0);

@@ -243,26 +243,39 @@ function gate(el, d, o) {
   const idle = `basılı tut · ${(NEED / 1000).toFixed(1)} sn`;
   let raf = null, t0 = 0, best = 0, lets = 0;
 
-  const step = (ts) => {
-    if (!t0) t0 = ts;
-    const p = Math.min(1, (ts - t0) / NEED);
+  // Progress is measured from the wall clock at pointerdown, never from the
+  // first animation frame: on a slow renderer that frame can arrive most of a
+  // second late, and the player would hold exactly as long as the button
+  // promises, release, and be told they flinched. A timer runs alongside the
+  // animation frames so a starved rAF cannot stall the gate either.
+  let timer = null;
+  const tick = () => {
+    if (t0 === 0) return;
+    const p = Math.min(1, (performance.now() - t0) / NEED);
     best = Math.max(best, p);
     fill.style.width = `${p * 100}%`;
     span.textContent = p < 1 ? `bırakma…  ${((1 - p) * NEED / 1000).toFixed(1)}` : 'tamam';
-    if (p < 1) raf = requestAnimationFrame(step);
-    else { cancelHold(); doCommit(el, d, o); }
+    if (p >= 1) { cancelHold(); doCommit(el, d, o); return true; }
+    return false;
   };
-  const cancelHold = () => { if (raf) cancelAnimationFrame(raf); raf = null; t0 = 0; };
+  const step = () => { if (t0 === 0) return; if (!tick()) raf = requestAnimationFrame(step); };
+  const cancelHold = () => {
+    if (raf) cancelAnimationFrame(raf);
+    if (timer) clearInterval(timer);
+    raf = null; timer = null; t0 = 0;
+  };
   const startHold = (e) => {
     e.preventDefault();
-    if (raf) return;
-    t0 = 0; btn.classList.add('holding'); g.classList.add('holding');
+    if (t0) return;
+    t0 = performance.now();
+    btn.classList.add('holding'); g.classList.add('holding');
     heart(3);
     raf = requestAnimationFrame(step);
+    timer = setInterval(tick, 50);
   };
   // Letting go is not neutral. The bar snaps back to zero and the room notices.
   const release = () => {
-    if (!raf) return;
+    if (!t0) return;
     cancelHold();
     btn.classList.remove('holding'); g.classList.remove('holding');
     fill.classList.add('snap');
