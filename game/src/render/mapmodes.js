@@ -1,5 +1,5 @@
 // Map modes. Each one is a different question you can ask the land.
-import { setPalette, M } from './mapmesh.js';
+import { setPalette, setPoliticalMix, M } from './mapmesh.js';
 import { S, ch, ti, pv } from '../core/state.js';
 import { topLiege, realmOf, primaryTitle } from '../sim/realm.js';
 import { opinion } from '../sim/characters.js';
@@ -59,6 +59,15 @@ const CULTURE_COL = { turkish:{r:.62,g:.34,b:.20,a:1}, greek:{r:.36,g:.30,b:.58,
 const FAITH_COL   = { sunni:{r:.20,g:.48,b:.36,a:1}, orthodox:{r:.30,g:.34,b:.62,a:1}, miaphysite:{r:.62,g:.42,b:.22,a:1}, catholic:{r:.66,g:.62,b:.32,a:1} };
 const TERRAIN_COL = { plains:{r:.45,g:.55,b:.28,a:1}, steppe:{r:.62,g:.58,b:.32,a:1}, forest:{r:.20,g:.36,b:.20,a:1}, hills:{r:.44,g:.42,b:.28,a:1}, mountains:{r:.48,g:.46,b:.44,a:1}, drylands:{r:.66,g:.53,b:.32,a:1}, desert:{r:.82,g:.72,b:.46,a:1} };
 
+// How strongly each mode lets political colour override the land beneath it.
+// A terrain map should barely tint; a map of who owns what should shout.
+const POLITICAL_MIX = {
+  realm: 0.86, vassal: 0.86,
+  faith: 0.80, culture: 0.80,
+  opinion: 0.78, development: 0.78,
+  terrain: 0.22,
+};
+
 export const MODES = {
   realm: { label:'Devletler', key:'1', color(p) {
       const t = ti(`t_${p.id}`);
@@ -102,5 +111,6 @@ export function applyMapMode(mode) {
     if (p.occupiedBy) return { r: c.r * 0.45 + 0.42, g: c.g * 0.35, b: c.b * 0.35, a: 1 };
     return c;
   });
+  setPoliticalMix(POLITICAL_MIX[mode] ?? 0.80);
   S.ui.mapMode = mode;
 }

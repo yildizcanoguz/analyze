@@ -307,7 +307,7 @@ export function buildMap(map) {
         float lum = dot(base, LUM);
         // The land shades the realm's colour instead of replacing it: gold stays
         // gold, dark red stays dark red, and the hills still read underneath.
-        float shade = clamp(lum / 0.20, 0.42, 1.55);
+        float shade = clamp(lum / 0.22, 0.36, 1.70);
         vec3 pol = politLin * shade * (0.94 + 0.12*fbm3(wp*0.018));
         // Right down on the ground the wash lifts: at that height you are
         // looking at a hillside, not at a claim.
@@ -368,10 +368,16 @@ export function buildMap(map) {
         col = mix(col, uBorderInk, b * mix(0.50, 0.85, uParchment) * (0.72 + 0.28*realmEdge));
 
         // --- hover / selection -------------------------------------------------
-        if (uHover >= 0.0 && abs(id - uHover) < 0.5)   col += vec3(0.10,0.10,0.07);
+        // These are lifts in linear light: a flat mix toward white bleaches the
+        // province instead of picking it out. Keep the land's own brightness and
+        // move its hue, then put the emphasis on the outline.
+        if (uHover >= 0.0 && abs(id - uHover) < 0.5) {
+          col = mix(col, atLuma(vec3(1.0,0.88,0.60), dot(col,LUM)*1.10), 0.28);
+        }
         if (uSelected >= 0.0 && abs(id - uSelected) < 0.5) {
-          col = mix(col, vec3(1.0,0.86,0.52), 0.20 + 0.10*sin(uTime*3.0));
-          if (b > 0.35) col = mix(col, vec3(1.0,0.90,0.60), 0.85);
+          col = mix(col, atLuma(vec3(1.0,0.80,0.38), dot(col,LUM)*1.28), 0.40);
+          col += vec3(0.030,0.024,0.008) * (0.5 + 0.5*sin(uTime*3.0));
+          if (b > 0.25) col = mix(col, vec3(0.85,0.58,0.16), 0.9);
         }
 
         col *= 1.0 - smoothstep(2.0, 0.0, vH) * 0.10;
