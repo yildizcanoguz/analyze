@@ -20,7 +20,8 @@ import {
   styleOf, primaryTitle, vassalsOf, realmLevy, levyOf, countiesOf, titleName, incomeOf,
 } from '../sim/realm.js';
 import {
-  opinionBreakdown, opinionOf, discontent, discontentReason, topGrievance, LINE, opinionInYears,
+  opinionBreakdown, opinionOf, discontent, discontentReason, topGrievance, grievanceSentence,
+  LINE, opinionInYears,
 } from '../sim/opinion.js';
 import {
   KIND, factionsAgainst, factionOf, factionPower, loyalPower, factionRatio,
@@ -480,7 +481,7 @@ function liegeBlock(liege, p) {
     .sort((a, b) => opinionOf(a.id, liege.id) - opinionOf(b.id, liege.id)).slice(0, 8);
   const mine = opinionOf(p.id, liege.id);
   const his = opinionOf(liege.id, p.id);
-  const g = topGrievance(p.id, liege.id);
+  const g = grievanceSentence(p.id, liege.id);
   const fs = factionsAgainst(liege.id);
   return `<section class="p09sec"><h3>Senin Efendin</h3>
     <div class="p09liege">
@@ -488,7 +489,7 @@ function liegeBlock(liege, p) {
       <div class="p09rowWho">
         <div class="p09name">${esc(fullName(liege))}</div>
         <div class="p09meta">${esc(styleOf(liege))} · ${age(liege)} · ${esc(nominalLevy(liege.id))} asker</div>
-        ${g ? `<div class="p09note">Sen ona bakarken bunu düşünüyorsun: “${esc(g.label)}”</div>` : ''}
+        ${g ? `<div class="p09note">Sen ona bakarken bunu düşünüyorsun: ${esc(g)}.</div>` : ''}
       </div>
       <div class="p09op ${opClass(his)}" data-op="${liege.id}:${p.id}">${his > 0 ? '+' : ''}${his}<span>sana bakışı</span></div>
       <div class="p09op ${opClass(mine)}" data-op="${p.id}:${liege.id}">${mine > 0 ? '+' : ''}${mine}<span>senin bakışın</span></div>
